@@ -26,6 +26,7 @@ setInterval(()=>{
   if(!telegramReady||service.stopping) return;
   try {service.auth.tick();if(service.auth.ready)service.workers();service.schedules();} catch {console.error('Scheduler tick failed');}
   void service.conversation(service.auth.ready);void service.deliver();
+  void service.mail?.tick();
   service.state=Date.now()-lastPoll>120000?'degraded:telegram':service.auth.health;
 },1000).unref();
 console.log('Assistant started; configuration values and credentials are not logged');

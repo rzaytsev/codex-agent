@@ -1,5 +1,9 @@
 # Deployment and multiple agents
 
+For inter-instance and laptop communication, opt into the separate
+[agent mailbox](agent-messaging.md), preserving existing instance mounts and
+Compose project identities.
+
 ## Public source and private instances
 
 ```text

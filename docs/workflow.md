@@ -35,6 +35,11 @@ The transcript is persistent. Context rotation/compaction can happen underneath 
 
 ## Worker lifecycle
 
+[Peer task requests](agent-messaging.md) are saved without execution until the
+receiving owner sends `/mail accept ID` directly. Only then do they enter the
+worker lifecycle below. Terminal status returns to the sender; results stay
+private until explicitly shared.
+
 A worker receives objective, relevant context, model/reasoning profile, workspace ownership, permitted resources, budget/timeout, and observable completion criteria.
 
 The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states.

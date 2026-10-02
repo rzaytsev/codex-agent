@@ -1,5 +1,9 @@
 # Shared assistant skills
 
+The optional [agent-messaging](../shared-skill/agent-messaging/SKILL.md) skill is
+installed separately on laptops and uses scripts over SSH. Container assistants
+use their existing tool bridge. See [agent messaging](agent-messaging.md).
+
 The Compose service mounts five gstack-inspired adaptations read-only into every
 instance's `.agents/skills/` directory. Source is in `shared-skill/`; each skill's
 ORIGIN.md records the pinned upstream revision and included MIT license. These

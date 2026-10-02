@@ -1,5 +1,10 @@
 # Configuration reference
 
+Optional messaging uses `MAILBOX_ID`, `MAILBOX_URL` and `MAILBOX_TOKEN` together
+with exactly one owner. Omit all three to disable it. The token is private and
+excluded from model subprocess environment construction. See
+[agent messaging](agent-messaging.md) for broker enrollment and networking.
+
 Use templates/agent.env.example as the authoritative creation template and
 src/config.js for application validation. Each private instance has its own
 agent.env. Recreate its container after env changes. Empty model names use the

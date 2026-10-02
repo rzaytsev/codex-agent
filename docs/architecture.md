@@ -12,6 +12,9 @@ flowchart TD
   Service <--> Main[Main Codex SDK turn]
   Service <--> Workers[Bounded SDK worker turns]
   Main <--> MCP[Capability-scoped assistant MCP]
+  Service <--> Mailbox[Optional private mailbox service]
+  Mailbox <--> Peers[Other assistant services]
+  Laptop[Laptop skill scripts] <-->|SSH| Mailbox
   Workers <--> MCP
   MCP <--> Service
   Main --> Browser[Isolated browser MCP per turn]
@@ -50,6 +53,11 @@ boundaries and queued alongside text/voice. The durable outbox performs delivery
 rate-limit retry and uncertain-outcome classification. Queued is not sent.
 
 ## Durable data
+
+Optional [agent messaging](agent-messaging.md) adds a separate broker database
+and local mail inbox/outbox tables. Peer messages queue owner notifications
+without entering the main model conversation. Direct owner acceptance creates
+a worker for a saved task request. Laptop scripts use JSON over SSH to the broker.
 
 ```text
 <external-data-root>/NAME/

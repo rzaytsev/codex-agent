@@ -51,6 +51,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 ## Documentation
 
 - [Deployment](docs/deployment.md): creation, private seeds, mounts and upgrades.
+- [Agent messaging](docs/agent-messaging.md): private bot mailboxes and laptop SSH skill.
 - [Privacy and publication](docs/privacy.md): public/private boundaries and checks.
 - [Security and reliability](docs/security-reliability.md): trust boundaries, failure handling and review limits.
 - [Feature inventory](docs/features.md): complete behavior and acceptance map.

@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import { Mailbox, mailboxServer } from './mailbox.js';
+process.umask(0o077);
+const config=JSON.parse(fs.readFileSync('/run/mailbox/config.json','utf8'));
+const mailbox=new Mailbox('/data/mailbox.sqlite',config);
+const server=mailboxServer(mailbox);
+server.requestTimeout=10000;server.headersTimeout=10000;
+server.listen(8766,'0.0.0.0');
+for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>server.close(()=>{mailbox.db.close();process.exit(0);}));
+console.log('Mailbox started; credentials and message bodies are not logged');

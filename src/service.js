@@ -10,6 +10,7 @@ import { chunks } from './telegram.js';
 import { Locations, LOCATION_HEADING } from './location.js';
 import { pythonEnvironment } from './python.js';
 import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
+import { AgentMail } from './agent-mail.js';
 export function nextCron(cron,timezone,from=Date.now()) { return CronExpressionParser.parse(cron,{tz:timezone,currentDate:new Date(from),strict:false}).next().getTime(); }
 export function dueTime(args,timezone) {
   if(Boolean(args.cron)===Boolean(args.due)) throw new Error('Supply exactly one of due or cron');
@@ -29,6 +30,7 @@ export class Service {
   async init() {
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
+    if(this.cfg.mail)this.mail=new AgentMail(this.cfg,this.store);
     for(const name of ['SOUL.md','AGENTS.md','USER.md']) {
       const dest=path.join(this.cfg.workspace,name);
       let source=path.resolve('templates',name);
@@ -43,6 +45,7 @@ export class Service {
     const tools=await fs.readFile(path.resolve('templates','TOOLS.md'),'utf8');
     if(!(await fs.readFile(instructions,'utf8')).includes('## Python, documents, and artifacts')) await fs.appendFile(instructions,'\n'+tools);
     if(!(await fs.readFile(instructions,'utf8')).includes('## Shared assistant workflows')) await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','SKILLS.md'),'utf8'));
+    if(this.cfg.mail&&!(await fs.readFile(instructions,'utf8')).includes('## Agent messaging'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','MESSAGING.md'),'utf8'));
     const content=await fs.readFile(instructions,'utf8'),policy=await fs.readFile(path.resolve('templates','MEMORY.md'),'utf8');
     if(!content.includes(MEMORY_HEADING)) {
       const lines=content.split('\n'),start=lines.findIndex(line=>line.trim()==='## Durable memory v1');let updated;
@@ -112,6 +115,11 @@ export class Service {
     const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read'];
     if((memoryReview&&!reads.includes(name))||(worker&&![...reads,'memory_save'].includes(name))) throw new Error('Worker tool not allowed');
     switch(name) {
+      case 'mail_agents': if(!this.mail)throw new Error('Messaging disabled');return this.mail.call('list',{},signal);
+      case 'mail_send': if(!this.mail)throw new Error('Messaging disabled');return this.mail.send(args);
+      case 'mail_inbox': if(!this.mail)throw new Error('Messaging disabled');return this.mail.inbox();
+      case 'mail_read': if(!this.mail)throw new Error('Messaging disabled');return this.mail.read(args.id);
+      case 'mail_status': if(!this.mail)throw new Error('Messaging disabled');return this.mail.status(args.id,signal);
       case 'history_search': {
         const since=args.since?Date.parse(args.since):0;if(!Number.isFinite(since)) throw new Error('Invalid date');
         return this.store.search(user,String(args.query || ''),since);
@@ -179,13 +187,29 @@ export class Service {
       if(!added) return false;
       const command=message.text?.trim();
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
-      if(this.auth&&(authCommand||(!message.forward_origin&&command==='/start'&&this.auth.status==='signed_out'))) {
+      if(command==='/mail'||command?.startsWith('/mail ')) {
+        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        let text;
+        try {
+          if(!this.mail)throw new Error('Messaging is not configured.');
+          const [,action,id,...extra]=command.split(/\s+/);
+          if(extra.length)throw new Error('Use /mail, /mail read ID, /mail accept ID or /mail reject ID.');
+          if(!action)text=this.mail.inbox().map(r=>`${r.id}: ${r.kind} from ${r.sender} (${r.state})${r.job_id?` task ${r.job_id}`:''}`).join('\n')||'No incoming agent messages.';
+          else if(action==='read'&&id){const r=this.mail.read(id);text=`From ${r.sender}; ${r.kind}; ${r.state}\nContext: ${r.context}\n${r.text}`;}
+          else if(['accept','reject'].includes(action)&&id) {
+            if(message.forward_origin)throw new Error('Send acceptance or rejection directly; forwarded commands cannot authorize work.');
+            const result=this.mail.decide(id,action==='accept');
+            text=`Request ${id}: ${result.state}${result.job_id?`; task ${result.job_id}`:''}.`;
+          } else throw new Error('Use /mail, /mail read ID, /mail accept ID or /mail reject ID.');
+        } catch {text='Mailbox command unavailable or invalid. Use /mail, /mail read ID, /mail accept ID or /mail reject ID. Acceptance must be sent directly by this bot’s owner.';}
+        for(const part of chunks(text))this.store.enqueue(user,{text:part});
+      } else if(this.auth&&(authCommand||(!message.forward_origin&&command==='/start'&&this.auth.status==='signed_out'))) {
         this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /auth directly to manage your login; forwarded commands cannot change it.'});
         else this.auth.command(command);
       } else if(command==='/help'||command==='/status'||command==='/stop'||command==='/cancel'||command?.startsWith('/cancel ')) {
         let text;
-        if(command==='/help') text='Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
+        if(command==='/help') text='Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
         else if(command==='/status') text=this.statusText(user);
         else if(command==='/stop') {
           const ctrl=this.mainUser===user?this.controllers.get('main'):undefined;

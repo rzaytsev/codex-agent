@@ -5,6 +5,11 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Optional authenticated agent mailbox, saved task requests with direct owner
+  acceptance, attributed replies/status, and a laptop skill over SSH. Source
+  tests cover isolation and recovery; live acceptance is instance-specific.
+  See [agent messaging](agent-messaging.md).
+
 - Telegram /auth sign-in, replacement, status/cancel and signed-out /start; managed device-code login with persisted credentials and active-work draining. See [authentication](authentication.md) for recovery and live acceptance limits.
 
 - Node.js 24+ application using pinned Codex TypeScript SDK/CLI 0.159.2. This resolves the original app-server proposal in favor of a smaller SDK integration; application-owned MCP tools provide scheduling and orchestration.

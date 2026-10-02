@@ -1,5 +1,9 @@
 # Optional encrypted host backups
 
+With [agent messaging](agent-messaging.md), instance snapshots include local mail
+tables. The separate broker database and private identity config require their
+own consistent backup; existing per-agent mount inventory does not include them.
+
 The Linux host can run Restic independently of agent reasoning. Each configured
 instance has a separate repository, password and hourly systemd timer. This
 source does not imply that backups are installed on your host.

@@ -22,7 +22,13 @@ export function config(env = process.env) {
     } catch { throw new Error(`Invalid ${name}`); }
     return value;
   };
-  return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles,
+  let mail;
+  if(env.MAILBOX_URL||env.MAILBOX_TOKEN||env.MAILBOX_ID) {
+    const url=new URL(env.MAILBOX_URL);
+    if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/'||!env.MAILBOX_TOKEN||env.MAILBOX_TOKEN.length<32||!/^[a-z][a-z0-9-]{0,63}$/.test(env.MAILBOX_ID||'')||allowed.size!==1)throw new Error('Invalid mailbox configuration');
+    mail={url:url.origin,token:env.MAILBOX_TOKEN,id:env.MAILBOX_ID};
+  }
+  return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
     workspace: path.resolve(env.WORKSPACE_DIR || './workspace'), codexHome: path.resolve(env.CODEX_HOME || './.codex-data'),
     seedDir: env.SEED_DIR ? path.resolve(env.SEED_DIR) : undefined,
     pythonBase: env.WORKSPACE_PYTHON_BASE || '',

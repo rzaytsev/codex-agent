@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+umask 077
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export MAILBOX_CONFIG_DIR=${MAILBOX_CONFIG_DIR:-$root/private/mailbox}
+[ -f "$MAILBOX_CONFIG_DIR/mailbox.env" ] || { echo 'Mailbox configuration missing' >&2; exit 1; }
+compose() { docker compose --project-directory "$root" --env-file "$MAILBOX_CONFIG_DIR/mailbox.env" -f "$root/compose.mailbox.yaml" "$@"; }
+case "${1:-}" in
+  request) [ "$#" -eq 1 ]; compose exec -T mailbox node src/mailbox-cli.js ;;
+  config) [ "$#" -eq 1 ]; compose config --quiet ;;
+  up) [ "$#" -eq 1 ]; compose up -d --force-recreate ;;
+  ps) [ "$#" -eq 1 ]; compose ps ;;
+  *) echo 'Usage: bin/mailbox {request|config|up|ps}' >&2; exit 2 ;;
+esac

@@ -1,0 +1,36 @@
+name: codex-agent-mailbox
+services:
+  mailbox:
+    image: codex-personal-assistant:0.1.0
+    command: [node, src/mailbox-main.js]
+    restart: unless-stopped
+    init: true
+    volumes:
+      - type: bind
+        source: ${MAILBOX_CONFIG_DIR:?Select mailbox configuration}/config.json
+        target: /run/mailbox/config.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${MAILBOX_DATA_PATH:?Set persistent mailbox data path}
+        target: /data
+        bind: {create_host_path: false}
+    networks: [mail]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8766/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: '2'}
+networks:
+  mail:
+    external: true
+    name: codex-agent-mail

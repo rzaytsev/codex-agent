@@ -67,6 +67,18 @@ merely by installing the runtime. Deployment and publication require authorizati
   Reset the model thread after completed or uncertain login attempts while
   preserving owner-bound local data. See [authentication](authentication.md).
 
+## Agent messaging (2026-10-02)
+
+- Optional central SQLite mailbox with authenticated clients and mutual peer
+  allowlists; existing instances retain separate owners and private state.
+- Laptop access uses a skill and scripts over SSH, with no new MCP server.
+  Container agents extend the existing assistant tools.
+- Peer intake saves and notifies, without model execution. Task requests await
+  direct receiving-owner `/mail accept ID` before creating one worker.
+- Stable request IDs support transport retries. Receipts/status are automatic;
+  selected results require explicit replies. No automatic reply loops.
+- See [agent messaging](agent-messaging.md) for limits and acceptance.
+
 ## Superseded alternatives and deferred work
 
 The original app-server-first/Python proposal was replaced by the smaller Node.js
