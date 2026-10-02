@@ -1,0 +1,54 @@
+name: codex-agent-${AGENT_NAME:?Select an instance with bin/agent}
+services:
+  assistant:
+    build: .
+    image: codex-personal-assistant:0.1.0
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${AGENT_ENV_FILE:?Select an instance env file}
+    environment:
+      WORKSPACE_DIR: /workspace
+      CODEX_HOME: /data/codex
+      HOME: /workspace/state/home
+      SEED_DIR: /run/agent-seed
+    volumes:
+      - type: bind
+        source: ${WORKSPACE_HOST_PATH:?Set instance workspace path}
+        target: /workspace
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${CODEX_HOST_PATH:?Set instance Codex path}
+        target: /data/codex
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${AGENT_INSTANCE_DIR:?Select an instance with bin/agent}/seed
+        target: /run/agent-seed
+        read_only: true
+        bind: {create_host_path: false}
+      - ./shared-skill/google-maps:/workspace/.agents/skills/google-maps:ro
+      - ./shared-skill/project-manager:/workspace/.agents/skills/project-manager:ro
+      - ./shared-skill/learn:/workspace/.agents/skills/learn:ro
+      - ./shared-skill/scrape:/workspace/.agents/skills/scrape:ro
+      - ./shared-skill/skillify:/workspace/.agents/skills/skillify:ro
+      - ./shared-skill/investigate:/workspace/.agents/skills/investigate:ro
+      - ./shared-skill/planning:/workspace/.agents/skills/planning:ro
+    tmpfs:
+      - /tmp:size=512m,exec
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 4g
+    cpus: 2.0
+    shm_size: 512m
+    pids_limit: 512
+    stop_grace_period: 30s
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8765/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: '3'}

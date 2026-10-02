@@ -1,0 +1,96 @@
+# Design decisions
+
+## Implemented choices
+
+- One Telegram owner per instance, with isolated workspace, state and Codex home.
+- Node.js 24+, pinned Codex SDK/CLI, service-owned MCP tools and SQLite.
+- ChatGPT authentication; no automatic API-key billing fallback.
+- Private Telegram chats, numeric owner checks, long polling and durable delivery.
+- Local Whisper/eSpeak voice tools; optional providers require explicit setup.
+- One main conversation plus bounded worker jobs; configurable model profiles.
+- Personal character/profile files and private generated skills.
+- A public reusable source tree, ignored private instance configuration, and
+  persistent data outside source sync. Configuration is never baked into images.
+- Separate Compose projects selected by a launcher; shared public skills read-only.
+- Public examples use synthetic names and neutral defaults. Real host paths,
+  account connections, operational history and migrations remain private.
+
+## Operator decisions
+
+Each operator selects bot names, owner, timezone, model profiles, source mounts,
+account connections, notification cadence, backup locations and off-host policy.
+Standing authority for external actions and comprehensive transcript/backup
+retention must be chosen deliberately. Optional connectors are not configured
+merely by installing the runtime. Deployment and publication require authorization.
+
+## Structured memory (2026-10-02)
+
+- Keep the compact profile and personality separate from facts, project context,
+  episodes and procedures. SQLite owns records and revisions; Markdown views
+  make them inspectable and compatible with host backups.
+- Start with local FTS5 retrieval, explicit evidence and revision-checked
+  corrections. Add semantic retrieval only after measured recall misses justify
+  another runtime dependency/provider.
+- Capture useful memories during work, then consolidate collected evidence
+  quietly at 03:15 daily and Sunday 03:45 in the instance timezone. Existing
+  cleanup and motivational reflection jobs retain their separate purposes.
+- Use read-only model proposals with atomic service-applied batches/checkpoints.
+  A summary is not independent confirmation. Do not delete records solely for age.
+- See [memory.md](memory.md) for implemented behavior and limits, and
+  [memory-research.md](memory-research.md) for the primary research.
+
+## Reliability hardening (2026-10-02)
+
+- Keep supplied filenames as provenance; use generated attachment storage names
+  in a separate directory to prevent collisions with service metadata.
+- Propagate cancellation across preparation, model and voice work. Revoke turn
+  capabilities even when setup fails. Prepare final responses before committing
+  delivery entries and history atomically; already performed actions remain real.
+- Treat malformed send responses as uncertain delivery to avoid blind duplicates.
+  Select eligible deliveries before batching so quiet-hour backlog cannot block
+  requested replies; skipped maintenance does not consume worker capacity.
+- Validate configured cron expressions at startup and reconcile reflection
+  configuration without resurrecting unchanged, explicitly cancelled schedules.
+- Use additive indexes for growing durable queues rather than deleting history
+  or introducing a separate queue service.
+- Preserve the single-container autonomy model and state its limits explicitly.
+  See [security and reliability](security-reliability.md) for verification and
+  remaining runtime boundaries.
+
+## Telegram authentication (2026-10-02)
+
+- Retain SDK model turns; use native app-server device-code login for the owner
+  command and first-start setup. Codex owns OAuth, token storage and refresh.
+- Drain active model work before changing credentials; keep the current login
+  until native authorization succeeds. Recheck after cancellation or restart.
+- Persist only attempt markers/references, never one-time codes in the outbox.
+  Reset the model thread after completed or uncertain login attempts while
+  preserving owner-bound local data. See [authentication](authentication.md).
+
+## Agent messaging (2026-10-02)
+
+- Optional central SQLite mailbox with authenticated clients and mutual peer
+  allowlists; existing instances retain separate owners and private state.
+- Laptop access uses a skill and scripts over SSH, with no new MCP server.
+  Container agents extend the existing assistant tools.
+- Peer intake saves and notifies, without model execution. Task requests await
+  direct receiving-owner `/mail accept ID` before creating one worker.
+- Stable request IDs support transport retries. Receipts/status are automatic;
+  selected results require explicit replies. No automatic reply loops.
+- See [agent messaging](agent-messaging.md) for limits and acceptance.
+
+## Superseded alternatives and deferred work
+
+The original app-server-first/Python proposal was replaced by the smaller Node.js
+SDK implementation with service-owned MCP. Focused app-server helpers remain for
+authentication, usage and metadata. Multiple owners in one container were removed in favor of
+strict single-owner isolation and flat memory directories. A default root .env
+was replaced by explicit instances, now under private/instances. Mutable public
+skills were replaced by read-only public mounts and deliberate private copies.
+
+Persistent browser login, live turn steering, automatic reasoning escalation,
+semantic memory search, neural voice and comprehensive erasure remain deferred.
+Reflection notifications depend on useful findings and quiet hours; their quality
+and all-source coverage require real authorized connections. Full autonomy is
+within granted resources and standing user instructions, not blanket authority
+for a development agent or content retrieved from tools.

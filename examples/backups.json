@@ -1,0 +1,8 @@
+{
+  "source": "/srv/codex-agent",
+  "backup_root": "/srv/agent-backups",
+  "password_root": "/etc/codex-agent/backup-keys",
+  "state_root": "/var/lib/codex-agent-backup",
+  "restic": "/usr/local/bin/restic",
+  "instances": ["demo"]
+}

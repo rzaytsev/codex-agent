@@ -1,0 +1,9 @@
+# Merge into each enrolled instance's private compose.override.yaml.
+services:
+  assistant:
+    networks: [default, mail]
+networks:
+  default: {}
+  mail:
+    external: true
+    name: codex-agent-mail

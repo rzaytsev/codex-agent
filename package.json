@@ -1,0 +1,22 @@
+{
+  "name": "codex-personal-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --check src/main.js && node --check src/service.js && node --check src/mcp.js && node --check src/auth.js && node --check src/codex-account.js && node --check src/mailbox.js && node --check src/mailbox-main.js && node --check src/mailbox-cli.js && node --check src/agent-mail.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "@openai/codex": "0.159.2",
+    "@openai/codex-sdk": "0.159.2",
+    "@playwright/mcp": "0.0.83",
+    "cron-parser": "5.5.0",
+    "zod": "4.6.5"
+  }
+}

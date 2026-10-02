@@ -1,0 +1,15 @@
+[Unit]
+Description=Restic backup for Codex agent %i
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/local/sbin/codex-agent-backup %i
+TimeoutStartSec=2h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+Environment=GOMAXPROCS=2
