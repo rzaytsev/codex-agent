@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Restic backup for Codex agent %i
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=5m
+Persistent=true
+Unit=codex-agent-backup@%i.service
+
+[Install]
+WantedBy=timers.target

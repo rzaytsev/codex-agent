@@ -1,0 +1,38 @@
+#!/bin/sh
+set -eu
+umask 077
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+usage() { echo 'Usage: bin/agent {create|up|login|config|ps|logs|exec|run|build|start|stop|restart|down} NAME [arguments]' >&2; exit 2; }
+[ "$#" -ge 2 ] || usage
+action=$1
+name=$2
+shift 2
+case "$name" in ''|[!a-z]*|*[!a-z0-9-]*) usage ;; esac
+[ "${#name}" -le 32 ] || usage
+if [ "$action" = create ]; then
+  exec node "$root/scripts/create-agent.js" "$name" "$@"
+fi
+instance=$root/private/instances/$name
+[ -f "$instance/agent.env" ] && [ -d "$instance/seed" ] || { echo 'Instance configuration or seed directory is missing.' >&2; exit 1; }
+export AGENT_NAME="$name" AGENT_ENV_FILE="$instance/agent.env" AGENT_INSTANCE_DIR="$instance"
+# Host-shell values must not silently select a different bot's persistence.
+unset WORKSPACE_HOST_PATH CODEX_HOST_PATH COMPOSE_FILE COMPOSE_PROFILES
+cd "$root"
+compose() {
+  if [ -f "$instance/compose.override.yaml" ]; then
+    docker compose --project-directory "$root" --env-file "$AGENT_ENV_FILE" -p "codex-agent-$name" -f "$root/compose.yaml" -f "$instance/compose.override.yaml" "$@"
+  else
+    docker compose --project-directory "$root" --env-file "$AGENT_ENV_FILE" -p "codex-agent-$name" -f "$root/compose.yaml" "$@"
+  fi
+}
+case "$action" in
+  up)
+    build=true
+    for option in "$@"; do [ "$option" != --no-build ] || build=false; done
+    if [ "$build" = true ]; then compose up -d --build "$@"; else compose up -d "$@"; fi
+    ;;
+  login) [ "$#" -eq 0 ] || usage; compose exec assistant node_modules/.bin/codex login --device-auth ;;
+  config) [ "$#" -eq 0 ] || usage; compose config --quiet ;;
+  ps|logs|exec|run|build|start|stop|restart|down) compose "$action" "$@" ;;
+  *) usage ;;
+esac

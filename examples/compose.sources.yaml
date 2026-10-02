@@ -1,0 +1,10 @@
+# Copy to private/instances/NAME/compose.override.yaml and replace the host path.
+# Relative sources resolve from the repository root, not this override's folder.
+services:
+  assistant:
+    volumes:
+      - type: bind
+        source: /srv/personal-documents
+        target: /sources/documents
+        read_only: true
+        bind: {create_host_path: false}

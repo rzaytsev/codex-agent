@@ -1,0 +1,82 @@
+# Feature inventory and acceptance map
+
+This catalog reconciles the original product decisions with current source.
+Implemented means code exists; the tests listed cover specific behavior, not a
+blanket claim that all user flows work on every deployment. Personal operational
+receipts are excluded. Consult [implementation](implementation.md) for limits.
+
+| Feature / decision | Current behavior | Code and verification entry point |
+| --- | --- | --- |
+| ChatGPT subscription runtime | Pinned Codex SDK/CLI; forced ChatGPT login; no API-key fallback; account/model eligibility still applies | `src/agent.js`, `src/main.js`; `test/integration.test.js`, `test/usage.test.js` |
+| Telegram ChatGPT login | /auth sign-in/replacement, status/cancel, first-start prompt, persistent credentials, drain active work and expire stale codes | [Authentication](authentication.md); `src/auth.js`, `src/codex-account.js`; `test/auth.test.js` |
+| Multiple independent bots | One token, owner, Compose project, workspace and Codex home per instance; shared image | `bin/agent`, `compose.yaml`; `test/instances.test.js` |
+| Private configuration | Ignored env, optional override, optional three-file profile seed; external persistent data | [Deployment](deployment.md), [privacy](privacy.md); instance/seed tests |
+| Owner privacy | Private chats only, sender must equal private recipient, one numeric owner; unknown input ignored before persistence/download | `src/config.js`, `src/service.js`; `test/assistant.test.js`, `test/memory.test.js` |
+| Main conversation | Configurable model, low default reasoning; saved Codex thread; /new resets thread while retaining durable data | `src/agent.js`, `src/service.js`; assistant/integration tests |
+| Background work | Worker/research/review profiles, bounded concurrency/timeouts, task state, completion events and files | `src/service.js`; assistant/progress/tooling tests |
+| Commands and cancellation | /help, /auth, /usage, /status, /new, /cancel, /stop, /location; /start begins login if signed out, otherwise onboarding conversation | `src/telegram.js`, `src/service.js`; progress/usage/location tests |
+| Responsiveness | Typing refreshed every four seconds; upload indicators; no automatic working acknowledgment; queued messages get a queue notice | `src/telegram.js`, `src/service.js`; `test/progress.test.js` |
+| Personality and profile | SOUL.md character; USER.md explicit facts/preferences; empty profile prompts skippable onboarding; atomic profile writes | `templates/AGENTS.md`, `src/service.js`; assistant/seed tests; quality needs real conversations |
+| Structured memory | Facts/projects/episodes/procedures; SQLite + FTS5, versioned corrections, provenance, certainty, generated Markdown | [Memory](memory.md), `src/memory.js`; `test/memory.test.js`, optional `scripts/memory-smoke.js` |
+| Quiet consolidation | Daily/weekly bounded read-only proposals, atomic application/checkpoints, idle scheduling and user interruption | memory/service modules; memory tests; quality needs observation |
+| Proactive reflection | Daily/weekly/monthly review of history plus available authorized sources; coverage tracking, empty replies, quiet hours | `src/service.js`, [workflow](workflow.md); assistant tests |
+| Reminders and scheduled tasks | Durable one-shot/cron schedules in explicit timezone; reminders need no model; tasks use workers | store/service/MCP modules; assistant/backup tests |
+| Text and forwarded input | Preserve text, captions, original files and available forward provenance | `src/media.js`, `src/service.js`; assistant tests |
+| Images and PDFs | Image model input; PDF text extraction; originals retained on error; OCR tools available for agent use | `src/media.js`, Dockerfile; assistant tests and deployed tooling smoke |
+| Voice input/output | CPU faster-whisper input; local eSpeak NG + FFmpeg OGG/Opus output; send_voice queues actual audio | media/Telegram/MCP modules; `test/voice.test.js`; real playback requires acceptance |
+| Deliverables | Structured files from main and workers; photos with document fallback; MIME/filename preservation, path validation and deduplication | service/Telegram modules; `test/tooling.test.js`, progress tests |
+| Browser interaction | Headless Chromium + pinned Playwright MCP; isolated main/worker turn sessions, screenshots/downloads under outputs | `src/agent.js`, `scripts/browser-smoke.js`; integration tests and real browser smoke |
+| Location | Direct pins/live edits; temporary location for strictly 12 hours, then default; explicit place wins; no invented home coordinates | `src/location.js`; `test/location.test.js` |
+| Maps | Optional Google Places/Routes key, separately billed; OpenStreetMap fallback with explicit limitations | `shared-skill/google-maps/`; helper CLI/manual validation |
+| Shared workflows | learn, scrape, skillify, investigate, combined planning and project-manager; generated skills stay private | [Skills](shared-skills.md), `scripts/shared-skills-smoke.js`; runtime discovery/evaluation |
+| Documents and Python | Writable persistent venv; uv, scientific/document libraries, Pandoc, LibreOffice, OCR and system tools | `src/python.js`, Dockerfile; tooling tests and `scripts/tooling-smoke.py` |
+| Daily cleanup | Idle daily maintenance, age thresholds, preserve sensitive/nonreproducible data, private report, yield to intake | `templates/CLEANUP.md`, `src/service.js`; tooling tests; actual deletion choices need runtime review |
+| Optional account tools | Per-instance Codex plugins/MCP and Google connectors; no automatic account grants | [Google services](google-services.md), `scripts/google-status.js`; runtime metadata + authorized operation |
+| Usage reporting | /usage reads subscription windows/reset times via short-lived app-server; typed limit errors; no blind task replay | `src/usage.js`; `test/usage.test.js` |
+| Durable recovery | Persist input before processing; recover interrupted work without replay; explicit uncertain sends | `src/store.js`, `src/service.js`; assistant/integration tests |
+| Cancellation and queue reliability | Abort media/voice work, revoke turn tools on all exits, atomically queue final responses, avoid quiet-hour and maintenance backlog starvation | [Security and reliability](security-reliability.md); media/lifecycle/reliability tests |
+| Host backups | Separate encrypted repositories, hourly timers, month retention, real mount coverage and online SQLite snapshot | [Backups](backups.md); `test/backups.py`, host backup/restore drill |
+
+## Deliberate limits and superseded proposals
+
+- Exactly one owner per container. Earlier multiple-owner allowlists and nested
+  memory/users directories were replaced; legacy files are preserved on migration.
+- JavaScript with the TypeScript SDK is the selected execution path. A full
+  app-server interactive client was an early proposal. App-server is currently
+  used for focused authentication/metadata/usage/discovery helpers.
+- Messages received during a turn are queued. Live steering and automatic
+  main-model reasoning escalation remain unimplemented proposals.
+- Browser login/cookies do not persist between turns. No natural neural TTS or
+  separately billed OpenAI speech/image API is integrated. Built-in image
+  generation is runtime-dependent and has no project end-to-end acceptance claim.
+- Telegram topics/threaded UI are BotFather settings, distinct from internal
+  Codex thread IDs; the app neither creates topics nor sends message_thread_id.
+- Telegram language-specific command menus may override the registered defaults.
+  User voice privacy settings can reject otherwise valid audio.
+- Downloads are capped at 20 MiB; outgoing artifacts at 49 MiB; photo preview
+  threshold is 10 MiB. Albums are handled as separate messages. OCR is agent-led.
+- Generated code has the container's granted access; prompt rules alone are not
+  a filesystem boundary. Curator/worker service restrictions do not constitute
+  strong isolation from arbitrary code running inside that same container.
+- No exactly-once sending, comprehensive erase, semantic/vector memory search,
+  automatic external-account setup or guaranteed full disaster recovery.
+
+See [security and reliability](security-reliability.md) for attachment storage,
+schedule reconciliation, dependency-review scope and remaining trust boundaries.
+
+## Concrete acceptance flows
+
+1. Two synthetic instances resolve to distinct projects, credentials and mounts;
+   private overrides/seeds affect only their selected instance.
+2. A new owner starts /start, supplies a fact, corrects it, then retrieves the
+   correction after restart and /new. The prior value is only historical.
+3. Forward a PDF plus a voice instruction, obtain a saved summary and a scheduled
+   reminder, recreate the container, and confirm original recall/reminder delivery.
+4. Start a worker, keep conversing, request status, cancel it and verify completed
+   external effects are not falsely reported as undone. Send an actual artifact.
+5. Open a page in Chromium, inspect it and receive its real screenshot. Exercise
+   local document conversion and requested voice playback separately.
+6. Verify independent daily cleanup, memory consolidation and reflection schedules,
+   quiet hours, coverage limits and no repeated empty notifications.
+7. Restore a consistent backup into isolated data directories; validate profiles,
+   auth presence, history, schedules, memory and files before any authorized start.

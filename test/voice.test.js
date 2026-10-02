@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { config } from '../src/config.js';
+import { Store } from '../src/store.js';
+import { Service } from '../src/service.js';
+import { Telegram } from '../src/telegram.js';
+
+test('voice tool queues speech for its user and delivery uploads voice, not text or document',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-voice-'));
+  const originalPath=process.env.PATH;
+  const cfg=config({TELEGRAM_ALLOWED_USER_IDS:'123',WORKSPACE_DIR:dir,TTS_VOICE:'en'});
+  const store=new Store(path.join(dir,'test.sqlite'));
+  t.after(async()=>{process.env.PATH=originalPath;store.db.close();await fs.rm(dir,{recursive:true,force:true});});
+  const bin=path.join(dir,'bin');await fs.mkdir(bin);
+  await fs.writeFile(path.join(bin,'espeak-ng'),`#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);if(a[a.indexOf('--')+1]!=='Read the last reply aloud')process.exit(1);fs.writeFileSync(a[a.indexOf('-w')+1],'WAV');`,{mode:0o700});
+  await fs.writeFile(path.join(bin,'ffmpeg'),`#!${process.execPath}\nconst fs=require('fs');const a=process.argv.slice(2);if(a[a.indexOf('-c:a')+1]!=='libopus')process.exit(1);fs.writeFileSync(a.at(-1),'OggS test fixture');`,{mode:0o700});
+  process.env.PATH=bin+path.delimiter+originalPath;
+  const requests=[];
+  const telegram=new Telegram('unused',async(url,options)=>{
+    requests.push({url,body:options.body});return {json:async()=>({ok:true,result:{message_id:1}})};
+  });
+  const service=new Service(cfg,store,telegram,{});await service.init();
+  await assert.rejects(service.tool({user:'123',worker:true},'send_voice',{text:'x'}));
+  await assert.rejects(service.tool({user:'456'},'send_voice',{text:'x'}));
+  for(const text of ['', ' ', 'x'.repeat(12001),42]) await assert.rejects(service.tool({user:'123'},'send_voice',{text}));
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
+  const result=await service.tool({user:'123'},'send_voice',{text:'Read the last reply aloud'});
+  assert.deepEqual(result,{queued:true,format:'ogg/opus'});
+  assert.equal(requests.length,0);
+  const row=store.db.prepare('SELECT * FROM outbox').get();assert.equal(row.user,'123');
+  const payload=JSON.parse(row.payload);assert.equal(payload.type,'voice');
+  assert.equal(await fs.readFile(payload.path,'utf8'),'OggS test fixture');
+  assert.equal(store.search('123').at(-1).text,'Read the last reply aloud');
+  await service.deliver();
+  assert.equal(requests.length,2);assert.match(requests[0].url,/\/sendChatAction$/);assert.equal(JSON.parse(requests[0].body).action,'upload_voice');assert.match(requests[1].url,/\/sendVoice$/);
+  const form=requests[1].body;assert.ok(form instanceof FormData);assert.equal(form.get('chat_id'),'123');
+  assert.equal(form.get('voice').type,'audio/ogg');assert.equal(await form.get('voice').text(),'OggS test fixture');
+  assert.equal(form.has('document'),false);assert.equal(store.db.prepare('SELECT state FROM outbox').get().state,'sent');
+  await fs.writeFile(path.join(bin,'espeak-ng'),`#!${process.execPath}\nprocess.exit(1);`,{mode:0o700});
+  await assert.rejects(service.tool({user:'123'},'send_voice',{text:'Generation should fail'}));
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,1);
+});
