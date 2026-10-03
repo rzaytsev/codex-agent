@@ -4,6 +4,12 @@ The optional [agent-messaging](../shared-skill/agent-messaging/SKILL.md) skill i
 installed separately on laptops and uses scripts over SSH. Container assistants
 use their existing tool bridge. See [agent messaging](agent-messaging.md).
 
+The additional [telegram-read](../shared-skill/telegram-read/SKILL.md) skill uses
+the image's pinned tdl CLI to read bounded Telegram user content after a separate
+interactive owner login. Its mount is read-only; session data remains private and
+per-instance. See [setup and verification](telegram-read.md). The discovery smoke
+below checks it along with the five workflow skills.
+
 The Compose service mounts five gstack-inspired adaptations read-only into every
 instance's `.agents/skills/` directory. Source is in `shared-skill/`; each skill's
 ORIGIN.md records the pinned upstream revision and included MIT license. These
@@ -59,7 +65,7 @@ instance using the deployment instructions. Validate discovery from each:
 ```
 
 The helper uses the pinned Codex app-server `skills/list` metadata endpoint;
-it makes no model call and sends no Telegram message. It must report all five
+it makes no model call and sends no Telegram message. It must report all six
 names enabled at their workspace mount paths. Behavior also needs a real task
 check; metadata alone proves availability, not correct decisions.
 

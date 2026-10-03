@@ -45,6 +45,7 @@ export class Service {
     const tools=await fs.readFile(path.resolve('templates','TOOLS.md'),'utf8');
     if(!(await fs.readFile(instructions,'utf8')).includes('## Python, documents, and artifacts')) await fs.appendFile(instructions,'\n'+tools);
     if(!(await fs.readFile(instructions,'utf8')).includes('## Shared assistant workflows')) await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','SKILLS.md'),'utf8'));
+    if(!(await fs.readFile(instructions,'utf8')).includes('## Telegram account reading'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','TELEGRAM-READ.md'),'utf8'));
     if(this.cfg.mail&&!(await fs.readFile(instructions,'utf8')).includes('## Agent messaging'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','MESSAGING.md'),'utf8'));
     const content=await fs.readFile(instructions,'utf8'),policy=await fs.readFile(path.resolve('templates','MEMORY.md'),'utf8');
     if(!content.includes(MEMORY_HEADING)) {
@@ -183,11 +184,17 @@ export class Service {
     if(!authorized(message,this.cfg)) return false;
     const user=String(message.from.id);
     return this.store.transaction(()=>{
-      const added=this.store.ingest(update.update_id,user,message);
+      const tdlCommand=/^\/tdl_auth(?:\s|$)/.test(message.text?.trim()||'');
+      // Control commands never enter model history; discard any unsolicited secret arguments.
+      const added=this.store.ingest(update.update_id,user,tdlCommand?{message_id:message.message_id,text:['/tdl_auth','/tdl_auth status','/tdl_auth cancel'].includes(message.text.trim())?message.text.trim():'/tdl_auth invalid'}:message);
       if(!added) return false;
       const command=message.text?.trim();
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
-      if(command==='/mail'||command?.startsWith('/mail ')) {
+      if(tdlCommand&&this.tdlAuth) {
+        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        if(message.forward_origin)this.store.enqueue(user,{text:'Send /tdl_auth directly; forwarded commands cannot change your login.'});
+        else this.tdlAuth.command(command);
+      } else if(command==='/mail'||command?.startsWith('/mail ')) {
         this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
         let text;
         try {
@@ -209,7 +216,7 @@ export class Service {
         else this.auth.command(command);
       } else if(command==='/help'||command==='/status'||command==='/stop'||command==='/cancel'||command?.startsWith('/cancel ')) {
         let text;
-        if(command==='/help') text='Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
+        if(command==='/help') text='Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/tdl_auth — connect your Telegram user account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
         else if(command==='/status') text=this.statusText(user);
         else if(command==='/stop') {
           const ctrl=this.mainUser===user?this.controllers.get('main'):undefined;
@@ -220,6 +227,7 @@ export class Service {
         this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
         for(const part of chunks(text))this.store.enqueue(user,{text:part});
       } else if(this.auth&&!this.auth.ready&&!message.location) this.store.enqueue(user,{text:this.auth.phase!=='idle'?'Your message is queued until login finishes. /auth shows progress; /auth cancel cancels login.':'Your message is queued while ChatGPT login is unavailable. Use /auth to sign in, or /auth status.'});
+      else if(this.tdlAuth?.active&&!message.location) this.store.enqueue(user,{text:'Your message is queued until Telegram user login finishes. /tdl_auth shows the latest QR; /tdl_auth cancel stops login.'});
       else if(this.mainBusy&&!message.location) this.store.enqueue(user,{text:'Your message is queued. I’ll handle it after the current reply. Use /stop if it should replace that work.'});
       if((message.location&&!message.forward_origin) || ['/location','/location default','/location clear'].includes(command)) {
         let text;
@@ -281,6 +289,7 @@ export class Service {
   async conversation(modelReady=true) {
     if(this.mainBusy||this.stopping) return;
     if(this.auth)modelReady=this.auth.ready;
+    if(this.tdlAuth?.active)modelReady=false;
     const input=this.store.db.prepare("SELECT * FROM inputs WHERE state='pending' AND (? OR trim(json_extract(payload, '$.text'))='/usage') ORDER BY created,id LIMIT 1").get(Number(modelReady));
     if(!input) return;
     const maintenance=this.store.db.prepare("SELECT id,prompt FROM jobs WHERE state='running'").all().find(job=>this.idleMaintenance(job));
@@ -318,7 +327,7 @@ export class Service {
     } finally {clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
   }
   workers() {
-    if(this.stopping||(this.auth&&!this.auth.ready)) return;
+    if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
     if(this.store.db.prepare("SELECT id,prompt FROM jobs WHERE state='running'").all().some(job=>this.idleMaintenance(job))) return;
     const active=[...this.controllers.keys()].filter(k=>k!=='main').length;
     let slots=Math.max(0,this.cfg.maxWorkers-active);
@@ -420,6 +429,9 @@ export class Service {
           let payload=JSON.parse(row.payload);
           if(payload.type==='auth') {
             payload=this.auth?.payload(payload.attempt);
+            if(!payload){this.store.db.prepare("UPDATE outbox SET state='expired' WHERE id=?").run(row.id);continue;}
+          } else if(payload.type==='tdl-auth') {
+            payload=this.tdlAuth?.payload(payload.attempt,payload.version);
             if(!payload){this.store.db.prepare("UPDATE outbox SET state='expired' WHERE id=?").run(row.id);continue;}
           } else await this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':payload.type==='file'?'upload_document':'typing');
           await this.telegram.sendPart(row.user,payload);this.store.db.prepare("UPDATE outbox SET state='sent' WHERE id=?").run(row.id);

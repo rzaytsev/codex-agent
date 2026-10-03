@@ -65,6 +65,13 @@ Before the first start, optionally put USER.md, SOUL.md and AGENTS.md in the
 instance's seed directory. Only these three files are used; each is copied only
 when its workspace counterpart is absent. Generic templates fill missing seeds.
 The workspace files become authoritative and remain editable by the agent.
+The separate `seed/plugins.json` is an operator-managed desired plugin list,
+read directly after login on startup; it is not a profile seed. See
+[configuration](configuration.md#desired-plugins). New instances receive an empty
+list. Existing instances can add the file without changing mounts. Remote-catalog
+installation runs at runtime, since build has no instance login and the Codex
+home bind mount hides image-built files at that path. Do not bake authentication
+into the image.
 Seed changes do not replace existing profiles. Managed runtime policy sections
 are still appended/updated by startup. Seed files are mounted read-only into only
 that instance, never copied into the image. Personal context imports belong in
@@ -117,13 +124,18 @@ Inspect source permissions before running either host mutation helper.
 
 ## Voice and attachments
 
+For the owner's other Telegram chats, the image includes tdl and the shared
+telegram-read skill. Use `/tdl_auth` in the owner conversation for QR login, or
+`bin/agent tdl-login NAME` on the host for phone/code/2FA login. Session data lives in the existing persistent workspace;
+no credentials are included in the image. See [Telegram reading](telegram-read.md).
+
 Voice input uses local faster-whisper on CPU. Its model is downloaded on first transcription and cached under the Codex host mount. Choose WHISPER_MODEL and optional WHISPER_LANGUAGE in the instance env. The first download may take time and needs network access. The main agent can call `send_voice` with the text to speak; it generates and queues a Telegram voice message for the requesting user. Workers cannot send voice directly. The structured `voice=true` reply remains supported. Successful tool output means queued, not confirmed delivery. Voice output uses local eSpeak NG and FFmpeg to produce OGG/Opus; it is synthetic/robotic, not a natural neural voice. Set TTS_VOICE (for example en, es, or ru). No OpenAI API key or separate speech API billing is used.
 
 Original media, captions and forward metadata are saved in inbox/. PDF text is extracted with pdftotext; scanned PDFs can be rendered/OCRed by the agent using installed tools. Images are supplied as local image input to Codex. Standard Bot API download limit is capped at 20 MiB here; larger attachments receive an error. Media albums are separate messages in this initial version. Unsupported file formats are preserved for tool/code processing.
 
 ## Telegram command menu
 
-On startup, configured bots replace the default-language command menu with `/help`, `/auth`, `/usage`, `/status`, `/new`, `/cancel`, `/stop`, and `/location` using Telegram `setMyCommands`. Registration covers the default scope, all private chats, and each allowlisted private chat, so older menus in those scopes are overwritten. It runs independently of Codex login. Failures are logged without private details and retried after at least a minute while polling continues. Language-specific menus previously configured in BotFather are not reset by this registration; remove those overrides there if they still appear. Ordinary messages wait for login when signed out; `/start` then starts login. With saved login, `/start` reaches the assistant.
+On startup, configured bots replace the default-language command menu with `/help`, `/auth`, `/tdl_auth`, `/usage`, `/status`, `/new`, `/cancel`, `/stop`, and `/location` using Telegram `setMyCommands`. Registration covers the default scope, all private chats, and each allowlisted private chat, so older menus in those scopes are overwritten. It runs independently of Codex login. Failures are logged without private details and retried after at least a minute while polling continues. Language-specific menus previously configured in BotFather are not reset by this registration; remove those overrides there if they still appear. Ordinary messages wait for login when signed out; `/start` then starts login. With saved login, `/start` reaches the assistant.
 
 ## Saved Telegram locations
 

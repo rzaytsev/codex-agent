@@ -25,6 +25,12 @@ Auth commands are owner-only and forwarded commands cannot authorize login.
 New model work waits while active turns drain and authorization completes;
 plain reminders and delivery continue. See [authentication](authentication.md).
 
+`/tdl_auth`, `/tdl_auth status` and `/tdl_auth cancel` similarly manage the separate
+Telegram user session without model execution. Active work drains; new model
+turns/workers pause. The service sends refreshed QR images, verifies the scanned
+account matches the numeric owner and then saves the session. For 2FA it aborts
+and directs the owner to terminal login. See [Telegram reading](telegram-read.md).
+
 ## Main conversation
 
 The main agent owns dialogue, clarification, delegation, and result presentation. Low reasoning is the default; escalation for complex interpretation or planning is a proposed exception.

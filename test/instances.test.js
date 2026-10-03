@@ -31,6 +31,9 @@ test('instance creation isolates data, keeps restrictive modes and refuses overw
   assert.match(original,/TELEGRAM_BOT_TOKEN=\n/);
   assert.equal((await fs.stat(file)).mode&0o777,0o600);
   assert.equal((await fs.stat(path.dirname(file))).mode&0o777,0o700);
+  const plugins=path.join(root,'private/instances/alpha/seed/plugins.json');
+  assert.deepEqual(JSON.parse(await fs.readFile(plugins,'utf8')),[]);
+  assert.equal((await fs.stat(plugins)).mode&0o777,0o600);
   await assert.rejects(run('create','alpha','--data-root',data));
   assert.equal(await fs.readFile(file,'utf8'),original);
   for(const [name,base] of [['../escape',data],['gamma',root],['gamma',"/tmp/a'quoted"],['gamma','relative']])
@@ -71,6 +74,7 @@ test('Compose resolves two independent instances with private overrides and read
     assert.equal(mounts.find(m=>m.target==='/data/codex').source,path.join(data,name,'codex'));
     assert.equal(mounts.find(m=>m.target==='/run/agent-seed').source,path.join(instance,'seed'));
     assert.equal(mounts.find(m=>m.target==='/workspace/.agents/skills/google-maps').read_only,true);
+    assert.equal(mounts.find(m=>m.target==='/workspace/.agents/skills/telegram-read').read_only,true);
   }
   assert.notEqual(configs[0].name,configs[1].name);
   assert.equal(configs[0].services.assistant.volumes.find(m=>m.target.endsWith('/custom')).source,path.join(root,'private/shared-skills/custom'));

@@ -31,6 +31,8 @@ export function config(env = process.env) {
   return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
     workspace: path.resolve(env.WORKSPACE_DIR || './workspace'), codexHome: path.resolve(env.CODEX_HOME || './.codex-data'),
     seedDir: env.SEED_DIR ? path.resolve(env.SEED_DIR) : undefined,
+    pluginsFile: env.PLUGINS_FILE ? path.resolve(env.PLUGINS_FILE) : env.SEED_DIR ? path.resolve(env.SEED_DIR,'plugins.json') : undefined,
+    pluginsFileRequired: Boolean(env.PLUGINS_FILE),
     pythonBase: env.WORKSPACE_PYTHON_BASE || '',
     cleanupEnabled: env.CLEANUP_ENABLED !== 'false', cleanupCron: cron('CLEANUP_CRON','0 3 * * *'),
     memoryEnabled: env.MEMORY_ENABLED !== 'false', memoryCrons:{daily:cron('MEMORY_DAILY_CRON','15 3 * * *'),weekly:cron('MEMORY_WEEKLY_CRON','45 3 * * 0')}, memoryMaxBatches:integer('MEMORY_MAX_BATCHES',4,1,20),

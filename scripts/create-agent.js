@@ -20,6 +20,8 @@ if(canonical===sourceRoot||canonical.startsWith(sourceRoot+path.sep))throw new E
 await fs.mkdir(path.dirname(directory),{recursive:true,mode:0o700});
 await fs.mkdir(directory,{mode:0o700}); // Exclusive: an existing instance is never overwritten.
 await fs.mkdir(path.join(directory,'seed'),{mode:0o700});
+await fs.copyFile(path.join(root,'templates','plugins.json'),path.join(directory,'seed','plugins.json'));
+await fs.chmod(path.join(directory,'seed','plugins.json'),0o600);
 const base=await fs.readFile(path.join(root,'templates','agent.env.example'),'utf8');
 const content=base.replace(/^AGENT_NAME=.*$/m,`AGENT_NAME=${name}`)
   .replace(/^WORKSPACE_HOST_PATH=.*$/m,`WORKSPACE_HOST_PATH='${path.join(resolved,name,'workspace')}'`)

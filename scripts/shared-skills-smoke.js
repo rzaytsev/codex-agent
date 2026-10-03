@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-const names=['learn','scrape','skillify','investigate','planning'];
+const names=['learn','scrape','skillify','investigate','planning','telegram-read'];
 const workspace=path.resolve(process.env.WORKSPACE_DIR||process.cwd());
 const child=spawn(path.resolve('node_modules/.bin/codex'),['app-server','--stdio'],{cwd:workspace,env:{PATH:process.env.PATH,HOME:process.env.HOME,CODEX_HOME:process.env.CODEX_HOME},stdio:['pipe','pipe','ignore']});
 const lines=createInterface({input:child.stdout});let next=0;const pending=new Map();

@@ -118,7 +118,7 @@ test('Telegram command menu replaces old commands in default, private and allowe
  assert.deepEqual(calls.map(c=>c.body.scope),[{type:'default'},{type:'all_private_chats'},{type:'chat',chat_id:'123'},{type:'chat',chat_id:'456'}]);
  for(const call of calls) {
   assert.equal(call.method,'setMyCommands');
-  assert.deepEqual(call.body.commands.map(c=>c.command),['help','auth','usage','status','new','cancel','stop','location']);
+  assert.deepEqual(call.body.commands.map(c=>c.command),['help','auth','tdl_auth','usage','status','new','cancel','stop','location']);
  }
  telegram.call=async()=>{throw new TelegramError(429);};
  await assert.rejects(telegram.registerCommands(new Set()),TelegramError);

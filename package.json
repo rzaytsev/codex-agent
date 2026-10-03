@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node src/main.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check src/main.js && node --check src/service.js && node --check src/mcp.js && node --check src/auth.js && node --check src/codex-account.js && node --check src/mailbox.js && node --check src/mailbox-main.js && node --check src/mailbox-cli.js && node --check src/agent-mail.js"
+    "check": "node --check src/main.js && node --check src/service.js && node --check src/mcp.js && node --check src/auth.js && node --check src/tdl-auth.js && node --check src/plugins.js && node --check src/codex-account.js && node --check src/mailbox.js && node --check src/mailbox-main.js && node --check src/mailbox-cli.js && node --check src/agent-mail.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",

@@ -5,6 +5,10 @@ COPY requirements-tools.txt /opt/requirements-tools.txt
 RUN uv pip install --python /usr/bin/python3 --break-system-packages --no-cache -r /opt/requirements-tools.txt
 RUN uv venv --python /usr/bin/python3 /opt/speech && uv pip install --python /opt/speech/bin/python --no-cache faster-whisper==1.2.1
 WORKDIR /app
+COPY scripts/install-tdl.sh /tmp/install-tdl.sh
+RUN sh /tmp/install-tdl.sh && rm /tmp/install-tdl.sh
+COPY scripts/tdl-user.py /usr/local/bin/tdl
+RUN chmod 0755 /usr/local/bin/tdl
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY src ./src

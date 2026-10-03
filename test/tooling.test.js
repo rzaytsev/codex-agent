@@ -61,6 +61,8 @@ test('existing custom AGENTS.md preserves content and gains tool and shared-skil
   const {dir,service}=await fixture(t);await fs.writeFile(path.join(dir,'AGENTS.md'),'Custom personality instructions\n');await service.init();await service.init();
   const text=await fs.readFile(path.join(dir,'AGENTS.md'),'utf8');assert.match(text,/Custom personality instructions/);assert.equal(text.split('## Python, documents, and artifacts').length,2);assert.match(text,/\.agents\/skills\/project-manager\/SKILL.md/);
   assert.equal(text.split('## Shared assistant workflows').length,2);
+  assert.equal(text.split('## Telegram account reading').length,2);
+  assert.match(text,/\.agents\/skills\/telegram-read\/SKILL.md/);
   assert.equal(text.split('## Durable memory v2').length,2);
 });
 test('uv creates a writable environment, installs an offline wheel, and preserves it on restart',async t=>{
