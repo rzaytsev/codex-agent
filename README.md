@@ -62,6 +62,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 - [Google services](docs/google-services.md): optional account connections.
 - [Shared skills](docs/shared-skills.md): public and private skill behavior.
 - [Telegram user content](docs/telegram-read.md): tdl installation, separate owner login and reading skill.
+- [Learning](docs/learning.md): automatic adaptation, stable core, questions and rollback.
 - [Memory](docs/memory.md): records, recall, corrections and consolidation.
 - [Requirements](docs/requirements.md), [workflow](docs/workflow.md),
   [architecture](docs/architecture.md), [decisions](docs/decisions.md) and

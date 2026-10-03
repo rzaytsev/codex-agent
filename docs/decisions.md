@@ -120,3 +120,17 @@ Reflection notifications depend on useful findings and quiet hours; their qualit
 and all-source coverage require real authorized connections. Full autonomy is
 within granted resources and standing user instructions, not blanket authority
 for a development agent or content retrieved from tools.
+
+## Automatic learning within a stable core (2026-10-03)
+
+- Retain user-chosen goals, privacy and authority in an image-owned core supplied
+  after editable instructions on each SDK turn. Ordinary full-access code retains
+  existing filesystem/account privileges; the core is not a new execution sandbox.
+- Learn through small sourced deltas, independent proposal/validation turns and
+  service-owned SQLite revisions. Preserve custom profiles and use marked projections.
+- Start operating lessons as scoped trials. Promote only with later evidence, and
+  retire harmful changes on explicit feedback. Validation is not proof of benefit.
+- Keep useful knowledge-gap questions durable, offer once within a daily limit,
+  honor quiet hours/dismissals, and never treat silence as consent.
+- Reuse existing history, jobs, scheduling and delivery; add no provider, vector
+  service or weight training. See [learning](learning.md) and [research](memory-research.md).

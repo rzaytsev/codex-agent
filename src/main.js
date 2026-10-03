@@ -14,7 +14,7 @@ await fs.mkdir(cfg.codexHome,{recursive:true});
 const store=new Store(path.join(cfg.workspace,'state','assistant.sqlite'));
 const telegram=new Telegram(cfg.token);const service=new Service(cfg,store,telegram,null);
 const capability=(...args)=>service.capability(...args);capability.release=t=>service.releaseCapability(t);
-service.agent=new Agent(cfg,store,capability,undefined,service.memory);
+service.agent=new Agent(cfg,store,capability,undefined,service.memory,service.learning);
 await service.init();await service.listen();
 const telegramReady=Boolean(cfg.token && cfg.allowed.size);
 service.auth=new Auth(cfg,store,{busy:()=>service.mainBusy||service.controllers.size>0,

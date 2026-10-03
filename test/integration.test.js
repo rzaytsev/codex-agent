@@ -27,7 +27,7 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
   const client=new Client({name:'integration-test',version:'1.0.0'});
   await client.connect(transport);
   try {
-   const tools=await client.listTools();assert.equal(tools.tools.length,review?6:worker?7:22);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
+   const tools=await client.listTools();assert.equal(tools.tools.length,review?8:worker?9:25);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
    if(!worker) {
     const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research'}});

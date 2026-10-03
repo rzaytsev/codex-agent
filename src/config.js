@@ -36,6 +36,7 @@ export function config(env = process.env) {
     pythonBase: env.WORKSPACE_PYTHON_BASE || '',
     cleanupEnabled: env.CLEANUP_ENABLED !== 'false', cleanupCron: cron('CLEANUP_CRON','0 3 * * *'),
     memoryEnabled: env.MEMORY_ENABLED !== 'false', memoryCrons:{daily:cron('MEMORY_DAILY_CRON','15 3 * * *'),weekly:cron('MEMORY_WEEKLY_CRON','45 3 * * 0')}, memoryMaxBatches:integer('MEMORY_MAX_BATCHES',4,1,20),
+    learningEnabled: env.LEARNING_ENABLED !== 'false', learningCron:cron('LEARNING_CRON','30 3 * * *'), learningMaxBatches:integer('LEARNING_MAX_BATCHES',2,1,10),
     browserEnabled: env.BROWSER_ENABLED !== 'false', browserExecutable: env.BROWSER_EXECUTABLE || '/usr/bin/chromium',
     maxWorkers: integer('MAX_WORKERS',2,1,8), mainTimeout: integer('MAIN_TIMEOUT_SECONDS',180,10,3600), workerTimeout: integer('WORKER_TIMEOUT_SECONDS',1800,10,86400),
     maxBytes: integer('MAX_ATTACHMENT_MB',20,1,20)*1024*1024,

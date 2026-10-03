@@ -307,3 +307,11 @@ a final model result. Cancelling cannot undo actions already executed.
 Ordinary messages are queued, not injected into a running turn. The current SDK
 integration has no live steering path; an app-server turn/steer implementation
 would be a separate change. No /steer command is advertised.
+
+## Learning upgrades
+
+Learning upgrades add SQLite tables/triggers and one managed AGENTS.md routing
+section. Existing owner, Compose identity, data mounts, authentication and custom
+profile sections remain. CORE.md stays in the read-only image; PLAYBOOK.md and marked
+learning sections are generated in the existing workspace. Preserve a consistent
+SQLite backup and instruction snapshot before recreation. See [learning](learning.md).

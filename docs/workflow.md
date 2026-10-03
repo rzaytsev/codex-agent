@@ -103,3 +103,13 @@ Record source coverage, review interval, previous suggestions, dismissals, and f
 Motivation references concrete progress. Distinguish observed patterns from hypotheses about intentions or emotions. Avoid generic praise and unsolicited psychological conclusions.
 
 Configured defaults are daily 19:00, Sunday 18:00 and the first day of each month at 18:00, in the instance timezone, with quiet hours 22:00–08:00. Useful-only replies and avoiding repeated advice are model instructions. Coverage advances on successful reviews. Explicit reminders are not held by proactive quiet hours. Preferences and schedules can be changed; see [configuration](configuration.md).
+
+## Continuous improvement
+
+[Continuous learning](learning.md) reviews collected sessions and ordinary task
+outcomes while idle, validates small adaptations separately, and tracks unproven
+trials through later evidence. It preserves the owner-defined goals and image-owned
+core. Main turns can resolve questions or retire harmful lessons through explicit
+owner feedback. User-facing reflection retains separate source gathering and
+notification semantics. Daily reflections can offer one validated knowledge-gap
+question, once, without treating silence as acceptance.

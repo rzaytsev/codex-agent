@@ -110,3 +110,12 @@ account processes and SDK turns select ChatGPT-only login and file-backed
 credentials in the existing CODEX_HOME. Login attempts have a ten-minute service
 deadline; routine account checks run once per minute. See
 [authentication](authentication.md) for first start and account replacement.
+
+## Continuous learning
+
+LEARNING_ENABLED defaults to true. LEARNING_CRON defaults to `30 3 * * *` in
+TIMEZONE; LEARNING_MAX_BATCHES defaults to 2 (1–10). The idle review is independent
+of memory consolidation and proactive notifications. PROACTIVE_ENABLED controls new
+question offers. Recreate existing instances to inherit defaults while preserving
+profiles, state and account grants. See [learning](learning.md) for trial, rollback,
+coverage and verification boundaries.
