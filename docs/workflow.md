@@ -35,7 +35,7 @@ and directs the owner to terminal login. See [Telegram reading](telegram-read.md
 
 The main agent owns dialogue, clarification, delegation, and result presentation. Low reasoning is the default; escalation for complex interpretation or planning is a proposed exception.
 
-The application serializes turns for the main thread while workers execute independently. New user messages and worker results enter an event queue. Ordinary messages wait for the current turn. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Long jobs should quickly hand control back to the conversation.
+The application serializes turns for the main thread while workers execute independently. New user messages and worker results enter an event queue. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Long jobs should quickly hand control back to the conversation.
 
 The transcript is persistent. Context rotation/compaction can happen underneath a continuous Telegram experience; summaries and durable memory preserve continuity.
 
@@ -48,7 +48,7 @@ private until explicitly shared.
 
 A worker receives objective, relevant context, model/reasoning profile, workspace ownership, permitted resources, budget/timeout, and observable completion criteria.
 
-The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states.
+The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states. The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
 
 Use independent workers for independently executable work. Avoid concurrent writes to the same files. Shared directories need ownership or serialized updates. Workers cannot recursively create jobs through service tools.
 

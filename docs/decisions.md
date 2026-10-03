@@ -134,3 +134,23 @@ for a development agent or content retrieved from tools.
   honor quiet hours/dismissals, and never treat silence as consent.
 - Reuse existing history, jobs, scheduling and delivery; add no provider, vector
   service or weight training. See [learning](learning.md) and [research](memory-research.md).
+
+## Silent busy-turn input queue (2026-10-03)
+
+- Remove the automatic busy-turn queue notice in shared intake code for every
+  instance, without adding a per-instance flag. Durable queuing, ordering, normal
+  replies and owner-controlled `/stop` remain unchanged.
+- Keep authentication readiness notices and explicit task/status/error responses.
+  Live steering remains deferred. Existing containers need an updated image and
+  recreation; synthetic regression tests do not establish Telegram acceptance.
+
+## Natural task-start acknowledgments (2026-10-03)
+
+- Let the main agent supply a short acknowledgment in the current request’s
+  language through `create_task`, avoiding language detection heuristics and a
+  second model call. Persist it with the job and send it unchanged at worker start.
+- Keep the descriptive title and ID for /status. Omit the hardcoded English start
+  wrapper; legacy jobs without an acknowledgment start quietly. The tool and
+  turn instructions ask the main agent to avoid duplicate final acknowledgments.
+- Tests prove exact delivery payloads for Russian, Spanish and English plus
+  persistence and validation. Model language choice still requires live acceptance.

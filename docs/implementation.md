@@ -31,7 +31,13 @@ and operational history are private and are not public runtime evidence.
 
 - Node.js 24+ application using pinned Codex TypeScript SDK/CLI 0.159.2. This resolves the original app-server proposal in favor of a smaller SDK integration; application-owned MCP tools provide scheduling and orchestration.
 - Private-chat numeric allowlist checked before persistence/download; outgoing delivery and tools also enforce the allowlist.
+- Messages arriving during a main turn queue silently in durable input order for
+  all instances. Repeated-intake tests cover eventual replies and deduplication;
+  deployed Telegram acceptance requires updating each instance image.
 - SQLite persistence for inputs, conversation history, thread IDs, jobs, schedules, reflection coverage, and delivery state.
+- Worker start acknowledgments are supplied by the main agent in the request’s
+  language and sent without an ID/status wrapper; /status retains task IDs/titles.
+  Synthetic tests cover persistence and exact output, not model language quality.
 - Main conversation low reasoning by default; asynchronous worker/research/review profiles with configurable models/reasoning and bounded concurrency/timeouts.
 - Authenticated local MCP bridge for history, background jobs, cancellation, profile/personality writes, and reminders/task schedules.
 - USER.md onboarding and ongoing updates through agent instructions and atomic profile tools; SOUL.md behavior configuration. Model adherence needs live acceptance and is not asserted from unit tests.

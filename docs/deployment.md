@@ -295,9 +295,19 @@ artifact delivery. These indicators are best effort and never replace the
 durable result; their API failures don't fail a real message upload.
 
 User turns show typing without sending an automatic working acknowledgment.
-Background tasks have a start notice with their ID and an optional user-facing
-MCP create_task title; scheduled reflections/cleanup avoid routine start notices.
-Messages received during a current reply get a queue notice and remain pending.
+Background tasks send the short natural `create_task` acknowledgment supplied
+by the main agent, in the language of the current request, without a task ID or
+English status wrapper. Task IDs and titles remain available through /status.
+Older tasks without an acknowledgment start quietly; scheduled reflections and
+cleanup avoid routine start notices.
+Messages received during a current reply remain pending without an automatic
+queue notice. This behavior applies to every instance without a configuration flag.
+To update existing instances, build the updated shared image and recreate each
+selected instance with `bin/agent up NAME --force-recreate`, preserving its project
+and mounts. Restart alone retains the old image. Verify each bot with a long
+request followed by multiple messages: those messages should receive replies in
+order without a queue notice. Source tests and image/health checks are separate
+from this live Telegram acceptance.
 
 /help, /status, /stop and /cancel are processed at intake without a model call,
 even while it is busy. /stop aborts only the requesting user's current main turn;

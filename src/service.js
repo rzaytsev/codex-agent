@@ -165,8 +165,10 @@ export class Service {
       case 'create_task': {
         if(!['worker','research','review'].includes(args.profile || 'worker')||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid task');
         if(args.title!==undefined&&(typeof args.title!=='string'||!args.title.trim()||args.title.length>160)) throw new Error('Invalid title');
+        if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
         const id=this.store.job(user,args.prompt,args.profile || 'worker');
         if(args.title) this.store.set(`task-title:${id}`,args.title.trim());
+        if(args.acknowledgment) this.store.set(`task-acknowledgment:${id}`,args.acknowledgment.trim());
         return {id};
       }
       case 'cancel_task': return this.cancelTask(user,args.id);
@@ -245,7 +247,6 @@ export class Service {
         for(const part of chunks(text))this.store.enqueue(user,{text:part});
       } else if(this.auth&&!this.auth.ready&&!message.location) this.store.enqueue(user,{text:this.auth.phase!=='idle'?'Your message is queued until login finishes. /auth shows progress; /auth cancel cancels login.':'Your message is queued while ChatGPT login is unavailable. Use /auth to sign in, or /auth status.'});
       else if(this.tdlAuth?.active&&!message.location) this.store.enqueue(user,{text:'Your message is queued until Telegram user login finishes. /tdl_auth shows the latest QR; /tdl_auth cancel stops login.'});
-      else if(this.mainBusy&&!message.location) this.store.enqueue(user,{text:'Your message is queued. I’ll handle it after the current reply. Use /stop if it should replace that work.'});
       if((message.location&&!message.forward_origin) || ['/location','/location default','/location clear'].includes(command)) {
         let text;
         try {
@@ -355,7 +356,8 @@ export class Service {
       if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.db.prepare("SELECT id FROM inputs WHERE state='pending' LIMIT 1").get())) continue;
       if(!this.cfg.allowed.has(job.user)||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.db.prepare("UPDATE jobs SET state='cancelled' WHERE id=?").run(job.id);continue;}
       this.store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(job.id);
-      if(!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]')) this.store.enqueue(job.user,{text:`Started task ${job.id}: ${this.store.get(`task-title:${job.id}`)||'working on your background request'}. I’ll report the result here.`});
+      const acknowledgment=this.store.get(`task-acknowledgment:${job.id}`);
+      if(acknowledgment&&!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]')) this.store.enqueue(job.user,{text:acknowledgment});
       const ctrl=new AbortController();this.controllers.set(job.id,ctrl);
       void this.runJob(job,ctrl);
       if(--slots===0||this.idleMaintenance(job)) break;

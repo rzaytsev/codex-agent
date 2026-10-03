@@ -27,7 +27,7 @@ test('slow reply uses typing without an acknowledgment; queued input and control
   t.mock.timers.tick(5000);await new Promise(r=>setImmediate(r));
   assert.equal(started,1);assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
   service.ingest(update(2,'Correction'));assert.equal(store.db.prepare('SELECT state FROM inputs WHERE id=2').get().state,'pending');
-  assert(store.db.prepare('SELECT payload FROM outbox').all().some(r=>JSON.parse(r.payload).text.includes('queued')));
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
   const job=store.job('123','Background work');const controller=new AbortController();service.controllers.set(job,controller);
   service.ingest(update(3,'/cancel '+job,456));assert.equal(controller.signal.aborted,false);
   service.ingest(update(4,'/cancel '+job));assert.equal(controller.signal.aborted,true);assert.equal(store.jobs('123')[0].state,'cancelled');
@@ -38,11 +38,59 @@ test('slow reply uses typing without an acknowledgment; queued input and control
   assert.equal(store.db.prepare('SELECT state FROM inputs WHERE id=1').get().state,'cancelled');assert(stopped>=1);
   assert(!store.db.prepare('SELECT payload FROM outbox').all().some(r=>JSON.parse(r.payload).text.includes('Must not send')));
 });
-test('worker start notice identifies the task and its user-facing objective',async t=>{
+test('repeated intake while busy queues silently and processes each message in order',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-silent-queue-'));
+  const cfg=config({WORKSPACE_DIR:dir,TELEGRAM_ALLOWED_USER_IDS:'123',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false'});
+  const store=new Store(path.join(dir,'db'));t.after(async()=>{store.db.close();await fs.rm(dir,{recursive:true,force:true});});
+  let finish;const prompts=[];
+  const agent={run:async(user,text)=>{
+    prompts.push(text);
+    if(prompts.length===1)return new Promise(resolve=>{finish=resolve;});
+    return {text:`Reply ${prompts.length}`,voice:false,files:[]};
+  }};
+  const service=new Service(cfg,store,{},agent);await service.init();
+  service.ingest(update(1,'First request'));const running=service.conversation();
+  for(let i=0;i<500&&!finish;i++)await new Promise(r=>setImmediate(r));assert(finish);
+  for(const id of [2,3,4])assert.equal(service.ingest(update(id,`Follow-up ${id}`)),true);
+  assert.equal(service.ingest(update(3,'Follow-up 3')),false);
+  await service.conversation();assert.equal(prompts.length,1);
+  assert.deepEqual(store.db.prepare("SELECT id FROM inputs WHERE state='pending' ORDER BY created,id").all().map(r=>r.id),[2,3,4]);
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
+  assert.equal(service.controllers.get('main').signal.aborted,false);
+  finish({text:'Reply 1',voice:false,files:[]});await running;
+  for(const id of [2,3,4]) {
+    await service.conversation();
+    assert.equal(store.db.prepare('SELECT state FROM inputs WHERE id=?').get(id).state,'done');
+  }
+  assert.equal(prompts.length,4);
+  for(let i=0;i<3;i++)assert.match(prompts[i+1],new RegExp(`Follow-up ${i+2}`));
+  assert.deepEqual(store.db.prepare('SELECT payload FROM outbox ORDER BY id').all().map(r=>JSON.parse(r.payload).text),['Reply 1','Reply 2','Reply 3','Reply 4']);
+});
+for(const acknowledgment of [
+  'Хорошо, ищу японские рестораны рядом с сохранённой локацией.',
+  'Vale, busco restaurantes japoneses cerca de tu ubicación guardada.',
+  'Okay, I’m looking for Japanese restaurants near your saved location.',
+])test(`worker sends the supplied natural acknowledgment: ${acknowledgment}`,async t=>{
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-task-start-'));const cfg=config({WORKSPACE_DIR:dir,TELEGRAM_ALLOWED_USER_IDS:'123',CLEANUP_ENABLED:'false'});const store=new Store(path.join(dir,'db'));
   t.after(async()=>{store.db.close();await fs.rm(dir,{recursive:true,force:true});});
+  const agent={run:async()=>({text:'Done',voice:false,files:[]})};
+  const service=new Service(cfg,store,{},agent);await service.init();
+  const {id}=await service.tool({user:'123'},'create_task',{prompt:'Find nearby Japanese restaurants',title:'Find Japanese restaurants',acknowledgment});
+  // A queued job retains its acknowledgment across service recreation.
+  const restarted=new Service(cfg,store,{},agent);await restarted.init();restarted.workers();
+  assert.equal(JSON.parse(store.db.prepare('SELECT payload FROM outbox').get().payload).text,acknowledgment);
+  assert.match(restarted.statusText('123'),new RegExp(id));
+  assert.match(restarted.statusText('123'),/Find Japanese restaurants/);
+  restarted.workers();assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,1);
+  for(let i=0;i<50&&restarted.controllers.has(id);i++)await new Promise(r=>setTimeout(r,10));assert.equal(store.jobs('123')[0].state,'completed');
+});
+test('legacy tasks start quietly and invalid acknowledgments create no job',async t=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-task-legacy-'));const cfg=config({WORKSPACE_DIR:dir,TELEGRAM_ALLOWED_USER_IDS:'123',CLEANUP_ENABLED:'false'});const store=new Store(path.join(dir,'db'));
+  t.after(async()=>{store.db.close();await fs.rm(dir,{recursive:true,force:true});});
   const service=new Service(cfg,store,{}, {run:async()=>({text:'Done',voice:false,files:[]})});await service.init();
-  const {id}=await service.tool({user:'123'},'create_task',{prompt:'Review the supplied PDF',title:'Review your PDF'});service.workers();
-  const notice=JSON.parse(store.db.prepare('SELECT payload FROM outbox').get().payload).text;assert(notice.includes(id));assert.match(notice,/Review your PDF/);
+  for(const acknowledgment of ['', '   ', 123, 'x'.repeat(241)])await assert.rejects(service.tool({user:'123'},'create_task',{prompt:'Synthetic task',acknowledgment}),/Invalid acknowledgment/);
+  assert.equal(store.jobs('123').length,0);
+  const {id}=await service.tool({user:'123'},'create_task',{prompt:'Synthetic task',title:'Legacy task'});service.workers();
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
   for(let i=0;i<50&&service.controllers.has(id);i++)await new Promise(r=>setTimeout(r,10));assert.equal(store.jobs('123')[0].state,'completed');
 });

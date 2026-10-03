@@ -30,8 +30,9 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
    const tools=await client.listTools();assert.equal(tools.tools.length,review?8:worker?9:25);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
    if(!worker) {
-    const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research'}});
+    const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.'}});
     assert.equal(created.isError,false);assert.equal(store.jobs('123')[0].profile,'research');
+    assert.equal(store.get(`task-acknowledgment:${store.jobs('123')[0].id}`),'Хорошо, ищу рестораны.');
     const sent=await client.callTool({name:'mail_send',arguments:{id:'mcp-message-test',to:'beta',kind:'message',text:'Hello from the tool'}});
     assert.equal(sent.isError,false);await service.mail.tick(true);
     assert.equal(broker.request('beta','inbox').messages[0].text,'Hello from the tool');
