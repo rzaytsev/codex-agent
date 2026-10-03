@@ -44,8 +44,8 @@ export class Learning {
     this.checkOwner();if(typeof source!=='string'||this.blocked().has(source))throw new Error('Unavailable learning evidence');
     const history=source.match(/^history:([1-9]\d*)$/);
     if(history) {
-      const row=this.db.prepare("SELECT id,role,text,created FROM history WHERE user=? AND id=? AND role IN ('user','assistant','event')").get(this.owner,Number(history[1]));
-      if(row)return {...row,source,original_owner_statement:row.role==='user'&&!/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text)};
+      const row=this.db.prepare("SELECT id,role,text,created,actor_id FROM history WHERE user=? AND id=? AND role IN ('user','assistant','event')").get(this.owner,Number(history[1]));
+      if(row)return {...row,source,original_owner_statement:row.role==='user'&&(!row.actor_id||row.actor_id===this.owner)&&!/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text)};
     }
     if(/^job:[a-z0-9-]{1,80}$/.test(source)) {
       const row=this.db.prepare("SELECT id,state,prompt,result,created FROM jobs WHERE user=? AND id=? AND state IN ('completed','failed','cancelled','interrupted') AND prompt NOT LIKE '[LEARNING]%' AND prompt NOT LIKE '[MEMORY]%' AND prompt NOT LIKE '[REFLECTION]%' AND prompt NOT LIKE '[CLEANUP]%'").get(this.owner,source.slice(4));

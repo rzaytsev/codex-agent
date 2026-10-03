@@ -86,6 +86,29 @@ def run_restic(args, env, log):
         raise RuntimeError(f'Restic exited {result.returncode}; inspect {log}')
 
 
+def database_snapshots(workspace, state):
+    records = []
+    main = workspace / 'state/assistant.sqlite'
+    snapshot = state / 'assistant.sqlite'
+    sqlite_snapshot(main, snapshot)
+    records.append({'snapshot': str(snapshot), 'destination': str(main)})
+    # Read the snapshotted catalog, so every recorded conversation has a backup.
+    with sqlite3.connect(snapshot.resolve().as_uri() + '?mode=ro', uri=True) as catalog:
+        exists = catalog.execute("SELECT name FROM sqlite_master WHERE name='conversations'").fetchone()
+        groups = catalog.execute("SELECT id FROM conversations WHERE kind='group'").fetchall() if exists else []
+    for (identity,) in groups:
+        if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', identity):
+            raise RuntimeError('Invalid conversation identity in backup catalog')
+        source = workspace / 'state/conversations' / identity / 'assistant.sqlite'
+        if source.resolve() != workspace.resolve() / 'state/conversations' / identity / 'assistant.sqlite':
+            raise RuntimeError('Conversation database escaped workspace')
+        target = state / 'conversations' / identity / 'assistant.sqlite'
+        target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        sqlite_snapshot(source, target)
+        records.append({'snapshot': str(target), 'destination': str(source)})
+    return records
+
+
 def backup_agent(name, settings_file):
     if not re.fullmatch('[a-z][a-z0-9-]{0,63}', name):
         raise RuntimeError('Invalid agent name')
@@ -100,15 +123,14 @@ def backup_agent(name, settings_file):
         container = json.loads(subprocess.check_output(['docker', 'inspect', identifiers[0]]))[0]
         roots, workspace, mounts = mount_sources(container)
         # Host SQLite backup API also works when the container is stopped.
-        sqlite_snapshot(workspace / 'state/assistant.sqlite', state / 'assistant.sqlite')
+        databases = database_snapshots(workspace, state)
         files = instance_files(SOURCE, name) + [Path(settings_file)]
         manifest = {'agent': name, 'created': datetime.now(timezone.utc).isoformat(),
                     'mounts': [{k: m[k] for k in ('Type', 'Source', 'Destination', 'RW')} for m in mounts],
-                    'database_restore': {'snapshot': str(state / 'assistant.sqlite'),
-                                         'destination': str(workspace / 'state/assistant.sqlite')},
+                    'database_restore': databases[0], 'databases_restore': databases,
                     'consistency': 'SQLite online snapshot; other files are a live filesystem backup'}
         (state / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
-        paths = roots + [str(file) for file in files] + [str(state / 'assistant.sqlite'), str(state / 'manifest.json')]
+        paths = roots + [str(file) for file in files] + [record['snapshot'] for record in databases] + [str(state / 'manifest.json')]
         reject_repository_overlap(paths)
         password = PASSWORDS / f'{name}.password'
         if not password.is_file() or password.stat().st_uid != 0 or password.stat().st_mode & 0o077:
@@ -120,8 +142,10 @@ def backup_agent(name, settings_file):
         log = state / 'last-run.log'
         log.write_text('')
         args = ['backup', '--json', '--host', socket.gethostname(), '--tag', f'agent:{name}', '--group-by', 'host,tags']
-        for suffix in ('', '-wal', '-shm'):
-            args += ['--exclude', str(workspace / ('state/assistant.sqlite' + suffix))]
+        args += ['--exclude', str(workspace / 'state/executors/control.sock')]
+        for record in databases:
+            for suffix in ('', '-wal', '-shm'):
+                args += ['--exclude', record['destination'] + suffix]
         run_restic(args + ['--', *paths], env, log)
         summary = None
         for line in log.read_text().splitlines():

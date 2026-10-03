@@ -5,6 +5,16 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Owner-linked topic-specific groups, entity-based direct mentions, independent
+  sessions/state/workspaces and source-bound delivery; global main/worker limits,
+  fair scheduling and effective task settings. Group execution uses restricted
+  filesystem/network permissions and a fail-closed host probe. Synthetic tests
+  and local macOS isolation pass. The optional host broker runs disposable,
+  credential-free group executors under the existing Docker security profile.
+  Linux isolation, native filesystem reads/write restrictions and isolated real
+  model/scoped-MCP turns pass; real Telegram group flows remain an acceptance
+  gate. See [conversations](conversations.md).
+
 - Continuous learning with separate idle proposal/validation turns, sourced
   versioned trials, managed profile projections, image-owned core, bounded questions
   and explicit rollback. Synthetic tests verify storage/lifecycle contracts; actual
@@ -30,7 +40,7 @@ and operational history are private and are not public runtime evidence.
 - Telegram /auth sign-in, replacement, status/cancel and signed-out /start; managed device-code login with persisted credentials and active-work draining. See [authentication](authentication.md) for recovery and live acceptance limits.
 
 - Node.js 24+ application using pinned Codex TypeScript SDK/CLI 0.159.2. This resolves the original app-server proposal in favor of a smaller SDK integration; application-owned MCP tools provide scheduling and orchestration.
-- Private-chat numeric allowlist checked before persistence/download; outgoing delivery and tools also enforce the allowlist.
+- Owner DM allowlist and explicitly linked/addressed groups checked before persistence/download; tools and delivery enforce the source conversation.
 - Messages arriving during a main turn queue silently in durable input order for
   all instances. Repeated-intake tests cover eventual replies and deduplication;
   deployed Telegram acceptance requires updating each instance image.
@@ -61,7 +71,11 @@ Reviews cover history and accessible connectors; daily/weekly/monthly schedule d
 
 No exactly-once delivery claim: crashes/network ambiguity can leave uncertain messages requiring review. Interrupted execution is not retried blindly. No arbitrary automatic resume/replay of remote mutations. Cancellation cannot undo an external action already completed.
 
-Full autonomy executes code with container access to its workspace/auth state and configured tools. Runtime filesystem mounts define host access. Each instance accepts one Telegram owner; independent people use separate agents. Container isolation is not a guarantee against every malicious generated program.
+Owner DM autonomy executes code with granted container access. Linked group code
+uses a restricted permission profile or a separate credential-free executor;
+groups never become new owners.
+Personal accounts and authentication management remain in the DM. Container
+isolation is not a guarantee against every malicious generated program.
 
 Forgetting can update profile/memory files; original transcripts, Codex session files and backups require an explicit retention/erasure policy. No automatic comprehensive erasure is implemented.
 

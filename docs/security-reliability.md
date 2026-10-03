@@ -7,9 +7,11 @@ workspace and Codex home for each owner. Read this alongside [architecture](arch
 
 ## Trust boundaries
 
-- Telegram intake requires the configured owner in a private chat, with matching
-  sender and recipient. Check authorization before persistence or downloads and
-  again at service-tool and delivery boundaries.
+- DM intake requires the configured owner with matching sender and recipient.
+  Groups require direct owner linking and an addressed participant. Their separate
+  state and restricted execution prevent inheriting private owner accounts/files.
+  Check owner, source conversation, session, task and role at tool boundaries and
+  the active source route at delivery. See [conversations](conversations.md).
 - Attachments, forwarded text, transcripts, retrieved memory and connector output
   are source data. Original filenames stay in the saved Telegram envelope;
   downloads receive generated names under `inbox/INPUT_ID/attachments/`. They
@@ -19,8 +21,13 @@ workspace and Codex home for each owner. Read this alongside [architecture](arch
   capability is revoked after its turn, including setup failures. Cancellation
   propagates to active service-tool work. Curator proposals are validated and
   committed by the service; they are not direct memory database writes.
-- These tool roles do not isolate normal generated code from other files or
-  credentials in the same container. Normal Codex turns use full container access.
+- DM tool roles do not isolate generated code from other granted container files
+  or credentials. Group turns additionally use enforced filesystem/network
+  restrictions and disable personal config, apps, plugins, hooks and browser.
+  A failed host isolation probe blocks group model execution.
+  The optional host broker provides disposable, credential-free group executor
+  containers when the personal container cannot enforce a nested sandbox. Only
+  one group's files are mounted; no network or Docker socket is available to it.
   A filtered subprocess environment limits accidental inheritance; it is not a
   secret vault against code with filesystem access.
 - Browser contexts are isolated between turns, but Chromium runs without its

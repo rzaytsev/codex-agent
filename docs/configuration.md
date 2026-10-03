@@ -23,6 +23,9 @@ runtime default; available names/reasoning levels depend on the signed-in accoun
 | RESEARCH_MODEL / RESEARCH_REASONING | Runtime default / medium |
 | REVIEW_MODEL / REVIEW_REASONING | Runtime default / high |
 | MAX_WORKERS | 2; accepted range 1–8 |
+| MAX_MAIN_TURNS | 2; accepted range 1–8 across the DM and all linked groups |
+| MAX_EXECUTIONS | 4; accepted range 1–16 for all active main turns and workers |
+| GROUP_EXECUTOR_SOCKET | Unset; optional host-owned Unix socket for disposable group executors; see [deployment](deployment.md#separate-group-executors) |
 | MAIN_TIMEOUT_SECONDS | 180; range 10–3600 |
 | WORKER_TIMEOUT_SECONDS | 1800; range 10–86400 |
 | MAX_ATTACHMENT_MB | 20; range 1–20 for downloads; output cap is independently 49 MiB |
@@ -54,6 +57,15 @@ Changing its cron/timezone or re-enabling proactivity restores it. See
 [security and reliability](security-reliability.md) for failure and cancellation limits.
 
 ## Launcher and container-owned paths
+
+Group linking and settings use owner commands, not a second allowlist. Send
+`/link@BOT_USERNAME` directly in a group, then use `/group` in the owner DM to
+find its stable ID. `/group settings ID {"effort":"medium"}` sets conversation
+defaults; tasks may specify model, effort, timeout and toolScope (`conversation`
+or `read`). Timeouts cannot exceed instance bounds and task permissions cannot
+widen the parent. `/group disconnect ID` blocks the original route;
+`/group share ID selected text` deliberately shares only that text. See
+[conversations](conversations.md) for group permissions and runtime gates.
 
 The launcher supplies AGENT_ENV_FILE and AGENT_INSTANCE_DIR, pins AGENT_NAME and
 the Compose project, and explicitly selects the optional override. Do not set

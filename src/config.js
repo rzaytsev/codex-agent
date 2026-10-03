@@ -29,6 +29,7 @@ export function config(env = process.env) {
     mail={url:url.origin,token:env.MAILBOX_TOKEN,id:env.MAILBOX_ID};
   }
   return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
+    executorSocket:env.GROUP_EXECUTOR_SOCKET?path.resolve(env.GROUP_EXECUTOR_SOCKET):undefined,
     workspace: path.resolve(env.WORKSPACE_DIR || './workspace'), codexHome: path.resolve(env.CODEX_HOME || './.codex-data'),
     seedDir: env.SEED_DIR ? path.resolve(env.SEED_DIR) : undefined,
     pluginsFile: env.PLUGINS_FILE ? path.resolve(env.PLUGINS_FILE) : env.SEED_DIR ? path.resolve(env.SEED_DIR,'plugins.json') : undefined,
@@ -38,7 +39,7 @@ export function config(env = process.env) {
     memoryEnabled: env.MEMORY_ENABLED !== 'false', memoryCrons:{daily:cron('MEMORY_DAILY_CRON','15 3 * * *'),weekly:cron('MEMORY_WEEKLY_CRON','45 3 * * 0')}, memoryMaxBatches:integer('MEMORY_MAX_BATCHES',4,1,20),
     learningEnabled: env.LEARNING_ENABLED !== 'false', learningCron:cron('LEARNING_CRON','30 3 * * *'), learningMaxBatches:integer('LEARNING_MAX_BATCHES',2,1,10),
     browserEnabled: env.BROWSER_ENABLED !== 'false', browserExecutable: env.BROWSER_EXECUTABLE || '/usr/bin/chromium',
-    maxWorkers: integer('MAX_WORKERS',2,1,8), mainTimeout: integer('MAIN_TIMEOUT_SECONDS',180,10,3600), workerTimeout: integer('WORKER_TIMEOUT_SECONDS',1800,10,86400),
+    maxWorkers: integer('MAX_WORKERS',2,1,8), maxMainTurns:integer('MAX_MAIN_TURNS',2,1,8), maxExecutions:integer('MAX_EXECUTIONS',4,1,16), mainTimeout: integer('MAIN_TIMEOUT_SECONDS',180,10,3600), workerTimeout: integer('WORKER_TIMEOUT_SECONDS',1800,10,86400),
     maxBytes: integer('MAX_ATTACHMENT_MB',20,1,20)*1024*1024,
     proactive: env.PROACTIVE_ENABLED !== 'false',
     reviews: {daily: cron('DAILY_REVIEW_CRON','0 19 * * *'), weekly: cron('WEEKLY_REVIEW_CRON','0 18 * * 0'), monthly: cron('MONTHLY_REVIEW_CRON','0 18 1 * *')},

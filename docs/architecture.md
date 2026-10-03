@@ -36,8 +36,10 @@ client in codex-account.js, also shared with usage reads. Missing login keeps
 Telegram available while gating model work; switching accounts drains active
 turns before authorization. See [authentication](authentication.md). Intake authorizes the owner before downloads or persistence,
 deduplicates update IDs, and handles immediate commands/location without a model.
-One main turn processes pending conversation input at a time. Workers run with
-separate threads and configured limits while the main conversation stays usable.
+conversations.js routes the owner DM and explicitly linked, addressed groups to
+separate service/state instances. Each conversation has one main turn and its own
+worker threads; a coordinator enforces fair shared execution limits. Stable IDs
+survive Telegram renames/migrations. See [conversations](conversations.md).
 
 agent.js reads workspace AGENTS.md, SOUL.md and USER.md each turn, removes generated
 learning sections, appends the image-owned stable core and supplies scoped learning
@@ -45,8 +47,10 @@ records. A separate read-only proposer/validator loop applies service-validated
 versioned adaptations; see [learning](learning.md). It supplies recent
 history and bounded relevant memory, and runs the pinned SDK with a structured
 response schema. The subprocess environment includes required runtime paths and
-optional Maps access but excludes the Telegram token and OpenAI API key. Normal
-turns use danger-full-access/never approvals inside granted container access.
+optional Maps access but excludes the Telegram token and OpenAI API key. Owner
+DM turns use danger-full-access/never approvals inside granted container access;
+group turns use named deny-read filesystem permissions, disabled command network,
+private-config isolation and scoped MCP with never approvals.
 An isolated browser process and output directory belong to each turn.
 
 The model's MCP stdio bridge calls loopback service HTTP with a fresh capability.

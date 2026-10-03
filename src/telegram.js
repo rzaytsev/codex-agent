@@ -47,7 +47,8 @@ export class Telegram {
       {command:'new',description:'Start a fresh conversation; keep profile and files'},
       {command:'cancel',description:'Cancel a worker task: /cancel <task-id>'},
       {command:'stop',description:'Stop your current reply immediately'},
-      {command:'location',description:'Show saved location; default or clear to change it'}
+      {command:'location',description:'Show saved location; default or clear to change it'},
+      {command:'group',description:'Manage owner-linked group conversations'}
     ];
     const scopes=[{type:'default'},{type:'all_private_chats'},...Array.from(users,chat_id=>({type:'chat',chat_id}))];
     for(const scope of scopes) await this.call('setMyCommands',{commands,scope});

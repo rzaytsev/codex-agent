@@ -2,10 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { AccountClient, readAccount } from './codex-account.js';
 
 export class Auth {
-  constructor(cfg,store,{busy=()=>false,reader=readAccount,clientFactory=()=>new AccountClient(cfg),timeoutMs=10*60*1000,prepare=async()=>{}}={}) {
+  constructor(cfg,store,{busy=()=>false,reader=readAccount,clientFactory=()=>new AccountClient(cfg),timeoutMs=10*60*1000,prepare=async()=>{},invalidate=()=>{}}={}) {
     this.cfg=cfg;this.store=store;this.busy=busy;this.reader=reader;this.clientFactory=clientFactory;this.timeoutMs=timeoutMs;
     this.status='checking';this.phase='idle';this.account=null;this.lastCheck=0;this.stopping=false;
-    this.prepare=prepare;this.prepared=false;this.controller=new AbortController();
+    this.prepare=prepare;this.invalidate=invalidate;this.prepared=false;this.controller=new AbortController();
   }
   get ready(){return this.status==='ready'&&this.phase==='idle'&&!this.stopping;}
   get health(){return this.phase!=='idle'?'setup:codex-login-pending':this.status==='preparing'?'setup:plugins':this.status==='ready'?'ready':this.status==='unavailable'?'degraded:codex-auth':'setup:codex-login';}
@@ -22,7 +22,7 @@ export class Auth {
     // A crash may occur after Codex saves the new login but before our completion callback.
     // Never resume an old model thread in that ambiguous state; durable history is retained.
     if(this.store.get('auth:attempt')) {
-      this.store.transaction(()=>{this.store.set(`thread:${this.cfg.owner}`,'');this.store.set('auth:attempt','');});
+      this.store.rotateSession(this.cfg.owner);this.store.set('auth:attempt','');this.invalidate();
       this.say('The previous login was interrupted by a restart. Its code is no longer used. Check /auth status or use /auth to try again.');
     }
     this.store.db.prepare("UPDATE outbox SET state='expired' WHERE state='pending' AND json_extract(payload,'$.type')='auth'").run();
@@ -114,7 +114,7 @@ export class Auth {
       if(session.client)await session.client.close();
       if(this.stopping)return;
       // Also reset on uncertain completion/cancel: credentials may already have been committed.
-      this.store.transaction(()=>{this.store.set(`thread:${this.cfg.owner}`,'');this.store.set('auth:attempt','');});
+      this.store.rotateSession(this.cfg.owner);this.store.set('auth:attempt','');this.invalidate();
       this.session=null;this.status='checking';this.phase='idle';this.prepared=false;await this.check();
       if(succeeded&&this.status==='ready')this.say(`Login saved. ${this.accountText()} Your profile, memory, files and history are preserved; the model conversation starts fresh.`);
       else if(session.cancelled)this.say(`Login ${session.reason}. ${this.accountText()}`);

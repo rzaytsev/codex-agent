@@ -5,6 +5,13 @@ that needs real-task acceptance, not a guarantee from instructions alone.
 
 ## Conversation intake
 
+The owner DM and owner-linked groups have independent main sessions, history,
+memory, workspaces and durable queues. Groups accept direct mentions or commands
+addressed to the current bot username; ordinary replies/unmentioned messages do
+not enter history. `/new`, `/status`, `/stop` and `/cancel` act on the current
+conversation. Authentication/location/account commands stay in the owner DM.
+See [conversations](conversations.md) for linking, permissions and migration.
+
 1. Authenticate the Telegram sender against a configured user allowlist.
 2. Persist the incoming update and assign a stable message/input ID before processing.
 3. Download attachments into the workspace; preserve captions and available forward metadata.
@@ -35,7 +42,7 @@ and directs the owner to terminal login. See [Telegram reading](telegram-read.md
 
 The main agent owns dialogue, clarification, delegation, and result presentation. Low reasoning is the default; escalation for complex interpretation or planning is a proposed exception.
 
-The application serializes turns for the main thread while workers execute independently. New user messages and worker results enter an event queue. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Long jobs should quickly hand control back to the conversation.
+The application serializes turns within each conversation while workers execute independently. New user messages and worker results enter an event queue. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Long jobs should quickly hand control back to the conversation.
 
 The transcript is persistent. Context rotation/compaction can happen underneath a continuous Telegram experience; summaries and durable memory preserve continuity.
 

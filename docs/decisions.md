@@ -1,5 +1,27 @@
 # Design decisions
 
+## Topic-specific Telegram conversations (COD-1–COD-5)
+
+- Keep one bot owner and separate actor, stable conversation, replaceable main
+  session and task identity. Group titles and Telegram chat IDs are transport
+  metadata; migration preserves the conversation ID and context.
+- Keep existing DM data in place. Use independent group SQLite databases and
+  workspaces to reuse owner-bound memory/learning without granting group members
+  access to personal evidence, revisions, tombstones, files or accounts.
+- Enforce group command filesystem isolation through pinned Codex permission
+  profiles, with no command network or approval escalation. Disable personal
+  configuration, apps/plugins/hooks/browser/subagents and prove the host boundary
+  with a synthetic probe. Unsupported hosts block group model execution.
+- Scope MCP capabilities and every durable route to its conversation. Fairly
+  share owner execution capacity. Snapshot effective task settings; resets and
+  authorization changes invalidate the affected model sessions/capabilities.
+- Accept direct entity-based mentions and addressed commands only. Owner linking
+  is explicit; replies without mentions and forum topics remain unsupported.
+  Sharing selects text deliberately, without exposing the personal workspace.
+- Back up each conversation database through SQLite's online backup API; live
+  file copies and separate snapshots are not one simultaneous instance snapshot.
+  See [conversations](conversations.md) for behavior and acceptance gates.
+
 ## Desired plugins install after login
 
 An optional per-instance `seed/plugins.json` declares exact marketplace references.

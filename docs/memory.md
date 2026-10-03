@@ -1,5 +1,11 @@
 # Assistant memory
 
+The owner DM keeps the layout below. Each linked group has its own SQLite memory,
+revisions, sources, tombstones, learning and checkpoints in a separate database;
+its Markdown views are under its isolated conversation workspace. Personal
+USER.md and private account context never enter group turns. See
+[conversations](conversations.md).
+
 The service maintains several memory layers. Research and the reasons for this
 choice are in [memory-research.md](memory-research.md).
 

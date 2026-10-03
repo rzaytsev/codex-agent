@@ -8,7 +8,8 @@ Product requirements. These requirements describe the future assistant; they are
 2. Run continuously on a selected Linux host inside Docker, managed by Docker Compose.
 3. Bind-mount the assistant workspace to a host directory so host-side backups can capture it.
 4. Use Codex as the agent runtime. ChatGPT subscription authentication is the intended initial authentication path.
-5. Present one main conversation with the assistant. Default to low reasoning for ordinary interaction.
+5. Keep an independent main conversation for the owner DM and each explicitly
+   linked topic-specific group. Default to low reasoning for ordinary interaction.
 6. Delegate substantive tasks to workers with suitable models and reasoning levels; support configurable routing.
 7. Allow the user to configure character, tone, reactions, and behavior in workspace/SOUL.md.
 8. Maintain workspace/USER.md with the user's name, age or birth date, preferences, and relevant personal context.

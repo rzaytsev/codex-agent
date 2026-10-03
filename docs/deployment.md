@@ -133,6 +133,28 @@ Voice input uses local faster-whisper on CPU. Its model is downloaded on first t
 
 Original media, captions and forward metadata are saved in inbox/. PDF text is extracted with pdftotext; scanned PDFs can be rendered/OCRed by the agent using installed tools. Images are supplied as local image input to Codex. Standard Bot API download limit is capped at 20 MiB here; larger attachments receive an error. Media albums are separate messages in this initial version. Unsupported file formats are preserved for tool/code processing.
 
+## Separate group executors
+
+The optional host broker enables COD-1 groups while preserving the personal
+container's security settings. Review [conversation boundaries](conversations.md)
+and copy [the broker configuration](../examples/group-executors.json) to
+`/etc/codex-agent-group-executors.json` with mode 0600. Select existing workspace
+paths and a verified immutable image tag/digest. Install
+[the systemd unit](../systemd/codex-agent-group-executors.service), adapting only
+its source-checkout path, and start it on the Docker host. The broker creates
+`state/executors/control.sock` inside each existing workspace mount. Add
+`GROUP_EXECUTOR_SOCKET=/workspace/state/executors/control.sock` to selected
+private instance env files before recreation. No Docker socket is mounted into
+the assistant and no personal mounts are added to executors.
+
+Before production, use `scripts/group-executor-smoke.js` in a dedicated synthetic
+workspace with its own broker config; `GROUP_EXECUTOR_SMOKE=1` is required.
+The default smoke checks the real executor without a model or Telegram request.
+`--model` additionally consumes one model turn through a deliberately mounted
+existing Codex login in the client container; no auth is mounted into executors.
+It exercises native commands, group file creation and scoped MCP. Real Telegram
+linking, mention intake and source-only delivery remain a separate acceptance.
+
 ## Telegram command menu
 
 On startup, configured bots replace the default-language command menu with `/help`, `/auth`, `/tdl_auth`, `/usage`, `/status`, `/new`, `/cancel`, `/stop`, and `/location` using Telegram `setMyCommands`. Registration covers the default scope, all private chats, and each allowlisted private chat, so older menus in those scopes are overwritten. It runs independently of Codex login. Failures are logged without private details and retried after at least a minute while polling continues. Language-specific menus previously configured in BotFather are not reset by this registration; remove those overrides there if they still appear. Ordinary messages wait for login when signed out; `/start` then starts login. With saved login, `/start` reaches the assistant.
@@ -253,8 +275,8 @@ then checks PDF text. It sends nothing to Telegram.
 ## Artifact delivery
 
 Main and worker responses return existing workspace paths in `files`. Worker
-files are validated and queued immediately on completion, independently of the
-main model's follow-up. PNG/JPEG up to 10 MiB use sendPhoto with document fallback;
+text and validated files are queued immediately on completion without a main-model
+follow-up. PNG/JPEG up to 10 MiB use sendPhoto with document fallback;
 PDF, DOCX, XLSX, PPTX, ZIP and other formats use sendDocument with filenames/MIME
 types preserved. The local limit is 49 MiB. Invalid/missing/oversized paths get an
 explicit notice. Duplicates in one response are collapsed. The existing

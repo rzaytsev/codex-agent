@@ -29,6 +29,13 @@ proactivity for an unconfigured local service test.
 
 ## Runtime validation ladder
 
+For linked groups, run `node scripts/group-sandbox-smoke.js` on the target host
+or image before model acceptance. It uses synthetic files and a temporary HTTP
+listener, with no credentials or model call. A pass proves the tested command
+boundary; also test actual model/native-file tools, group mentions, delivery,
+disconnect/reconnect and restart on the deployed image. Never enable groups by
+bypassing a failed probe.
+
 1. Unit/integration suites: authorization, jobs, memory, delivery, files, usage,
    seed behavior, instance selection, backup helpers and publication boundaries.
 2. Build the image on the target Docker host and run suites against synthetic

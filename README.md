@@ -16,6 +16,10 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   history and customizes preferences, personality and operating instructions
   through `USER.md`, `SOUL.md` and `AGENTS.md`, with configurable models and
   reasoning levels.
+- **[Topic-specific group conversations](docs/conversations.md):** the owner can
+  link groups to the same bot. Direct mentions enter independent conversations,
+  with isolated memory, workspaces, tasks and delivery. Group execution requires
+  a successful host sandbox probe; personal accounts remain private.
 - **[Durable memory](docs/memory.md):** SQLite-backed facts, projects, episodes and
   procedures, with full-text recall, source provenance, confidence, versioned
   corrections, scoped forgetting and readable Markdown projections.
@@ -118,6 +122,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 - [Development](docs/development.md): contributor workflow and validation.
 - [Configuration](docs/configuration.md): defaults and instance controls.
 - [Implementation](docs/implementation.md): behavior and verification limits.
+- [Conversations](docs/conversations.md): linked groups, permissions, sessions and routing.
 - [Backups](docs/backups.md): optional encrypted host backups and restore.
 - [Google services](docs/google-services.md): optional account connections.
 - [Shared skills](docs/shared-skills.md): public and private skill behavior.

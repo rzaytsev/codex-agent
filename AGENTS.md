@@ -19,7 +19,7 @@ Read the relevant deeper document before changing a subsystem:
 | Instance creation, Docker, recreation, private seeds | [Deployment](docs/deployment.md), [configuration](docs/configuration.md) |
 | Personal data, Git, public release | [Privacy](docs/privacy.md), `.gitignore`, `.dockerignore` |
 | Security, cancellation, reliability and trust boundaries | [Security and reliability](docs/security-reliability.md), [development](docs/development.md) |
-| Conversation, workers, commands, cancellation, notifications | [Workflow](docs/workflow.md), `src/service.js`, `src/telegram.js` |
+| Conversation, workers, commands, cancellation, notifications | [Conversations](docs/conversations.md), [workflow](docs/workflow.md), `src/conversations.js`, `src/service.js`, `src/telegram.js` |
 | Memory, recall, corrections, consolidation, forgetting | [Memory](docs/memory.md), [research](docs/memory-research.md), `src/memory.js` |
 | Skills, learning, browser workflows | [Shared skills](docs/shared-skills.md), `templates/SKILLS.md`, `src/agent.js` |
 | Authentication, optional Google connectors | [Google services](docs/google-services.md), `src/agent.js`, `src/usage.js` |
@@ -47,9 +47,11 @@ Read the relevant deeper document before changing a subsystem:
 
 ## Non-negotiable behavior
 
-1. Keep exactly one owner per instance. Validate private-chat sender and recipient
-   before saving input or downloading media. Recheck owner at tool and delivery
-   boundaries. Never silently reassign an existing memory database to a new owner.
+1. Keep exactly one owner per instance. Validate private-chat sender and recipient,
+   or an explicitly linked group and addressed participant, before persistence or
+   downloads. Recheck owner, conversation, session, task and role at tool/delivery
+   boundaries. Never reassign a memory database or expose private owner context
+   to groups. Group execution requires an enforced filesystem boundary.
 2. Preserve ChatGPT authentication and separate CODEX_HOME per instance. Never
    substitute API billing. Actual model/plugin access is account/runtime dependent.
 3. Preserve workspace, state, profiles, locations, auth and private skills through

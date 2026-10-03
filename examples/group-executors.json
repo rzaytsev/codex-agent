@@ -1,0 +1,9 @@
+{
+  "instances": [
+    {
+      "workspace": "/srv/agent-data/demo/workspace",
+      "image": "codex-personal-assistant:0.1.0",
+      "maxExecutions": 4
+    }
+  ]
+}

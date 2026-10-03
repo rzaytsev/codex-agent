@@ -16,6 +16,30 @@ acl_spec.loader.exec_module(source_acls)
 
 
 class BackupTests(unittest.TestCase):
+    def test_conversation_databases_receive_separate_consistent_snapshots(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            workspace, state = root / 'workspace', root / 'snapshots'
+            identity = '00000000-0000-4000-8000-000000000001'
+            group = workspace / 'state/conversations' / identity
+            group.mkdir(parents=True)
+            state.mkdir()
+            with sqlite3.connect(workspace / 'state/assistant.sqlite') as catalog:
+                catalog.execute('CREATE TABLE conversations(id TEXT, kind TEXT)')
+                catalog.execute('INSERT INTO conversations VALUES (?,?)', (identity, 'group'))
+            with sqlite3.connect(group / 'assistant.sqlite') as database:
+                database.execute('PRAGMA journal_mode=WAL')
+                database.execute('CREATE TABLE evidence(value TEXT)')
+                database.execute("INSERT INTO evidence VALUES ('group fact')")
+            records = backups.database_snapshots(workspace, state)
+            self.assertEqual(len(records), 2)
+            self.assertEqual(records[1]['destination'], str(group / 'assistant.sqlite'))
+            with sqlite3.connect(records[1]['snapshot']) as snapshot:
+                self.assertEqual(snapshot.execute('SELECT value FROM evidence').fetchone()[0], 'group fact')
+            (group / 'assistant.sqlite').unlink()
+            with self.assertRaises(RuntimeError):
+                backups.database_snapshots(workspace, state)
+
     def test_private_settings_and_complete_instance_directory_are_selected(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
