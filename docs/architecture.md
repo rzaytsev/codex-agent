@@ -58,6 +58,9 @@ Service-side authorization distinguishes main, worker and curator operations;
 tokens are released after a turn. Returned files are validated against workspace
 boundaries and queued alongside text/voice. The durable outbox performs delivery,
 rate-limit retry and uncertain-outcome classification. Queued is not sent.
+Committed outbox inserts wake delivery immediately after initialization; the
+one-second scheduler remains a fallback for retries, quiet hours and restarts.
+Typing/upload indicators never delay the actual send.
 
 ## Durable data
 
@@ -87,7 +90,8 @@ from private seeds or generic templates. Existing owner identity is pinned.
 
 Interrupted work is marked interrupted; in-flight sends become uncertain. Neither
 is automatically replayed as if no external effect occurred. Completed worker
-artifacts can be delivered independently of a main-agent follow-up. Background
+text and artifacts are delivered without a main-agent follow-up. Current-session
+answers enter history; resumed main turns inject only unseen recent entries. Background
 memory and cleanup jobs yield to user interaction; reflection has separate
 coverage and notification semantics.
 

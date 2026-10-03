@@ -67,7 +67,7 @@ export class Conversations {
     cfg.sandboxReady=cfg.executorSocket?await probeGroupExecutor(cfg):await this.probe(cfg);
     store.db.prepare('UPDATE conversations SET state=?,chat_id=? WHERE id=?').run(row.state,row.chat_id,row.id);
     this.dm.store.db.prepare('UPDATE conversations SET session_id=? WHERE id=?').run(store.get('main-session'),row.id);
-    this.services.set(row.id,service);return service;
+    this.services.set(row.id,service);if(this.dm.store.onEnqueue)service.startDelivery();return service;
   }
   async ingest(update) {
     const message=update.message||update.edited_message;

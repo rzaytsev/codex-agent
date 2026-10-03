@@ -34,6 +34,7 @@ for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{
   service.server.close();void service.auth.close();void service.tdlAuth.close();setTimeout(()=>process.exit(0),2000).unref();
 });
 if(telegramReady)await service.auth.init();else service.state='setup:telegram';
+if(telegramReady)for(const conversation of conversations.all())conversation.startDelivery();
 let lastPoll=Date.now();let commandsRegistered=false;let lastCommandAttempt=0;
 setInterval(()=>{
   if(!telegramReady||service.stopping) return;

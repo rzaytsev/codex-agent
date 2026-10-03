@@ -44,6 +44,18 @@ The helper never accepts a password through its control pipe.
 
 ## Implemented choices
 
+- Wake the durable outbox after committed inserts, with the periodic scheduler
+  retained for retries and recovery. Typing/upload indicators must not delay the
+  real delivery or affect its success state.
+
+- Deliver ordinary worker answers directly through the durable outbox. Workers
+  prepare the user-facing answer; another main-model rewrite adds latency and
+  can wait behind a busy conversation. Keep current-session results in history
+  for follow-up questions and preserve source-bound late-result delivery.
+- Inject only unseen service history into resumed model threads, with a
+  successful-turn cursor and bounded fresh-thread bootstrap. This limits repeated
+  context growth while retaining durable transcripts and retrieval tools.
+
 - Telegram user-content reading uses pinned tdl plus an original shared skill,
   separate from Bot API intake and ChatGPT authentication. Per-instance sessions
   persist in private workspace state; a wrapper serializes calls and keeps

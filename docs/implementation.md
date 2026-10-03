@@ -49,6 +49,15 @@ and operational history are private and are not public runtime evidence.
   language and sent without an ID/status wrapper; /status retains task IDs/titles.
   Synthetic tests cover persistence and exact output, not model language quality.
 - Main conversation low reasoning by default; asynchronous worker/research/review profiles with configurable models/reasoning and bounded concurrency/timeouts.
+- Ordinary worker answers, requested voice and files enter delivery directly,
+  without a main-model rewrite. Resumed threads receive unseen recent history
+  tail. Regression tests cover busy-main delivery, cancellation, duplicate
+  prevention, concurrent results and failure-safe history cursors; measured
+  latency remains deployment- and request-dependent.
+- Immediate outbox wake after committed writes, including arrivals during another
+  send. Text skips redundant typing; upload indicators cannot block delivery.
+  Tests preserve transaction rollback, quiet hours, backoff, uncertain sends and
+  disconnected routes. The periodic scheduler remains the retry/recovery fallback.
 - Authenticated local MCP bridge for history, background jobs, cancellation, profile/personality writes, and reminders/task schedules.
 - USER.md onboarding and ongoing updates through agent instructions and atomic profile tools; SOUL.md behavior configuration. Model adherence needs live acceptance and is not asserted from unit tests.
 - Original attachment and forward provenance storage, PDF text extraction, image model input, CPU Whisper transcription and local voice generation.

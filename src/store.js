@@ -53,7 +53,7 @@ export class Store {
     const rows=this.db.prepare('SELECT id,role,text,created FROM history WHERE user=? AND id>? AND created>=? AND created<=? ORDER BY id LIMIT ?').all(user,after,since,until,limit+1);
     const records=rows.slice(0,limit);return {records,next_cursor:records.at(-1)?.id||after,has_more:rows.length>limit};
   }
-  enqueue(user,payload,proactive=false,{sessionId,actorId}={}) { this.db.prepare('INSERT INTO outbox(user,payload,due,proactive,session_id,actor_id) VALUES (?,?,?,?,?,?)').run(user,JSON.stringify(payload),Date.now(),Number(proactive),sessionId||null,actorId||null); }
+  enqueue(user,payload,proactive=false,{sessionId,actorId}={}) { this.db.prepare('INSERT INTO outbox(user,payload,due,proactive,session_id,actor_id) VALUES (?,?,?,?,?,?)').run(user,JSON.stringify(payload),Date.now(),Number(proactive),sessionId||null,actorId||null);this.onEnqueue?.(); }
   job(user,prompt,profile='worker') { const id = randomUUID(); this.db.prepare('INSERT INTO jobs(id,user,prompt,profile,state,created) VALUES (?,?,?,?,?,?)').run(id,user,prompt,profile,'queued',Date.now()); return id; }
   jobs(user) { return this.db.prepare('SELECT id,profile,state,created,result FROM jobs WHERE user=? ORDER BY created DESC LIMIT 30').all(user); }
   transaction(fn) { this.db.exec('BEGIN IMMEDIATE'); try { const result = fn(); this.db.exec('COMMIT'); return result; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }

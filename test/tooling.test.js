@@ -48,14 +48,15 @@ test('worker artifacts are uploaded without waiting for another model turn, with
   const files=[];for(const extension of Object.keys(expected)){const file=path.join(dir,'outputs','artifact'+extension);await fs.writeFile(file,'bytes'+extension);files.push(file);}
   service.agent.run=async()=>({text:'Artifacts ready',voice:false,files:[...files,files[0]]});
   const id=store.job('123','create artifacts');store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(id);await service.runJob(store.db.prepare('SELECT * FROM jobs WHERE id=?').get(id),new AbortController());
-  const rows=store.db.prepare('SELECT * FROM outbox').all();assert.equal(rows.length,files.length);
+  const rows=store.db.prepare('SELECT * FROM outbox').all();assert.equal(rows.length,files.length+1);assert.equal(JSON.parse(rows.at(-1).payload).text,'Artifacts ready');
   const telegram=new Telegram('unused');const uploads=[];telegram.call=async(method,data)=>{uploads.push({method,data});return true;};
-  for(const row of rows)await telegram.sendPart(row.user,JSON.parse(row.payload));
+  for(const row of rows.slice(0,-1))await telegram.sendPart(row.user,JSON.parse(row.payload));
   for(let i=0;i<files.length;i++){
     const {method,data}=uploads[i];const photo=path.extname(files[i])==='.png';assert.equal(method,photo?'sendPhoto':'sendDocument');assert.equal(data.get('chat_id'),'123');
     const file=data.get(photo?'photo':'document');assert.equal(file.name,path.basename(files[i]));assert.equal(file.type,expected[path.extname(files[i])]);assert.equal(await file.text(),'bytes'+path.extname(files[i]));
   }
-  const event=JSON.parse(store.db.prepare('SELECT payload FROM inputs WHERE id<0').get().payload);assert.match(event.text,/already been queued/);assert.match(event.text,/"files":\[\]/);
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM inputs WHERE id<0').get().n,0);
+  assert.equal(store.search('123').at(-1).text,'Artifacts ready');
 });
 test('existing custom AGENTS.md preserves content and gains tool and shared-skill guidance exactly once',async t=>{
   const {dir,service}=await fixture(t);await fs.writeFile(path.join(dir,'AGENTS.md'),'Custom personality instructions\n');await service.init();await service.init();

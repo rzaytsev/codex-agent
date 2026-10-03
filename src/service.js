@@ -413,6 +413,10 @@ export class Service {
       const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.db.prepare('UPDATE jobs SET thread=? WHERE id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       const files=await this.filePayloads(result.files);
+      if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
+        try {files.unshift({type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)});}
+        catch {ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
+      }
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       this.store.transaction(()=>{
         this.store.db.prepare("UPDATE jobs SET state='completed',result=? WHERE id=?").run(JSON.stringify(result),job.id);
@@ -427,8 +431,12 @@ export class Service {
           const file=path.join(this.cfg.workspace,'memory',`${job.id}.md`);void fs.writeFile(file,result.text).catch(()=>{});
           for(const part of chunks(result.text)) this.store.enqueue(job.user,{text:part},true);
           if(result.text) this.store.history(job.user,'reflection',result.text);
-        } else if(job.session_id&&job.session_id!==this.store.get('main-session')) {for(const part of chunks(result.text))this.store.enqueue(job.user,{text:part},false,{sessionId:job.session_id,actorId:job.actor_id});}
-        else this.event(job.user,`Background task ${job.id} completed. Its returned files have already been queued for Telegram; do not queue them again or rerun the task. Report this result to the user.\n${JSON.stringify({...result,files:[]})}`);
+        } else {
+          for(const part of chunks(result.text))this.store.enqueue(job.user,{text:part},false,{sessionId:job.session_id,actorId:job.actor_id});
+          // Deliver without another main-model pass or waiting for a busy main
+          // conversation. Retain current-session results for subsequent recall.
+          if(result.text&&(!job.session_id||job.session_id===this.store.get('main-session')))this.store.history(job.user,'assistant',result.text,job.actor_id||job.user);
+        }
       });
     } catch(e) {
       if(this.idleMaintenance(job)&&ctrl.signal.aborted) {
@@ -504,8 +512,21 @@ export class Service {
       this.store.db.prepare('UPDATE schedules SET enabled=?,due=? WHERE id=?').run(s.cron?1:0,s.cron?nextCron(s.cron,s.timezone,now):s.due,s.id);
     });
   }
+  startDelivery() {
+    this.store.onEnqueue=()=>{
+      if(this.deliveryScheduled||this.stopping)return;
+      this.deliveryScheduled=true;
+      // Run after the caller's transaction commits; rolled-back rows cannot send.
+      queueMicrotask(()=>{
+        this.deliveryScheduled=false;
+        if(this.delivering){this.deliveryAgain=true;return;}
+        void this.deliver().catch(()=>console.error('Delivery wake failed; queued output retained'));
+      });
+    };
+    this.store.onEnqueue();
+  }
   async deliver() {
-    if(this.delivering||this.stopping) return;this.delivering=true;
+    if(this.delivering||this.stopping||this.cfg.group?.state==='disconnected') return;this.delivering=true;
     try {
       const rows=this.store.db.prepare("SELECT * FROM outbox WHERE state='pending' AND due<=? AND (?=0 OR proactive=0) ORDER BY id LIMIT 10").all(Date.now(),Number(quiet(this.cfg)));
       for(const row of rows) {
@@ -521,7 +542,10 @@ export class Service {
           } else if(payload.type==='tdl-auth') {
             payload=this.tdlAuth?.payload(payload.attempt,payload.version);
             if(!payload){this.store.db.prepare("UPDATE outbox SET state='expired' WHERE id=?").run(row.id);continue;}
-          } else await this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':payload.type==='file'?'upload_document':'typing');
+          } else if(['photo','voice','file'].includes(payload.type)) {
+            // Indicators are optional feedback, never a prerequisite for delivery.
+            void Promise.resolve().then(()=>this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':'upload_document')).catch(()=>{});
+          }
           await this.telegram.sendPart(row.user,payload);this.store.db.prepare("UPDATE outbox SET state='sent' WHERE id=?").run(row.id);
         }
         catch(e) {
@@ -531,6 +555,6 @@ export class Service {
           console.error('Notification delivery failed; private error details suppressed');
         }
       }
-    } finally {this.delivering=false;}
+    } finally {this.delivering=false;if(this.deliveryAgain){this.deliveryAgain=false;this.store.onEnqueue?.();}}
   }
 }

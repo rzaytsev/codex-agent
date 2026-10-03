@@ -42,9 +42,15 @@ and directs the owner to terminal login. See [Telegram reading](telegram-read.md
 
 The main agent owns dialogue, clarification, delegation, and result presentation. Low reasoning is the default; escalation for complex interpretation or planning is a proposed exception.
 
-The application serializes turns within each conversation while workers execute independently. New user messages and worker results enter an event queue. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Long jobs should quickly hand control back to the conversation.
+The application serializes turns within each conversation while workers execute independently. New user messages enter the input queue. Completed worker answers go directly to the delivery queue, even while the main agent is busy. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Answer small requests directly; delegate long work before doing its research in the main turn, then return without polling the worker.
 
 The transcript is persistent. Context rotation/compaction can happen underneath a continuous Telegram experience; summaries and durable memory preserve continuity.
+
+Fresh model threads receive the latest twelve service history entries. Resumed
+threads receive only unseen entries from that bounded tail. A cursor advances
+only after a successful response, using the history snapshot from turn start so
+worker results arriving during the turn remain available next time. History and
+memory tools still retrieve older evidence; no transcript is deleted.
 
 ## Worker lifecycle
 
@@ -58,6 +64,21 @@ A worker receives objective, relevant context, model/reasoning profile, workspac
 The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states. The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
 
 Use independent workers for independently executable work. Avoid concurrent writes to the same files. Shared directories need ownership or serialized updates. Workers cannot recursively create jobs through service tools.
+
+Workers write concise, self-contained answers in the request language. The
+service atomically records completion and queues text, requested voice and
+validated files without a second main-model pass. Current-session answers enter history
+for the next conversation turn. Results from an older session keep their original
+delivery route without entering the new session's history. Reflection and silent
+maintenance retain their separate behavior. Delivery remains subject to the
+outbox's sent, failed and uncertain states.
+
+After startup initialization, committed output wakes delivery immediately instead
+of waiting for a scheduler tick. Writes coalesce into one wake; rolled-back
+transactions cannot send. An arrival during an active send wakes a follow-up
+batch. The scheduler still handles due retries, quiet hours and retained backlog.
+Text sends skip a redundant typing request; media indicators run independently
+and their failure or timeout cannot delay the artifact.
 
 Application-controlled SDK worker threads implement durable jobs. Native Codex subagents can be useful within an individual job; they should not be assumed to provide the application's scheduling and recovery layer.
 

@@ -311,6 +311,17 @@ and verified container tool availability.
 
 ## Telegram working feedback
 
+Response-latency updates require rebuilding the selected image and recreating
+the instance. Existing history and model threads are retained; the first resumed
+turn initializes its history cursor. Ordinary worker answers now go directly to
+the outbox, so verify a completed task arrives while the main conversation is
+busy and remains available to a follow-up question. Preserve configured worker
+reasoning; `MAIN_REASONING=low` is the default for faster conversational turns.
+Model timing probes consume subscription quota and do not prove Telegram delivery.
+Committed replies wake delivery immediately once authentication and routing
+initialization finish. Verify queued-to-sent timing separately from model time;
+typing and upload indicators must not add a blocking Telegram request.
+
 The service refreshes Telegram sendChatAction typing every four seconds while
 preparing a reply, and shows upload_photo/upload_document/upload_voice during
 artifact delivery. These indicators are best effort and never replace the
