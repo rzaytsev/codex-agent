@@ -79,6 +79,17 @@ Edit `private/instances/NAME/seed/plugins.json`, a JSON array of exact
 ["linear@openai-curated-remote"]
 ```
 
+[Example plugin list](../examples/plugins.json) declares Exa, Linear, Booking.com
+and GitHub using their catalog identifiers. To use it for a selected instance:
+
+```sh
+cp examples/plugins.json private/instances/demo/seed/plugins.json
+./bin/agent restart demo
+```
+
+Instance lists remain private; the example contains only public plugin references.
+New instances retain the empty default unless the operator chooses a list.
+
 The seed directory is already mounted read-only. This file is read directly on
 startup after ChatGPT login is verified, and again after a completed or uncertain
 `/auth` attempt. It is not copied into the workspace as a profile seed. Restart
