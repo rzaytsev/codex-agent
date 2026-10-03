@@ -3,14 +3,13 @@ import { z } from 'zod';
 export function assistantMcp({group=false,worker=false,memoryReview=false,invoke}) {
 const server=new McpServer({name:'personal-assistant',version:'0.1.0'});
 function tool(name,description,inputSchema) {
-  if(group&&!['history_search','history_read','task_status','memory_search','memory_read','memory_save','memory_forget','learning_read','learning_evidence','create_task','cancel_task','schedule','list_schedules','cancel_schedule'].includes(name))return;
   server.registerTool(name,{description,inputSchema},async(args)=>{
     try {const result=await invoke(name,args);return {content:[{type:'text',text:JSON.stringify(result)}],isError:false};}
     catch {return {content:[{type:'text',text:'Assistant service unavailable or tool denied'}],isError:true};}
   });
 }
-tool('history_search','Search this user conversation and saved attachment provenance; use since ISO date for reflection.',{query:z.string().default(''),since:z.string().optional()});
-tool('history_read','Read user history chronologically with stable IDs and pagination. Repeat with next_cursor while has_more; use IDs as history:ID memory sources.',{after:z.number().int().min(0).default(0),since:z.string().optional(),until:z.string().optional(),limit:z.number().int().min(1).max(50).default(50)});
+tool('history_search','Search the current conversation. Set scope=all only when other conversations are relevant. Shared owner memory is available through memory_search.',{query:z.string().default(''),since:z.string().optional(),scope:z.enum(['conversation','all']).default('conversation')});
+tool('history_read','Read history with global stable IDs and pagination. Default scope is this conversation; scope=all retrieves owner history across chats. Use IDs as history:ID memory sources.',{after:z.number().int().min(0).default(0),since:z.string().optional(),until:z.string().optional(),limit:z.number().int().min(1).max(50).default(50),scope:z.enum(['conversation','all']).default('conversation')});
 tool('memory_search','Search active memory by keywords (English/Russian supported), optional category/date. Empty query lists records by ID; use next_cursor as after to continue. No matches means no evidence, not proof of absence.',{query:z.string().max(30000).default(''),category:z.enum(['facts','projects','episodes','procedures']).optional(),limit:z.number().int().min(1).max(30).default(10),after:z.number().int().min(0).default(0),since:z.string().optional()});
 tool('memory_read','Read a user memory by key, optionally a previous revision for historical questions. Missing/forgotten memories return null.',{key:z.string().max(80),revision:z.number().int().min(1).optional()});
 tool('learning_read','Inspect versioned scoped lessons, trial/active status, unresolved questions and offer state. Empty key lists current records.',{key:z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/).optional(),revision:z.number().int().min(1).optional()});

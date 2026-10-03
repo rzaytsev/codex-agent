@@ -2,7 +2,7 @@
 
 First run `uv cache prune` using the configured cache directory; it can safely remove unused cache entries. Inspect task-local temporary directories, caches, build intermediates, and virtual environments. Delete only items whose purpose is clearly disposable and whose producer task has finished, failed, cancelled or been interrupted, with no active process or project using them. Confirm task states by reading state/assistant.sqlite in read-only mode; preserve unknown task directories. Temporary files must be at least 7 days old; task-local venvs must be at least 30 days old and reproducible from preserved dependency declarations. Check all contents and references, not just directory mtime. Do not remove symlinks or cross filesystem/mount boundaries.
 
-Preserve conversations/ in its entirety and state/conversations/: they contain independently scoped group files, memory, sessions and queues.
+Preserve conversations/ in its entirety and state/conversations/: they contain retained group files and legacy recovery data.
 
 Always preserve state/python (the default environment), other state data, profiles, SOUL.md, USER.md, AGENTS.md, memory, history, databases/WALs, credentials, inbox/user attachments, backups, source files, project directories and their environments, final artifacts/outputs, dependency declarations/lockfiles, and anything referenced by queued/running tasks or pending/uncertain deliveries. Do not infer that an old or large file is unwanted. Leave uncertain candidates in place and mention them as suggestions. Do not clear the entire uv cache or delete downloaded Python versions/tools without proving they are unused by every retained environment.
 

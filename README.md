@@ -18,8 +18,8 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   reasoning levels.
 - **[Topic-specific group conversations](docs/conversations.md):** the owner can
   link groups to the same bot. Direct mentions enter independent conversations,
-  with isolated memory, workspaces, tasks and delivery. Group execution requires
-  a successful host sandbox probe; personal accounts remain private.
+  with separate recent context, threads and delivery. Memory, rules, files, skills
+  and integrations are shared; only the bot owner can instruct it in any chat.
 - **[Durable memory](docs/memory.md):** SQLite-backed facts, projects, episodes and
   procedures, with full-text recall, source provenance, confidence, versioned
   corrections, scoped forgetting and readable Markdown projections.

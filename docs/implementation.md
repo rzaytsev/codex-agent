@@ -5,15 +5,11 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
-- Owner-linked topic-specific groups, entity-based direct mentions, independent
-  sessions/state/workspaces and source-bound delivery; global main/worker limits,
-  fair scheduling and effective task settings. Group execution uses restricted
-  filesystem/network permissions and a fail-closed host probe. Synthetic tests
-  and local macOS isolation pass. The optional host broker runs disposable,
-  credential-free group executors under the existing Docker security profile.
-  Linux isolation, native filesystem reads/write restrictions and isolated real
-  model/scoped-MCP turns pass; real Telegram group flows remain an acceptance
-  gate. See [conversations](conversations.md).
+- Owner-linked topic-specific groups with owner-only entity-addressed intake;
+  shared memory, rules, profiles, learning, files and configured tools; separate
+  main sessions, recent context, queues/settings and source delivery. Canonical
+  DB migration preserves legacy evidence, revisions, forgetting, files and rollouts.
+  Global resource limits and fair scheduling remain. See [conversations](conversations.md).
 
 - Continuous learning with separate idle proposal/validation turns, sourced
   versioned trials, managed profile projections, image-owned core, bounded questions
@@ -80,9 +76,8 @@ Reviews cover history and accessible connectors; daily/weekly/monthly schedule d
 
 No exactly-once delivery claim: crashes/network ambiguity can leave uncertain messages requiring review. Interrupted execution is not retried blindly. No arbitrary automatic resume/replay of remote mutations. Cancellation cannot undo an external action already completed.
 
-Owner DM autonomy executes code with granted container access. Linked group code
-uses a restricted permission profile or a separate credential-free executor;
-groups never become new owners.
+Owner DM and linked group turns execute with the same granted container access.
+Only the configured owner can instruct them; groups never become new owners.
 Personal accounts and authentication management remain in the DM. Container
 isolation is not a guarantee against every malicious generated program.
 

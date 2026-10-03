@@ -96,10 +96,16 @@ def database_snapshots(workspace, state):
     with sqlite3.connect(snapshot.resolve().as_uri() + '?mode=ro', uri=True) as catalog:
         exists = catalog.execute("SELECT name FROM sqlite_master WHERE name='conversations'").fetchone()
         groups = catalog.execute("SELECT id FROM conversations WHERE kind='group'").fetchall() if exists else []
+        meta = catalog.execute("SELECT name FROM sqlite_master WHERE name='meta'").fetchone()
+        shared = catalog.execute("SELECT value FROM meta WHERE key='shared-owner-store-version'").fetchone() if meta else None
     for (identity,) in groups:
         if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', identity):
             raise RuntimeError('Invalid conversation identity in backup catalog')
         source = workspace / 'state/conversations' / identity / 'assistant.sqlite'
+        # Version 2 stores active conversations in the canonical snapshot. Keep
+        # existing legacy database copies, but new chats have no separate file.
+        if shared and shared[0] == '2' and not source.exists():
+            continue
         if source.resolve() != workspace.resolve() / 'state/conversations' / identity / 'assistant.sqlite':
             raise RuntimeError('Conversation database escaped workspace')
         target = state / 'conversations' / identity / 'assistant.sqlite'

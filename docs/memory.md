@@ -1,10 +1,9 @@
 # Assistant memory
 
-The owner DM keeps the layout below. Each linked group has its own SQLite memory,
-revisions, sources, tombstones, learning and checkpoints in a separate database;
-its Markdown views are under its isolated conversation workspace. Personal
-USER.md and private account context never enter group turns. See
-[conversations](conversations.md).
+The DM and all linked groups share the owner's SQLite memory, revisions, evidence,
+tombstones, learning, profiles and Markdown projections. One consolidation loop
+processes owner evidence across chats. Recent conversation context remains scoped.
+Only the configured owner can instruct the bot. See [conversations](conversations.md).
 
 The service maintains several memory layers. Research and the reasons for this
 choice are in [memory-research.md](memory-research.md).

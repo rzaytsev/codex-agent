@@ -29,7 +29,6 @@ export function config(env = process.env) {
     mail={url:url.origin,token:env.MAILBOX_TOKEN,id:env.MAILBOX_ID};
   }
   return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
-    executorSocket:env.GROUP_EXECUTOR_SOCKET?path.resolve(env.GROUP_EXECUTOR_SOCKET):undefined,
     workspace: path.resolve(env.WORKSPACE_DIR || './workspace'), codexHome: path.resolve(env.CODEX_HOME || './.codex-data'),
     seedDir: env.SEED_DIR ? path.resolve(env.SEED_DIR) : undefined,
     pluginsFile: env.PLUGINS_FILE ? path.resolve(env.PLUGINS_FILE) : env.SEED_DIR ? path.resolve(env.SEED_DIR,'plugins.json') : undefined,

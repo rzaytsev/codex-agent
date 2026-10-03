@@ -38,10 +38,10 @@ once; tmpfs is omitted. Missing roots and repository/source overlap fail the job
 
 Python's SQLite online backup API saves a consistent database under the configured
 state root at NAME/assistant.sqlite, and checks it before backing up. The live
-main database, WAL and SHM are excluded. Linked conversation databases receive
-their own online snapshots under NAME/conversations/ID/; their live SQLite/WAL/SHM
-files are also excluded. The transient executor control socket is excluded and
-is recreated by its broker. A private manifest retains the legacy database_restore
+main database, WAL and SHM are excluded. The canonical snapshot contains all active chats.
+Retained legacy conversation DBs also receive online snapshots under
+NAME/conversations/ID/; their live SQLite/WAL/SHM files are excluded. New chats
+have no separate DB. Obsolete executor sockets remain excluded. A private manifest retains the legacy database_restore
 entry and lists every snapshot/destination in databases_restore. Other files are a live filesystem backup,
 not a simultaneous snapshot. Bots are not paused.
 
@@ -65,7 +65,7 @@ While the intended instance is stopped, restore its workspace, Codex state and
 private configuration, then install the consistent database as
 workspace/state/assistant.sqlite without old WAL/SHM files. Restore every group
 database listed in databases_restore to its recorded destination in the same
-way. Group snapshots are independently consistent, not simultaneous across chats.
+way. Legacy recovery copies are independently consistent; active chats share the canonical snapshot.
 Review shared source
 restores separately to avoid replacing another instance's files.
 

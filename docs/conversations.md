@@ -1,123 +1,89 @@
-# Telegram conversations (COD-1–COD-5)
+# Personal agent across Telegram conversations
 
-Implementation milestones:
+One bot serves one configured owner. The DM and linked groups are topic-specific
+conversation threads for that owner. Groups do not create another agent, owner,
+knowledge base or permission boundary. Replies are visible to all group members,
+but only the configured owner can submit instructions, before persistence/download.
 
-1. Add stable conversation and main-session identity; preserve existing DM data
-   and its Codex thread through an additive migration.
-2. Link groups explicitly, accept addressed messages, and retain author identity.
-3. Isolate group state and execution; bind service capabilities to the audience.
-4. Route durable jobs, schedules, events and delivery to their source conversation.
-5. Bound and fairly schedule main turns and workers across the owner; validate
-   migration, routing, authorization and cancellation using synthetic fixtures.
+## Delivery milestones
 
-All five source milestones are implemented. Local synthetic tests cover the
-listed storage/routing/authorization flows, MCP dispatch, restart and shared
-limits. The macOS command sandbox probe and Linux separate-executor probe pass.
-An isolated authenticated model turn verified native commands, group output and
-scoped MCP. Actual Telegram group acceptance remains outstanding.
+1. Replace isolated group knowledge with one canonical owner database and profiles.
+2. Preserve independent main sessions, recent context, queues, settings and routes.
+3. Migrate old group records, evidence, rollouts and forgetting without deletion.
+4. Verify shared recall/rules/tools, owner checks, concurrency and source delivery.
+5. Build/test the Linux image; deploy each instance with snapshots and preservation
+   checks, then verify actual installed behavior and model recall before publication.
 
-Target: the reusable local service, followed by a separately authorized image
-build and Telegram acceptance. Example: two people mention the bot in group A;
-a worker completes after activity in group B and the DM, and only A receives its
-result. Neither tools nor generated code may read the DM or B's private state.
+## Shared knowledge and independent context
 
-One configured owner controls this bot. Group participants are actors, not new
-owners. A conversation has a stable UUID, Telegram chat ID, optional reserved
-thread ID, lifecycle state, settings, and replaceable main session. Chat titles
-are labels, never identity. Group migration updates the transport address only.
+`state/assistant.sqlite` owns all history, inputs, jobs, schedules, outbox, memory,
+learning and provenance. Conversation IDs scope orchestration queries and metadata;
+owner knowledge remains shared. `AGENTS.md`, `SOUL.md`, `USER.md`, generated learning,
+skills, projects, source files and account integrations are shared across chats.
+The Codex home/authentication is shared within the instance, isolated from other owners.
 
-The DM keeps its original database, profiles, files, memory and thread. Groups
-use separate databases under `state/conversations/ID/` and workspaces under
-`conversations/ID/`. Each database records the same stable conversation ID in
-inputs, history, jobs, schedules and outbox. Memory, learning, evidence, revisions,
-tombstones, projections and checkpoints stay in that conversation's database.
-This reuses the existing owner-bound memory implementation without broadening
-its scope or mixing group records into personal maintenance.
+Each conversation has a stable UUID, Telegram chat ID, optional reserved thread ID,
+lifecycle state, settings and replaceable main session. Recent history and task status
+are local to that conversation. History tools default to it; explicit `scope=all`
+retrieves other owner conversations when relevant. Relevant memory and learning are
+retrieved globally. Sharing availability does not inject all transcripts into every turn.
 
-Group execution must enforce filesystem access, not merely instructions. The
-group Codex invocation ignores personal runtime config/rules, disables apps,
-plugins, hooks, browser and subagents, and uses a named filesystem profile that
-denies the filesystem outside minimal runtime paths and its group workspace.
-Profiles, inbox, memory and state are read-only to generated code; only group
-outputs, projects and task directories are writable. Read-only tasks and internal
-reviews remove those write grants as well.
-Command network access and approval escalation are disabled. Account credentials
-are used by the Codex client, never supplied as model context. Service tools
-validate owner, conversation, session, task, actor and role. No personal USER.md,
-location, private skills or connected account context is injected into groups.
+A rule or preference changed in one chat applies to subsequent turns everywhere.
+One owner maintenance schedule consolidates evidence across chats. Forgetting is
+owner-wide for structured memory and sourced learning; transcripts/files/backups
+retain their documented separate retention. Workers cannot change profiles, spawn
+workers or widen their parent's tool scope. Curators remain read-only.
 
-Runtime enforcement and native tool behavior require a target-platform probe
-before group model execution is enabled. Unsupported enforcement fails closed.
-Synthetic tests and configuration inspection do not prove deployed isolation.
+Owner group turns use the same workspace, configured browser, Python, skills and
+integrations as DM turns. The separate group executor/broker and named sandbox
+introduced for multi-participant access are retired. Isolation between different
+bot owners remains. Normal model code retains the instance's granted filesystem
+and account access; conversation routing is not a filesystem security boundary.
+Authentication challenges and mailbox acceptance remain in the owner DM.
 
-The synthetic command probe passed locally on macOS. The pinned CLI's native
-image handler passes sandbox context to filesystem reads; this was verified in
-[the 0.159.2 source](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/tools/handlers/view_image.rs).
-The permission profile follows [official Codex documentation](https://learn.chatgpt.com/docs/permissions).
-The Linux separate-executor boundary and an isolated real model/native-tool turn
-were verified. Actual Telegram behavior remains a deployment acceptance gate.
+## Migration and recovery
 
-The initial 2026-10-03 target-host probe found that the existing Docker security profile
-blocks bubblewrap namespace creation. An isolated non-root diagnostic passed
-with outer seccomp and AppArmor disabled; that diagnostic configuration has not
-been adopted for production. Group execution remains blocked under the current
-deployment. The Linux runtime vendor tree needs an explicit read grant so the
-sandbox can re-execute its pinned helper. Empty mount-parent scaffolding is
-expected; the probe checks private directories and files directly.
+Migration imports each old group database once, in a canonical-database transaction.
+It remaps history IDs and evidence, preserves session/thread IDs, task settings,
+outbox states, memory revisions, tombstones and learned records. Old databases,
+profiles and group files remain intact under their existing paths. Saved Codex
+rollouts move into the shared home through collision-checked copies; credentials
+and old neutral group rules are not copied over the owner configuration.
+Conflicting memory keys are archived under deterministic distinct keys; conflicting
+learned rules are retired rather than overwriting owner rules. Forgotten root keys
+are never revived by migration. Inspect conflicts through the database/archived
+memory tools before deliberately reconciling them.
 
-For hardened Linux containers, the operator selected separate group executors.
-`GROUP_EXECUTOR_SOCKET` selects a host-owned broker through a Unix socket in the
-existing workspace mount. Each turn gets a disposable container with only that
-group mounted: its workspace is read-only, while outputs/projects/tasks are
-writable for ordinary turns. Read-only tasks have no persistent write mounts.
-The container has no network, authentication, host Docker access or personal
-source mounts, and retains read-only rootfs, dropped capabilities and Docker's
-security profiles. The broker validates canonical UUID paths and enforces a
-bounded execution pool; it is trusted host infrastructure, never a model tool.
+Legacy maintenance schedules are disabled so only the owner loop consolidates.
+Ordinary queued work retains its source. Other participants' pending inputs/jobs
+cannot execute after the owner-only transition. Interrupted execution and uncertain
+sends retain the no-blind-replay contract. Backup snapshots include the canonical
+DB and any retained legacy DBs; new groups need no separate database file.
 
-The authenticated Codex client remains in the personal service. Its execution
-environment contains only the remote executor, with no local fallback. Native
-filesystem operations and shell commands run there. Named local sandbox
-profiles are replaced by the container boundary for this mode. The scoped
-assistant MCP uses authenticated HTTP in the personal service, preserving role,
-actor and conversation checks without putting its capability in executor env.
-Disconnect/cancellation closes the transport and removes its container.
-Executor reconnects do not preserve a command process; failed operations must
-not be blindly replayed.
+## Intake and controls
 
-Models that require Code Mode retain its pinned V8 host. Its JavaScript runtime
-rejects imports and has no direct filesystem/network API; it dispatches only
-the configured tool catalog. Native operations still use the remote executor,
-and service tools still enforce conversation capabilities. Disabling that host
-would silently remove tools for models whose metadata requires Code Mode.
+Link with `/link@BOT_USERNAME` directly in the chosen group as the owner. Group
+messages require an entity-based direct mention or `/command@BOT_USERNAME`.
+Unmentioned messages, other participants, bots, unknown groups, edited messages
+and forum topics are discarded. Replies without mentions remain unsupported.
+For plain mentions, disable privacy in BotFather and re-add the bot, or make it
+an admin. Privacy-enabled bots receive addressed commands; plain mentions are
+not guaranteed. See [Telegram privacy](https://core.telegram.org/bots/features#privacy-mode).
 
-Owner-only operations: group linking/disconnection/settings/sharing, `/new`,
-authentication, locations, account management, and forgetting group memories.
-Members: addressed conversation, group history/memory, scoped task creation,
-task status and reminders. Members may cancel their own tasks/turns. Workers
-inherit the conversation's permissions and cannot create more workers, change
-settings, share private data, or change profiles. External account actions are
-unavailable to groups in this version, including owner messages to a group.
+`/group` in the DM lists linked groups; `/group disconnect ID` blocks their route;
+`/group settings ID {"effort":"medium"}` changes their defaults. `/group share ID
+selected text` sends selected text to that group; shared memory needs no share step.
+Settings resolve instance defaults, conversation settings, then task overrides.
+`/new`, `/status`, `/stop`, `/cancel` remain conversation-specific. Late task results
+return to their original chat without entering a newly reset session's context.
+Disconnecting blocks execution and delivery, with no redirect to another chat.
 
-Direct bot mentions and `/command@botname` address the bot. Replies without a
-mention do not trigger work. Unaddressed messages are not saved or downloaded.
-Forum thread messages are rejected in this version; the schema reserves their
-transport identity for a future implementation. For plain `@botname` messages,
-disable privacy mode through BotFather and re-add the bot to the group, or grant
-the bot admin access. With privacy mode enabled, use `/command@botname`; plain
-mentions are not among the updates Telegram promises to deliver. See
-[Telegram privacy mode](https://core.telegram.org/bots/features#privacy-mode).
-Receiving all updates does not broaden application ingestion: unaddressed
-messages are discarded before saving or downloading. Bot API entities use
-UTF-16 offsets. Refresh bot identity from
-`getMe` so username changes do not leave an old mention allowlist.
+## Acceptance
 
-Settings resolve instance defaults, then conversation settings, then task
-overrides. Effective model, reasoning, timeout and tool scope are saved with the
-task. Overrides can narrow tool permissions, never widen them. `/new` rotates
-only the current main session; late worker results remain deliverable to their
-original audience but do not enter the new main session.
-
-Disconnecting blocks input, execution and delivery. No private result is
-redirected to a different chat. Reconnecting is an explicit owner decision.
-Restart notices, files, errors and schedules retain their conversation route.
+Save a fact/preference in the DM and recall it in two groups. Change a rule in one
+group and observe it in the other. Recent discussion and `/new` stay local; shared
+memory survives resets and restarts. A group A task must finish only in A while
+B and the DM are active. Test other-participant rejection, migration retry,
+revision conflicts, forgetting, account availability and bounded fair concurrency.
+Source tests, image tests, installed-state checks, isolated real-model tests and
+actual Telegram interactions are distinct stages of evidence.

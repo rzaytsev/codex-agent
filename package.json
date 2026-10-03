@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node src/main.js",
     "test": "node --test test/*.test.js",
-    "check": "node --check src/group-executor.js && node --check src/mcp-tools.js && node --check scripts/group-executor-smoke.js && node --check src/conversations.js && node --check src/group-sandbox.js && node --check src/store.js && node --check scripts/codex-group.js && node --check scripts/group-sandbox-smoke.js && node --check src/learning.js && node --check src/agent.js && node --check src/main.js && node --check src/service.js && node --check src/mcp.js && node --check src/auth.js && node --check src/tdl-auth.js && node --check src/plugins.js && node --check src/codex-account.js && node --check src/mailbox.js && node --check src/mailbox-main.js && node --check src/mailbox-cli.js && node --check src/agent-mail.js"
+    "check": "node --check src/conversation-migration.js && node --check src/mcp-tools.js && node --check src/conversations.js && node --check src/store.js && node --check src/learning.js && node --check src/agent.js && node --check src/main.js && node --check src/service.js && node --check src/mcp.js && node --check src/auth.js && node --check src/tdl-auth.js && node --check src/plugins.js && node --check src/codex-account.js && node --check src/mailbox.js && node --check src/mailbox-main.js && node --check src/mailbox-cli.js && node --check src/agent-mail.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
@@ -17,7 +17,6 @@
     "@openai/codex-sdk": "0.159.2",
     "@playwright/mcp": "0.0.83",
     "cron-parser": "5.5.0",
-    "ws": "8.22.0",
     "zod": "4.6.5"
   }
 }

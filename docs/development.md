@@ -29,12 +29,12 @@ proactivity for an unconfigured local service test.
 
 ## Runtime validation ladder
 
-For linked groups, run `node scripts/group-sandbox-smoke.js` on the target host
-or image before model acceptance. It uses synthetic files and a temporary HTTP
-listener, with no credentials or model call. A pass proves the tested command
-boundary; also test actual model/native-file tools, group mentions, delivery,
-disconnect/reconnect and restart on the deployed image. Never enable groups by
-bypassing a failed probe.
+For shared owner conversations, run `test/conversations.test.js` and
+`test/conversation-migration.test.js` first. Verify shared recall/rules/tools,
+separate recent context, migration and source routing. `scripts/conversations-smoke.js`
+uses synthetic chats/workspace with an existing login and no Telegram polling or
+sending; its model calls consume subscription quota. Also verify actual deployed
+mentions, delivery, disconnect/reconnect and restart before full user acceptance.
 
 1. Unit/integration suites: authorization, jobs, memory, delivery, files, usage,
    seed behavior, instance selection, backup helpers and publication boundaries.

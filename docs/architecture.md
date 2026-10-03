@@ -37,7 +37,7 @@ Telegram available while gating model work; switching accounts drains active
 turns before authorization. See [authentication](authentication.md). Intake authorizes the owner before downloads or persistence,
 deduplicates update IDs, and handles immediate commands/location without a model.
 conversations.js routes the owner DM and explicitly linked, addressed groups to
-separate service/state instances. Each conversation has one main turn and its own
+conversation-scoped service instances on one canonical owner database. Each has one main turn and its own
 worker threads; a coordinator enforces fair shared execution limits. Stable IDs
 survive Telegram renames/migrations. See [conversations](conversations.md).
 
@@ -48,9 +48,9 @@ versioned adaptations; see [learning](learning.md). It supplies recent
 history and bounded relevant memory, and runs the pinned SDK with a structured
 response schema. The subprocess environment includes required runtime paths and
 optional Maps access but excludes the Telegram token and OpenAI API key. Owner
-DM turns use danger-full-access/never approvals inside granted container access;
-group turns use named deny-read filesystem permissions, disabled command network,
-private-config isolation and scoped MCP with never approvals.
+DM and group turns share profiles, knowledge, workspace and configured integrations.
+They use danger-full-access/never approvals within granted container access.
+Recent history and orchestration queries stay scoped to the source conversation.
 An isolated browser process and output directory belong to each turn.
 
 The model's MCP stdio bridge calls loopback service HTTP with a fresh capability.

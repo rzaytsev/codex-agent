@@ -39,6 +39,10 @@ class BackupTests(unittest.TestCase):
             (group / 'assistant.sqlite').unlink()
             with self.assertRaises(RuntimeError):
                 backups.database_snapshots(workspace, state)
+            with sqlite3.connect(workspace / 'state/assistant.sqlite') as catalog:
+                catalog.execute('CREATE TABLE meta(key TEXT, value TEXT)')
+                catalog.execute("INSERT INTO meta VALUES ('shared-owner-store-version','2')")
+            self.assertEqual(len(backups.database_snapshots(workspace, state)), 1)
 
     def test_private_settings_and_complete_instance_directory_are_selected(self):
         with tempfile.TemporaryDirectory() as temporary:

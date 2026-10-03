@@ -5,11 +5,12 @@ that needs real-task acceptance, not a guarantee from instructions alone.
 
 ## Conversation intake
 
-The owner DM and owner-linked groups have independent main sessions, history,
-memory, workspaces and durable queues. Groups accept direct mentions or commands
+The owner DM and owner-linked groups share memory, rules, workspace and tools,
+with independent main sessions, recent history and durable queue routes. Groups
+accept only the owner, with direct mentions or commands
 addressed to the current bot username; ordinary replies/unmentioned messages do
 not enter history. `/new`, `/status`, `/stop` and `/cancel` act on the current
-conversation. Authentication/location/account commands stay in the owner DM.
+conversation. Authentication challenges and mailbox acceptance stay in the owner DM.
 See [conversations](conversations.md) for linking, permissions and migration.
 
 1. Authenticate the Telegram sender against a configured user allowlist.

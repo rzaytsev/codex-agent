@@ -48,10 +48,10 @@ Read the relevant deeper document before changing a subsystem:
 ## Non-negotiable behavior
 
 1. Keep exactly one owner per instance. Validate private-chat sender and recipient,
-   or an explicitly linked group and addressed participant, before persistence or
+   or the same owner in an explicitly linked group with an addressed message, before persistence or
    downloads. Recheck owner, conversation, session, task and role at tool/delivery
-   boundaries. Never reassign a memory database or expose private owner context
-   to groups. Group execution requires an enforced filesystem boundary.
+   boundaries. Never reassign a memory database. Owner memory, rules, workspace and
+   tools are shared across chats; sessions, recent context and delivery stay scoped.
 2. Preserve ChatGPT authentication and separate CODEX_HOME per instance. Never
    substitute API billing. Actual model/plugin access is account/runtime dependent.
 3. Preserve workspace, state, profiles, locations, auth and private skills through

@@ -1,7 +1,8 @@
 # Continuous learning
 
 The assistant improves its assistance through sourced, scoped, reversible learning.
-Its mission is to help the owner pursue their chosen goals, reduce avoidable effort
+Records and rules are shared across owner chats; one review loop processes their
+evidence. Its mission is to help the owner pursue their chosen goals, reduce avoidable effort
 and develop capabilities they want. It does not choose the owner's goals or treat
 silence as approval. Model weights and account permissions do not change.
 

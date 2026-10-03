@@ -23,7 +23,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.locations=new Locations(cfg.workspace);this.memory=new Memory(cfg.workspace,store,cfg.owner);this.learning=new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -31,6 +31,7 @@ export class Service {
   }
   releaseCapability(token) {this.capabilities.get(token)?.controller.abort();this.capabilities.delete(token);}
   async init() {
+    if(this.shared) {this.mail=this.shared.mail;this.store.recover();return;}
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
     if(this.cfg.mail)this.mail=new AgentMail(this.cfg,this.store);
@@ -70,13 +71,13 @@ export class Service {
     this.store.recover();
     this.cleanupPrompt=await fs.readFile(path.resolve('templates','CLEANUP.md'),'utf8');
     const owner=this.cfg.owner;
-    const cleanup=this.store.db.prepare("SELECT * FROM schedules WHERE unique_key='maintenance:cleanup'").get();
+    const cleanup=this.store.prepare("SELECT * FROM schedules WHERE $scope AND unique_key='maintenance:cleanup'").get();
     if(!this.cfg.cleanupEnabled||!owner) {
-      if(cleanup) this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=?').run(cleanup.id);
+      if(cleanup) this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(cleanup.id);
     } else if(!cleanup) {
-      this.store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(),owner,'cleanup','workspace cleanup',this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),'maintenance:cleanup');
+      this.store.schedule(randomUUID(),owner,'cleanup','workspace cleanup',this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),'maintenance:cleanup');
     } else if(cleanup.user!==owner||cleanup.cron!==this.cfg.cleanupCron||cleanup.timezone!==this.cfg.timezone||this.store.get('cleanup-enabled')==='false') {
-      this.store.db.prepare('UPDATE schedules SET user=?,cron=?,timezone=?,due=?,enabled=1 WHERE id=?').run(owner,this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),cleanup.id);
+      this.store.prepare('UPDATE schedules SET user=?,cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(owner,this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),cleanup.id);
     }
     this.store.set('cleanup-enabled',this.cfg.cleanupEnabled);
     if(owner)this.learningSchedules(owner);
@@ -85,27 +86,27 @@ export class Service {
   reviewSchedules(user) {
     const reenabled=this.store.get(`proactive-enabled:${user}`)==='false';
     for(const [period,cron] of Object.entries(this.cfg.reviews)) {
-      const key=`review:${user}:${period}`,old=this.store.db.prepare('SELECT * FROM schedules WHERE unique_key=?').get(key);
-      if(!this.cfg.proactive) {if(old)this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=?').run(old.id);continue;}
-      if(!old)this.store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(),user,'review',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
-      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||reenabled)this.store.db.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
+      const key=`review:${user}:${period}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
+      if(!this.cfg.proactive) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);continue;}
+      if(!old)this.store.schedule(randomUUID(),user,'review',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
+      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||reenabled)this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
     }
     this.store.set(`proactive-enabled:${user}`,this.cfg.proactive);
   }
   memorySchedules(user) {
     for(const [period,cron] of Object.entries(this.cfg.memoryCrons)) {
-      const key=`memory:${user}:${period}`,old=this.store.db.prepare('SELECT * FROM schedules WHERE unique_key=?').get(key);
-      if(!this.cfg.memoryEnabled) {if(old)this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=?').run(old.id);continue;}
-      if(!old)this.store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(),user,'memory',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
-      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||this.store.get(`memory-enabled:${user}`)==='false')this.store.db.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
+      const key=`memory:${user}:${period}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
+      if(!this.cfg.memoryEnabled) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);continue;}
+      if(!old)this.store.schedule(randomUUID(),user,'memory',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
+      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||this.store.get(`memory-enabled:${user}`)==='false')this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
     }
     this.store.set(`memory-enabled:${user}`,this.cfg.memoryEnabled);
   }
   learningSchedules(user) {
-    const key=`learning:${user}`,old=this.store.db.prepare('SELECT * FROM schedules WHERE unique_key=?').get(key);
-    if(!this.cfg.learningEnabled) {if(old)this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=?').run(old.id);}
-    else if(!old)this.store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(),user,'learning','session and outcome learning',this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),key);
-    else if(old.cron!==this.cfg.learningCron||old.timezone!==this.cfg.timezone||this.store.get(`learning-enabled:${user}`)==='false')this.store.db.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE id=?').run(this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),old.id);
+    const key=`learning:${user}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
+    if(!this.cfg.learningEnabled) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);}
+    else if(!old)this.store.schedule(randomUUID(),user,'learning','session and outcome learning',this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),key);
+    else if(old.cron!==this.cfg.learningCron||old.timezone!==this.cfg.timezone||this.store.get(`learning-enabled:${user}`)==='false')this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),old.id);
     this.store.set(`learning-enabled:${user}`,this.cfg.learningEnabled);
   }
   learningJob(id) {return JSON.parse(this.store.get(`learning-job:${id}`)||'null');}
@@ -138,13 +139,10 @@ export class Service {
     signal?.throwIfAborted();
     if(!this.cfg.allowed.has(user)) throw new Error('User revoked');
     if(cap.owner!==undefined&&(cap.owner!==this.cfg.owner||cap.conversationId!==this.store.get('conversation-id')||cap.sessionId!==this.store.get('main-session')))throw new Error('Conversation capability revoked');
-    if(cap.taskId&&!this.store.db.prepare("SELECT id FROM jobs WHERE id=? AND conversation_id=? AND state='running'").get(cap.taskId,cap.conversationId))throw new Error('Task capability revoked');
+    if(cap.taskId&&!this.store.prepare("SELECT id FROM jobs WHERE $scope AND id=? AND conversation_id=? AND state='running'").get(cap.taskId,cap.conversationId))throw new Error('Task capability revoked');
     if(cap.toolScope==='read'&&!['history_search','history_read','task_status','memory_search','memory_read','learning_read','learning_evidence','list_schedules','location_get'].includes(name))throw new Error('Read-only task');
     if(this.cfg.group) {
-      if(!cap.conversationId||this.cfg.group.state!=='active')throw new Error('Group capability unavailable');
-      const groupTools=['history_search','history_read','task_status','memory_search','memory_read','memory_save','memory_forget','learning_read','learning_evidence','create_task','cancel_task','schedule','list_schedules','cancel_schedule'];
-      if(!groupTools.includes(name)||(name==='memory_forget'&&cap.actorId!==this.cfg.owner))throw new Error('Tool unavailable to group audience');
-      if(cap.toolScope==='read'&&!['history_search','history_read','task_status','memory_search','memory_read','learning_read','learning_evidence','list_schedules'].includes(name))throw new Error('Read-only task');
+      if(!cap.conversationId||this.cfg.group.state!=='active'||cap.actorId!==this.cfg.owner)throw new Error('Owner group capability unavailable');
     }
     const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read','learning_read','learning_evidence'];
     if((memoryReview&&!reads.includes(name))||(worker&&![...reads,'memory_save'].includes(name))) throw new Error('Worker tool not allowed');
@@ -156,9 +154,10 @@ export class Service {
       case 'mail_status': if(!this.mail)throw new Error('Messaging disabled');return this.mail.status(args.id,signal);
       case 'history_search': {
         const since=args.since?Date.parse(args.since):0;if(!Number.isFinite(since)) throw new Error('Invalid date');
-        return this.store.search(user,String(args.query || ''),since);
+        if(args.scope!==undefined&&!['conversation','all'].includes(args.scope))throw new Error('Invalid history scope');
+        return this.store.search(user,String(args.query || ''),since,{all:args.scope==='all'});
       }
-      case 'history_read': return this.store.historyPage(user,{after:args.after??0,since:args.since?Date.parse(args.since):0,until:args.until?Date.parse(args.until):Date.now(),limit:args.limit??50});
+      case 'history_read': {if(args.scope!==undefined&&!['conversation','all'].includes(args.scope))throw new Error('Invalid history scope');return this.store.historyPage(user,{after:args.after??0,since:args.since?Date.parse(args.since):0,until:args.until?Date.parse(args.until):Date.now(),limit:args.limit??50,all:args.scope==='all'});}
       case 'memory_search': return this.memory.search(args.query||'',{category:args.category,limit:args.limit??10,after:args.after??0,since:args.since?Date.parse(args.since):0});
       case 'memory_read': return this.memory.get(args.key,args.revision);
       case 'learning_read': return args.key?this.learning.get(args.key,args.revision):this.learning.list();
@@ -188,7 +187,7 @@ export class Service {
         const settings=this.effectiveSettings(args.profile||'worker',args.settings,cap.toolScope);
         const id=this.store.job(user,args.prompt,args.profile || 'worker');
         this.store.set(`task-settings:${id}`,JSON.stringify(settings));
-        this.store.db.prepare('UPDATE jobs SET actor_id=? WHERE id=?').run(cap.actorId||user,id);
+        this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(cap.actorId||user,id);
         if(args.title) this.store.set(`task-title:${id}`,args.title.trim());
         if(args.acknowledgment) this.store.set(`task-acknowledgment:${id}`,args.acknowledgment.trim());
         return {id};
@@ -202,13 +201,13 @@ export class Service {
       }
       case 'schedule': {
         if(!['reminder','task'].includes(args.kind)||typeof args.prompt!=='string'||!args.prompt||args.prompt.length>30000||typeof args.key!=='string'||!args.key||args.key.length>200) throw new Error('Invalid schedule');
-        const due=dueTime(args,this.cfg.timezone);const key=`${user}:${args.key}`;const id=randomUUID();
-        this.store.db.prepare('INSERT OR IGNORE INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key) VALUES (?,?,?,?,?,?,?,?)').run(id,user,args.kind,args.prompt,args.cron || null,args.timezone || this.cfg.timezone,due,key);
-        this.store.db.prepare('UPDATE schedules SET actor_id=? WHERE id=?').run(cap.actorId||user,id);
-        return this.store.db.prepare('SELECT id,due,timezone,enabled FROM schedules WHERE unique_key=?').get(key);
+        const due=dueTime(args,this.cfg.timezone);const key=`${this.store.get('conversation-id')}:${user}:${args.key}`;const id=randomUUID();
+        this.store.schedule(id,user,args.kind,args.prompt,args.cron || null,args.timezone || this.cfg.timezone,due,key);
+        this.store.prepare('UPDATE schedules SET actor_id=? WHERE $scope AND id=?').run(cap.actorId||user,id);
+        return this.store.prepare('SELECT id,due,timezone,enabled FROM schedules WHERE $scope AND unique_key=?').get(key);
       }
-      case 'list_schedules': return this.store.db.prepare('SELECT id,kind,prompt,cron,timezone,due FROM schedules WHERE user=? AND enabled=1').all(user);
-      case 'cancel_schedule': return {cancelled:this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=? AND user=? AND (? OR actor_id=?)').run(args.id,user,Number(!this.cfg.group||cap.actorId===this.cfg.owner),cap.actorId||user).changes>0};
+      case 'list_schedules': return this.store.prepare('SELECT id,kind,prompt,cron,timezone,due FROM schedules WHERE $scope AND user=? AND enabled=1').all(user);
+      case 'cancel_schedule': return {cancelled:this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').run(args.id,user,Number(!this.cfg.group||cap.actorId===this.cfg.owner),cap.actorId||user).changes>0};
       default: throw new Error('Unknown tool');
     }
   }
@@ -220,10 +219,10 @@ export class Service {
     return settings;
   }
   cancelTask(user,id,actor=user) {
-    const owned=this.store.db.prepare('SELECT id FROM jobs WHERE id=? AND user=? AND (? OR actor_id=?)').get(id,user,Number(!this.cfg.group||actor===this.cfg.owner),actor);
+    const owned=this.store.prepare('SELECT id FROM jobs WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').get(id,user,Number(!this.cfg.group||actor===this.cfg.owner),actor);
     if(!owned)return {cancelled:false};
     if(owned) this.controllers.get(id)?.abort();
-    const result=this.store.db.prepare("UPDATE jobs SET state='cancelled' WHERE id=? AND user=? AND state IN ('queued','running')").run(id,user);return {cancelled:result.changes>0};
+    const result=this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=? AND user=? AND state IN ('queued','running')").run(id,user);return {cancelled:result.changes>0};
   }
   statusText(user) {
     const jobs=this.store.jobs(user);
@@ -231,25 +230,25 @@ export class Service {
   }
   ingest(update) {
     const message=update.message || (update.edited_message?.location?update.edited_message:null);
-    if(this.cfg.group?!(message&&!message.from?.is_bot&&String(message.chat?.id)===this.cfg.group.chat_id&&String(message.from?.id).match(/^[1-9]\d*$/)&&this.cfg.group.state==='active'):!authorized(message,this.cfg)) return false;
+    if(this.cfg.group?!(message&&!message.from?.is_bot&&String(message.chat?.id)===this.cfg.group.chat_id&&String(message.from?.id)===this.cfg.owner&&this.cfg.group.state==='active'):!authorized(message,this.cfg)) return false;
     const user=this.cfg.group?this.cfg.owner:String(message.from.id);
     return this.store.transaction(()=>{
       const tdlCommand=/^\/tdl_auth(?:\s|$)/.test(message.text?.trim()||'');
       // Control commands never enter model history; discard any unsolicited secret arguments.
       const added=this.store.ingest(update.update_id,user,tdlCommand?{message_id:message.message_id,text:['/tdl_auth','/tdl_auth status','/tdl_auth cancel'].includes(message.text.trim())?message.text.trim():'/tdl_auth invalid'}:message);
       if(!added) return false;
-      this.store.db.prepare('UPDATE inputs SET actor_id=? WHERE id=?').run(String(message.from.id),update.update_id);
+      this.store.prepare('UPDATE inputs SET actor_id=? WHERE $scope AND id=?').run(String(message.from.id),update.update_id);
       const command=message.text?.trim();
-      if(this.cfg.group&&(/^\/(auth|tdl_auth|location|mail|usage|group|start)(?:\s|$)/.test(command||'')||message.location||(command==='/new'&&String(message.from.id)!==this.cfg.owner))) {
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);this.store.enqueue(user,{text:'This command is available only to the owner in the private chat.'});return true;
+      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group)(?:\s|$)/.test(command||'')) {
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);this.store.enqueue(user,{text:'This command is available only to the owner in the private chat.'});return true;
       }
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
       if(tdlCommand&&this.tdlAuth) {
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /tdl_auth directly; forwarded commands cannot change your login.'});
         else this.tdlAuth.command(command);
       } else if(command==='/mail'||command?.startsWith('/mail ')) {
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         let text;
         try {
           if(!this.mail)throw new Error('Messaging is not configured.');
@@ -265,12 +264,12 @@ export class Service {
         } catch {text='Mailbox command unavailable or invalid. Use /mail, /mail read ID, /mail accept ID or /mail reject ID. Acceptance must be sent directly by this bot’s owner.';}
         for(const part of chunks(text))this.store.enqueue(user,{text:part});
       } else if(this.auth&&(authCommand||(!message.forward_origin&&command==='/start'&&this.auth.status==='signed_out'))) {
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /auth directly to manage your login; forwarded commands cannot change it.'});
         else this.auth.command(command);
       } else if(command==='/help'||command==='/status'||command==='/stop'||command==='/cancel'||command?.startsWith('/cancel ')) {
         let text;
-        if(command==='/help') text=this.cfg.group?'Mention the bot to ask a question. /status, /stop and /cancel <task-id> act in this group; /new is owner-only. Account and personal commands belong in the private chat.':'Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/tdl_auth — connect your Telegram user account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/group — manage linked groups\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
+        if(command==='/help') text=this.cfg.group?'Only the configured owner can instruct me. Mention me to ask a question. Memory, rules, files and tools are shared with your other chats. /new, /status, /stop and /cancel <task-id> act in this group. Login challenges and mailbox acceptance stay in the private chat.':'Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/tdl_auth — connect your Telegram user account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/group — manage linked groups\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
         else if(command==='/status') text=this.statusText(user);
         else if(command==='/stop') {
           const ctrl=this.mainUser===user&&(!this.cfg.group||String(message.from.id)===this.cfg.owner||String(message.from.id)===this.mainActor)?this.controllers.get('main'):undefined;
@@ -278,7 +277,7 @@ export class Service {
           else text='No active reply to stop. Use /status and /cancel <task-id> for background work.';
         } else if(command==='/cancel') text='Use /cancel <task-id>. Find task IDs with /status.';
         else text=this.cancelTask(user,command.slice(8).trim(),String(message.from.id)).cancelled?'Cancelled the background task.':'No queued or running task with that ID belongs to you.';
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         for(const part of chunks(text))this.store.enqueue(user,{text:part});
       } else if(this.auth&&!this.auth.ready&&!message.location) this.store.enqueue(user,{text:this.auth.phase!=='idle'?'Your message is queued until login finishes. /auth shows progress; /auth cancel cancels login.':'Your message is queued while ChatGPT login is unavailable. Use /auth to sign in, or /auth status.'});
       else if(this.tdlAuth?.active&&!message.location) this.store.enqueue(user,{text:'Your message is queued until Telegram user login finishes. /tdl_auth shows the latest QR; /tdl_auth cancel stops login.'});
@@ -292,20 +291,18 @@ export class Service {
           else if(command==='/location clear') {this.locations.clear(user);text='Cleared your temporary location. Your default is preserved.';}
           else {const selected=this.locations.get(user);text=selected.source==='temporary'?`Using your temporary location until ${selected.temporary_expires_at}.`:selected.source==='default'?'Using your default location.':'No usable saved location. Share one in Telegram.';}
         } catch {text='Could not save or read the location. Share a valid location and try again.';}
-        this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(update.update_id);
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         // Live updates refresh quietly, without a model turn or repeated acknowledgements.
         if(!update.edited_message) this.store.enqueue(user,{text});
       }
       this.store.set(`known:${user}`,'1');
       this.auth?.notifyMissing();
-      this.memorySchedules(user);
-      this.learningSchedules(user);
-      this.reviewSchedules(user);
+      if(!this.cfg.group){this.memorySchedules(user);this.learningSchedules(user);this.reviewSchedules(user);}
       return added;
     });
   }
   event(user,text) {
-    const id=Number(this.store.get('eventId') || 0)-1;this.store.set('eventId',id);this.store.ingest(id,user,{event:true,text});
+    const id=this.store.db.prepare('SELECT min(coalesce(min(id),0),0)-1 AS id FROM inputs').get().id;this.store.ingest(id,user,{event:true,text});
   }
   async output(user,result,proactive=false,signal) {
     signal?.throwIfAborted();
@@ -344,20 +341,20 @@ export class Service {
     if(this.mainBusy||this.stopping) return;
     if(this.auth)modelReady=this.auth.ready;
     if(this.tdlAuth?.active)modelReady=false;
-    const input=this.store.db.prepare("SELECT * FROM inputs WHERE state='pending' AND (? OR trim(json_extract(payload, '$.text'))='/usage') ORDER BY created,id LIMIT 1").get(Number(modelReady));
+    const input=this.store.prepare("SELECT * FROM inputs WHERE $scope AND state='pending' AND (? OR trim(json_extract(payload, '$.text'))='/usage') ORDER BY created,id LIMIT 1").get(Number(modelReady));
     if(!input) return;
-    const maintenance=this.store.db.prepare("SELECT id,prompt FROM jobs WHERE state='running'").all().find(job=>this.idleMaintenance(job));
+    const maintenance=this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().find(job=>this.idleMaintenance(job));
     if(maintenance) {this.controllers.get(maintenance.id)?.abort();return;}
     this.mainBusy=true;
     this.mainUser=input.user;this.mainCancelled=false;
-    this.store.db.prepare("UPDATE inputs SET state='processing' WHERE id=?").run(input.id);
+    this.store.prepare("UPDATE inputs SET state='processing' WHERE $scope AND id=?").run(input.id);
     const controller=new AbortController();this.controllers.set('main',controller);
     const stopTyping=this.cfg.allowed.has(input.user)?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
     controller.signal.addEventListener('abort',stopTyping,{once:true});
     const settings=this.effectiveSettings('main');
     const timeout=setTimeout(()=>controller.abort(),settings.timeout*1000);
     try {
-      if(!this.cfg.allowed.has(input.user)) { this.store.db.prepare("UPDATE inputs SET state='rejected' WHERE id=?").run(input.id);return; }
+      if(!this.cfg.allowed.has(input.user)||this.cfg.group&&input.actor_id!==this.cfg.owner) { this.store.prepare("UPDATE inputs SET state='rejected' WHERE $scope AND id=?").run(input.id);return; }
       const message=JSON.parse(input.payload);
       this.mainActor=input.actor_id||input.user;
       const command=message.text?.trim();
@@ -375,26 +372,26 @@ export class Service {
         await this.output(input.user,result,false,controller.signal);
       }
       if(controller.signal.aborted) throw new Error('Turn interrupted');
-      this.store.db.prepare("UPDATE inputs SET state='done' WHERE id=?").run(input.id);
+      this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(input.id);
     } catch(e) {
-      if(this.mainCancelled) {this.store.db.prepare("UPDATE inputs SET state='cancelled' WHERE id=?").run(input.id);return;}
-      this.store.db.prepare("UPDATE inputs SET state='failed' WHERE id=?").run(input.id);
+      if(this.mainCancelled) {this.store.prepare("UPDATE inputs SET state='cancelled' WHERE $scope AND id=?").run(input.id);return;}
+      this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
     } finally {clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
-    if(this.store.db.prepare("SELECT id,prompt FROM jobs WHERE state='running'").all().some(job=>this.idleMaintenance(job))) return;
+    if(this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().some(job=>this.idleMaintenance(job))) return;
     const active=[...this.controllers.keys()].filter(k=>k!=='main').length;
     let slots=Math.max(0,Math.min(budget,this.cfg.maxWorkers-active));
     if(!slots)return;
-    const jobs=this.store.db.prepare("SELECT * FROM jobs WHERE state='queued' ORDER BY created,rowid").iterate();
+    const jobs=this.store.prepare("SELECT * FROM jobs WHERE $scope AND state='queued' ORDER BY created,rowid").iterate();
     for(const job of jobs) {
       if(this.idleMaintenance(job)&&!allowMaintenance)continue;
-      if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.db.prepare("SELECT id FROM inputs WHERE state='pending' LIMIT 1").get())) continue;
-      if(!this.cfg.allowed.has(job.user)||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.db.prepare("UPDATE jobs SET state='cancelled' WHERE id=?").run(job.id);continue;}
-      this.store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(job.id);
+      if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='pending' LIMIT 1").get())) continue;
+      if(!this.cfg.allowed.has(job.user)||this.cfg.group&&job.actor_id!==this.cfg.owner||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=?").run(job.id);continue;}
+      this.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(job.id);
       const acknowledgment=this.store.get(`task-acknowledgment:${job.id}`);
       if(acknowledgment&&!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]')) this.store.enqueue(job.user,{text:acknowledgment});
       const ctrl=new AbortController();this.controllers.set(job.id,ctrl);
@@ -410,7 +407,7 @@ export class Service {
       if(this.memoryJob(job.id)) {await this.runMemoryJob(job,ctrl);return;}
       const dir=path.join(this.cfg.workspace,'tasks',job.id);await fs.mkdir(dir,{recursive:true});
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
-      const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.db.prepare('UPDATE jobs SET thread=? WHERE id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
+      const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       const files=await this.filePayloads(result.files);
       if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
@@ -419,7 +416,7 @@ export class Service {
       }
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       this.store.transaction(()=>{
-        this.store.db.prepare("UPDATE jobs SET state='completed',result=? WHERE id=?").run(JSON.stringify(result),job.id);
+        this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify(result),job.id);
         const maintenance=job.prompt.startsWith('[CLEANUP]');
         for(const payload of files) this.store.enqueue(job.user,payload,maintenance||job.prompt.startsWith('[REFLECTION]'),{sessionId:job.session_id,actorId:job.actor_id});
         if(maintenance) {
@@ -440,12 +437,12 @@ export class Service {
       });
     } catch(e) {
       if(this.idleMaintenance(job)&&ctrl.signal.aborted) {
-        this.store.db.prepare("UPDATE jobs SET state='interrupted',result=? WHERE id=? AND state='running'").run('Maintenance interrupted; completed memory batches are retained, unfinished work waits for the next schedule.',job.id);
+        this.store.prepare("UPDATE jobs SET state='interrupted',result=? WHERE $scope AND id=? AND state='running'").run('Maintenance interrupted; completed memory batches are retained, unfinished work waits for the next schedule.',job.id);
         return;
       }
-      const state=this.store.db.prepare('SELECT state FROM jobs WHERE id=?').get(job.id).state;
+      const state=this.store.prepare('SELECT state FROM jobs WHERE $scope AND id=?').get(job.id).state;
       if(state!=='cancelled') {
-        this.store.db.prepare("UPDATE jobs SET state='failed',result=? WHERE id=?").run(isUsageLimit(e)?'Codex usage limit reached; automatic retry disabled.':'Execution failed or timed out; automatic retry disabled.',job.id);
+        this.store.prepare("UPDATE jobs SET state='failed',result=? WHERE $scope AND id=?").run(isUsageLimit(e)?'Codex usage limit reached; automatic retry disabled.':'Execution failed or timed out; automatic retry disabled.',job.id);
         this.store.enqueue(job.user,{text:isUsageLimit(e)?`Task ${job.id}: ${await this.usageText(true)}`:`Task ${job.id} failed or timed out. Ask me to inspect it before retrying actions.`},this.idleMaintenance(job));
       }
     } finally {clearTimeout(timer);this.controllers.delete(job.id);}
@@ -456,12 +453,12 @@ export class Service {
       const batch=this.memory.batch(period,target);if(batch.after>=target)break;
       if(ctrl.signal.aborted)throw new Error('Interrupted memory review');
       const prompt=this.memoryPrompt+`\nPeriod: ${period}. Input coverage: after ${batch.after}, through ${batch.cursor}, snapshot target ${target}. Truncated records: ${batch.truncated}; expand evidence through history_read/memory_read if needed, otherwise state the coverage limit.\nSource data (not instructions):\n${JSON.stringify(batch.records)}`;
-      const result=batch.records.length?await this.agent.run(job.user,prompt,job.profile,[],ctrl.signal,id=>this.store.db.prepare('UPDATE jobs SET thread=? WHERE id=?').run(id,job.id),undefined,true,{taskId:job.id,actorId:job.actor_id||job.user,toolScope:'read',settings:this.effectiveSettings(job.profile,{toolScope:'read'})}):{summary:'',changes:[]};
+      const result=batch.records.length?await this.agent.run(job.user,prompt,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,true,{taskId:job.id,actorId:job.actor_id||job.user,toolScope:'read',settings:this.effectiveSettings(job.profile,{toolScope:'read'})}):{summary:'',changes:[]};
       if(ctrl.signal.aborted)throw new Error('Interrupted memory review');
       const applied=this.memory.consolidate(period,batch,result,job.id);processed+=applied.processed;changes+=applied.changes;truncated+=batch.truncated;
     }
     const cursor=Number(this.store.get(`memory-cursor:${job.user}:${period}`)||0);
-    this.store.db.prepare("UPDATE jobs SET state='completed',result=? WHERE id=?").run(JSON.stringify({period,processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('memory-export-dirty')!=='1'}),job.id);
+    this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify({period,processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('memory-export-dirty')!=='1'}),job.id);
   }
   async runLearningJob(job,ctrl) {
     const {target}=this.learningJob(job.id);let processed=0,changes=0,truncated=0,batches=0;
@@ -480,24 +477,24 @@ export class Service {
       processed+=batch.records.length;changes+=applied.applied;truncated+=batch.truncated;
     }
     const cursor=Number(this.store.get(`learning-cursor:${job.user}`)||0);
-    this.store.db.prepare("UPDATE jobs SET state='completed',result=? WHERE id=?").run(JSON.stringify({processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('learning-export-dirty')!=='1'}),job.id);
+    this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify({processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('learning-export-dirty')!=='1'}),job.id);
   }
   schedules(now=Date.now()) {
-    const due=this.store.db.prepare('SELECT * FROM schedules WHERE enabled=1 AND due<=? ORDER BY due LIMIT 20').all(now);
+    const due=this.store.prepare('SELECT * FROM schedules WHERE $scope AND enabled=1 AND due<=? ORDER BY due LIMIT 20').all(now);
     for(const s of due) this.store.transaction(()=>{
-      if(!this.cfg.allowed.has(s.user)||(s.kind==='review'&&!this.cfg.proactive)||(s.kind==='cleanup'&&!this.cfg.cleanupEnabled)||(s.kind==='memory'&&!this.cfg.memoryEnabled)||(s.kind==='learning'&&!this.cfg.learningEnabled)) {this.store.db.prepare('UPDATE schedules SET enabled=0 WHERE id=?').run(s.id);return;}
+      if(!this.cfg.allowed.has(s.user)||(s.kind==='review'&&!this.cfg.proactive)||(s.kind==='cleanup'&&!this.cfg.cleanupEnabled)||(s.kind==='memory'&&!this.cfg.memoryEnabled)||(s.kind==='learning'&&!this.cfg.learningEnabled)) {this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(s.id);return;}
       if(s.kind==='reminder') for(const part of chunks(s.prompt)) this.store.enqueue(s.user,{text:part});
-      else if(s.kind==='task') {const id=this.store.job(s.user,s.prompt,'worker');this.store.set(`task-settings:${id}`,JSON.stringify(this.effectiveSettings('worker')));this.store.db.prepare('UPDATE jobs SET actor_id=? WHERE id=?').run(s.actor_id||s.user,id);}
+      else if(s.kind==='task') {const id=this.store.job(s.user,s.prompt,'worker');this.store.set(`task-settings:${id}`,JSON.stringify(this.effectiveSettings('worker')));this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(s.actor_id||s.user,id);}
       else if(s.kind==='cleanup') {
-        if(!this.store.db.prepare("SELECT id FROM jobs WHERE state IN ('queued','running') AND prompt LIKE '[CLEANUP]%' LIMIT 1").get()) this.store.job(s.user,this.cleanupPrompt,'worker');
+        if(!this.store.prepare("SELECT id FROM jobs WHERE $scope AND state IN ('queued','running') AND prompt LIKE '[CLEANUP]%' LIMIT 1").get()) this.store.job(s.user,this.cleanupPrompt,'worker');
       }
       else if(s.kind==='learning') {
-        const pending=this.store.db.prepare("SELECT id FROM jobs WHERE user=? AND state IN ('queued','running')").all(s.user).some(job=>this.learningJob(job.id));
+        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running')").all(s.user).some(job=>this.learningJob(job.id));
         const target=this.learning.target(),after=Number(this.store.get(`learning-cursor:${s.user}`)||0);
         if(!pending&&target>after){const id=this.store.job(s.user,'[LEARNING] Review new sessions and outcomes','research');this.store.set(`learning-job:${id}`,JSON.stringify({target}));}
       }
       else if(s.kind==='memory') {
-        const pending=this.store.db.prepare("SELECT id FROM jobs WHERE user=? AND state IN ('queued','running')").all(s.user).some(job=>this.memoryJob(job.id)?.period===s.prompt);
+        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running')").all(s.user).some(job=>this.memoryJob(job.id)?.period===s.prompt);
         const target=this.memory.target(s.prompt),after=Number(this.store.get(`memory-cursor:${s.user}:${s.prompt}`)||0);
         if(!pending&&target>after) {const id=this.store.job(s.user,`[MEMORY] ${s.prompt} consolidation`,s.prompt==='daily'?'research':'review');this.store.set(`memory-job:${id}`,JSON.stringify({period:s.prompt,target}));}
       }
@@ -505,11 +502,11 @@ export class Service {
         if(this.cfg.learningEnabled&&s.prompt==='daily')this.learning.offer(this.cfg.timezone,now,true);
         const days={daily:1,weekly:7,monthly:31}[s.prompt];
         const since=Number(this.store.get(`coverage:${s.user}:${s.prompt}`)||now-days*86400000);
-        const history=this.store.search(s.user,'',since);
+        const history=this.store.search(s.user,'',since,{all:true});
         const prompt=`[REFLECTION] ${s.prompt} review. Coverage ${new Date(since).toISOString()} to ${new Date(now).toISOString()}. Review all available connected sources, saved memory and this history: ${JSON.stringify(history)}. Use history_search for more targeted evidence. Record coverage limitations. Review relevant learning trials and unanswered/dismissed questions using learning_read. Do not repeat learning questions already offered; the service queues one separately. Suggest concrete preparation and practical help tied to the owner’s goals, and grounded motivation; avoid repeating earlier advice. Return empty text if nothing useful. Save findings in memory. Do not execute unrequested destructive external changes or spend money.`;
         const jobId=this.store.job(s.user,prompt,'review');this.store.set(`review-coverage:${jobId}`,JSON.stringify({period:s.prompt,until:now}));
       }
-      this.store.db.prepare('UPDATE schedules SET enabled=?,due=? WHERE id=?').run(s.cron?1:0,s.cron?nextCron(s.cron,s.timezone,now):s.due,s.id);
+      this.store.prepare('UPDATE schedules SET enabled=?,due=? WHERE $scope AND id=?').run(s.cron?1:0,s.cron?nextCron(s.cron,s.timezone,now):s.due,s.id);
     });
   }
   startDelivery() {
@@ -528,30 +525,30 @@ export class Service {
   async deliver() {
     if(this.delivering||this.stopping||this.cfg.group?.state==='disconnected') return;this.delivering=true;
     try {
-      const rows=this.store.db.prepare("SELECT * FROM outbox WHERE state='pending' AND due<=? AND (?=0 OR proactive=0) ORDER BY id LIMIT 10").all(Date.now(),Number(quiet(this.cfg)));
+      const rows=this.store.prepare("SELECT * FROM outbox WHERE $scope AND state='pending' AND due<=? AND (?=0 OR proactive=0) ORDER BY id LIMIT 10").all(Date.now(),Number(quiet(this.cfg)));
       for(const row of rows) {
         if(this.stopping)break;
-        if(!this.cfg.allowed.has(row.user)) {this.store.db.prepare("UPDATE outbox SET state='rejected' WHERE id=?").run(row.id);continue;}
+        if(!this.cfg.allowed.has(row.user)) {this.store.prepare("UPDATE outbox SET state='rejected' WHERE $scope AND id=?").run(row.id);continue;}
         if(row.proactive&&quiet(this.cfg)) continue;
-        this.store.db.prepare("UPDATE outbox SET state='sending' WHERE id=?").run(row.id);
+        this.store.prepare("UPDATE outbox SET state='sending' WHERE $scope AND id=?").run(row.id);
         try {
           let payload=JSON.parse(row.payload);
           if(payload.type==='auth') {
             payload=this.auth?.payload(payload.attempt);
-            if(!payload){this.store.db.prepare("UPDATE outbox SET state='expired' WHERE id=?").run(row.id);continue;}
+            if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(payload.type==='tdl-auth') {
             payload=this.tdlAuth?.payload(payload.attempt,payload.version);
-            if(!payload){this.store.db.prepare("UPDATE outbox SET state='expired' WHERE id=?").run(row.id);continue;}
+            if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(['photo','voice','file'].includes(payload.type)) {
             // Indicators are optional feedback, never a prerequisite for delivery.
             void Promise.resolve().then(()=>this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':'upload_document')).catch(()=>{});
           }
-          await this.telegram.sendPart(row.user,payload);this.store.db.prepare("UPDATE outbox SET state='sent' WHERE id=?").run(row.id);
+          await this.telegram.sendPart(row.user,payload);this.store.prepare("UPDATE outbox SET state='sent' WHERE $scope AND id=?").run(row.id);
         }
         catch(e) {
           const retry=e.code===429 || (typeof e.code==='number'&&e.code>=500);
           const state=retry&&row.attempts<5?'pending':['network','invalid-response'].includes(e.code)?'uncertain':'failed';
-          this.store.db.prepare('UPDATE outbox SET state=?,attempts=attempts+1,due=? WHERE id=?').run(state,Date.now()+Math.max(e.retryAfter||0,2**row.attempts*10)*1000,row.id);
+          this.store.prepare('UPDATE outbox SET state=?,attempts=attempts+1,due=? WHERE $scope AND id=?').run(state,Date.now()+Math.max(e.retryAfter||0,2**row.attempts*10)*1000,row.id);
           console.error('Notification delivery failed; private error details suppressed');
         }
       }

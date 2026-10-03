@@ -133,27 +133,24 @@ Voice input uses local faster-whisper on CPU. Its model is downloaded on first t
 
 Original media, captions and forward metadata are saved in inbox/. PDF text is extracted with pdftotext; scanned PDFs can be rendered/OCRed by the agent using installed tools. Images are supplied as local image input to Codex. Standard Bot API download limit is capped at 20 MiB here; larger attachments receive an error. Media albums are separate messages in this initial version. Unsupported file formats are preserved for tool/code processing.
 
-## Separate group executors
+## Shared owner conversations
 
-The optional host broker enables COD-1 groups while preserving the personal
-container's security settings. Review [conversation boundaries](conversations.md)
-and copy [the broker configuration](../examples/group-executors.json) to
-`/etc/codex-agent-group-executors.json` with mode 0600. Select existing workspace
-paths and a verified immutable image tag/digest. Install
-[the systemd unit](../systemd/codex-agent-group-executors.service), adapting only
-its source-checkout path, and start it on the Docker host. The broker creates
-`state/executors/control.sock` inside each existing workspace mount. Add
-`GROUP_EXECUTOR_SOCKET=/workspace/state/executors/control.sock` to selected
-private instance env files before recreation. No Docker socket is mounted into
-the assistant and no personal mounts are added to executors.
+Rebuild/recreate each selected instance while idle, preserving its Compose project,
+mounts, profiles, credentials and database. Startup imports old group databases into
+`state/assistant.sqlite` once and copies saved session rollouts into the existing
+Codex home. Keep the retained legacy databases/files and a pre-rollout snapshot.
+New group conversations use the canonical database and shared workspace.
 
-Before production, use `scripts/group-executor-smoke.js` in a dedicated synthetic
-workspace with its own broker config; `GROUP_EXECUTOR_SMOKE=1` is required.
-The default smoke checks the real executor without a model or Telegram request.
-`--model` additionally consumes one model turn through a deliberately mounted
-existing Codex login in the client container; no auth is mounted into executors.
-It exercises native commands, group file creation and scoped MCP. Real Telegram
-linking, mention intake and source-only delivery remain a separate acceptance.
+The old separate group executor is obsolete. Remove `GROUP_EXECUTOR_SOCKET` from
+selected instance env files; stop/disable its host broker after all selected bots
+are migrated and no executors remain. Retain its config for rollback. Existing
+personal container Docker security/mounts require no changes. Update the installed
+backup helper to include canonical DBs and optional retained legacy copies.
+
+Use `scripts/conversations-smoke.js` in a synthetic workspace with an existing
+client login before deployment. Verify actual installed shared objects/scoped
+queries and resumed thread access after migration, then real Telegram recall and
+source-bound delivery. See [conversations](conversations.md).
 
 ## Telegram command menu
 

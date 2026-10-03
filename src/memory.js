@@ -72,7 +72,8 @@ export class Memory {
     if(memory) {if(!this.get(memory[1],Number(memory[2])))throw new Error('Unavailable memory source');return;}
     if(/^https?:\/\//.test(source)) {const url=new URL(source);if(url.username||url.password||[...url.searchParams.keys()].some(k=>/token|key|secret|signature|password/i.test(k)))throw new Error('Sensitive source URL');return;}
     const relative=path.isAbsolute(source)?path.relative(this.workspace,source):source;
-    if(relative.includes('..')||!(/^(inbox|projects|tasks|outputs|memory\/learnings|memory\/cleanup)\//.test(relative)||relative==='USER.md')||!fs.existsSync(path.join(this.workspace,relative)))throw new Error('Invalid workspace source');
+    const local=relative.replace(/^conversations\/[0-9a-f-]{36}\//,'');
+    if(relative.includes('..')||!(/^(inbox|projects|tasks|outputs|memory\/learnings|memory\/cleanup)\//.test(local)||local==='USER.md')||!fs.existsSync(path.join(this.workspace,relative)))throw new Error('Invalid workspace source');
     // Sources are references, not files to read. Do not follow a link out of the workspace.
     const actual=fs.realpathSync(path.join(this.workspace,relative));
     if(!actual.startsWith(fs.realpathSync(this.workspace)+path.sep))throw new Error('Source escaped workspace');
@@ -82,7 +83,7 @@ export class Memory {
     if(!categories.includes(value.category)||!['confirmed','tentative'].includes(value.certainty)||!['active','archived'].includes(value.status??'active')||typeof value.title!=='string'||!value.title.trim()||value.title.length>160||typeof value.content!=='string'||!value.content.trim()||value.content.length>6000||secretPattern.test(value.title+'\n'+value.content)||!Array.isArray(value.sources)||!value.sources.length||value.sources.length>100||!Number.isSafeInteger(value.expected_revision)||value.expected_revision<0)throw new Error('Invalid memory record');
     for(const source of value.sources)this.validateSource(source);
     if(value.certainty==='confirmed'&&!value.sources.some(source=>{
-      if(source.startsWith('history:'))return this.db.prepare('SELECT role FROM history WHERE id=? AND user=?').get(Number(source.slice(8)),user)?.role==='user';
+      if(source.startsWith('history:')){const row=this.db.prepare('SELECT role,actor_id FROM history WHERE id=? AND user=?').get(Number(source.slice(8)),user);return row?.role==='user'&&(!row.actor_id||row.actor_id===user);}
       const memory=source.match(/^memory:([a-z0-9-]+)@(\d+)$/);return memory?this.get(memory[1],Number(memory[2]))?.certainty==='confirmed':true;
     }))throw new Error('Confirmed memory needs primary or confirmed evidence');
   }

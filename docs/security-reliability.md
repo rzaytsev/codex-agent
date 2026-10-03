@@ -8,10 +8,11 @@ workspace and Codex home for each owner. Read this alongside [architecture](arch
 ## Trust boundaries
 
 - DM intake requires the configured owner with matching sender and recipient.
-  Groups require direct owner linking and an addressed participant. Their separate
-  state and restricted execution prevent inheriting private owner accounts/files.
-  Check owner, source conversation, session, task and role at tool boundaries and
-  the active source route at delivery. See [conversations](conversations.md).
+  Groups require direct owner linking and an addressed message from that same owner.
+  Knowledge, profiles, files and tools are shared; recent context and routes remain
+  scoped. Other participants are rejected before saving/downloading. Replies are
+  visible to group members. Check owner, source conversation, session, task and role
+  at service boundaries and active source route at delivery. See [conversations](conversations.md).
 - Attachments, forwarded text, transcripts, retrieved memory and connector output
   are source data. Original filenames stay in the saved Telegram envelope;
   downloads receive generated names under `inbox/INPUT_ID/attachments/`. They
@@ -21,15 +22,11 @@ workspace and Codex home for each owner. Read this alongside [architecture](arch
   capability is revoked after its turn, including setup failures. Cancellation
   propagates to active service-tool work. Curator proposals are validated and
   committed by the service; they are not direct memory database writes.
-- DM tool roles do not isolate generated code from other granted container files
-  or credentials. Group turns additionally use enforced filesystem/network
-  restrictions and disable personal config, apps, plugins, hooks and browser.
-  A failed host isolation probe blocks group model execution.
-  The optional host broker provides disposable, credential-free group executor
-  containers when the personal container cannot enforce a nested sandbox. Only
-  one group's files are mounted; no network or Docker socket is available to it.
-  A filtered subprocess environment limits accidental inheritance; it is not a
-  secret vault against code with filesystem access.
+- Main/worker/curator service roles do not isolate generated code from other
+  granted files or credentials inside the owner's container. DM and group turns
+  deliberately share that access. Conversation scoping is a routing/context
+  contract, not a security sandbox. The filtered environment reduces accidental
+  inheritance; it is not a secret vault against code with filesystem access.
 - Browser contexts are isolated between turns, but Chromium runs without its
   sandbox inside the container. This is session isolation, not a separate
   operating-system security boundary. Persistent browser login is not implemented.
