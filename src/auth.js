@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { AccountClient, readAccount } from './codex-account.js';
 
 export class Auth {
-  constructor(cfg,store,{busy=()=>false,reader=readAccount,clientFactory=()=>new AccountClient(cfg),timeoutMs=10*60*1000}={}) {
+  constructor(cfg,store,{busy=()=>false,reader=readAccount,clientFactory=()=>new AccountClient(cfg),timeoutMs=10*60*1000,prepare=async()=>{}}={}) {
     this.cfg=cfg;this.store=store;this.busy=busy;this.reader=reader;this.clientFactory=clientFactory;this.timeoutMs=timeoutMs;
     this.status='checking';this.phase='idle';this.account=null;this.lastCheck=0;this.stopping=false;
+    this.prepare=prepare;this.prepared=false;this.controller=new AbortController();
   }
   get ready(){return this.status==='ready'&&this.phase==='idle'&&!this.stopping;}
-  get health(){return this.phase!=='idle'?'setup:codex-login-pending':this.status==='ready'?'ready':this.status==='unavailable'?'degraded:codex-auth':'setup:codex-login';}
+  get health(){return this.phase!=='idle'?'setup:codex-login-pending':this.status==='preparing'?'setup:plugins':this.status==='ready'?'ready':this.status==='unavailable'?'degraded:codex-auth':'setup:codex-login';}
   say(text){if(!this.stopping&&this.cfg.allowed.has(this.cfg.owner))this.store.enqueue(this.cfg.owner,{text});}
   accountText() {
     if(this.status==='ready') {
@@ -34,6 +35,13 @@ export class Auth {
       try {
         const account=await this.reader(this.cfg);
         if(this.stopping)return;
+        if(account&&!this.prepared) {
+          this.status='preparing';
+          try {await this.prepare(this.controller.signal);}catch {console.error('Plugin preparation failed; private error details suppressed');}
+          if(this.stopping)return;
+          this.prepared=true;
+        }
+        if(!account)this.prepared=false;
         this.account=account;this.status=account?'ready':'signed_out';
         if(account)this.store.set('auth:notice','');
         else this.notifyMissing();
@@ -107,7 +115,7 @@ export class Auth {
       if(this.stopping)return;
       // Also reset on uncertain completion/cancel: credentials may already have been committed.
       this.store.transaction(()=>{this.store.set(`thread:${this.cfg.owner}`,'');this.store.set('auth:attempt','');});
-      this.session=null;this.status='checking';this.phase='idle';await this.check();
+      this.session=null;this.status='checking';this.phase='idle';this.prepared=false;await this.check();
       if(succeeded&&this.status==='ready')this.say(`Login saved. ${this.accountText()} Your profile, memory, files and history are preserved; the model conversation starts fresh.`);
       else if(session.cancelled)this.say(`Login ${session.reason}. ${this.accountText()}`);
       else this.say(`Login could not be completed or verified. ${this.accountText()} If device login is disabled, enable it in ChatGPT security settings and try /auth again.`);
@@ -122,7 +130,7 @@ export class Auth {
     finally {await session.client?.close();}
   }
   async close() {
-    this.stopping=true;clearTimeout(this.session?.timer);
+    this.stopping=true;this.controller.abort();clearTimeout(this.session?.timer);
     await this.session?.client?.close();await this.task;await this.checking;
   }
 }

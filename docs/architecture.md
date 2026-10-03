@@ -39,7 +39,10 @@ deduplicates update IDs, and handles immediate commands/location without a model
 One main turn processes pending conversation input at a time. Workers run with
 separate threads and configured limits while the main conversation stays usable.
 
-agent.js reads workspace AGENTS.md, SOUL.md and USER.md each turn, supplies recent
+agent.js reads workspace AGENTS.md, SOUL.md and USER.md each turn, removes generated
+learning sections, appends the image-owned stable core and supplies scoped learning
+records. A separate read-only proposer/validator loop applies service-validated
+versioned adaptations; see [learning](learning.md). It supplies recent
 history and bounded relevant memory, and runs the pinned SDK with a structured
 response schema. The subprocess environment includes required runtime paths and
 optional Maps access but excludes the Telegram token and OpenAI API key. Normal

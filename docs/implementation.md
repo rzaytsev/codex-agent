@@ -5,6 +5,23 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Continuous learning with separate idle proposal/validation turns, sourced
+  versioned trials, managed profile projections, image-owned core, bounded questions
+  and explicit rollback. Synthetic tests verify storage/lifecycle contracts; actual
+  helpfulness needs ongoing outcome evidence. See [learning](learning.md).
+
+- Pinned tdl image installer, per-instance private Telegram user-session wrapper,
+  owner-only `/tdl_auth` QR login/status/cancel with staged owner verification,
+  interactive `bin/agent tdl-login NAME` fallback for 2FA and read-only mounted `telegram-read`
+  skill. Real reading requires owner login and acceptance on the deployed image.
+  See [Telegram reading](telegram-read.md).
+
+- Operator-managed desired plugin list, reconciled after verified startup login
+  and `/auth` completion, with bounded CLI installs into persisted CODEX_HOME and
+  controlled failure reporting. Synthetic plugin/auth tests cover installation,
+  preservation, failure and model-readiness gating. Provider access still needs
+  account authorization and live acceptance. See [configuration](configuration.md#desired-plugins).
+
 - Optional authenticated agent mailbox, saved task requests with direct owner
   acceptance, attributed replies/status, and a laptop skill over SSH. Source
   tests cover isolation and recovery; live acceptance is instance-specific.

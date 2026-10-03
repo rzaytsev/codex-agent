@@ -1,6 +1,32 @@
 # Design decisions
 
+## Desired plugins install after login
+
+An optional per-instance `seed/plugins.json` declares exact marketplace references.
+The service reconciles missing plugins after verified login, before new model work,
+and after `/auth` completes. Build-time installation cannot use the instance's
+ChatGPT account and would be hidden by its persistent Codex-home mount. Existing
+and explicitly disabled plugins are preserved; no automatic removal or permission
+grants. Bounded failures are reported and allow ordinary assistant work to proceed.
+
+## Telegram user QR login stays outside model execution
+
+The service owns `/tdl_auth`, status and cancel, draining active work before a
+private PTY helper runs pinned tdl. Temporary credentials replace the owner
+namespace atomically only after successful login and numeric owner verification.
+The helper and normal wrapper share an exclusive lock. Durable delivery contains
+challenge references, resolved to the current QR just before sending; credentials
+and provider output stay outside SQLite/model history. Cancellation, restart and
+expiry invalidate challenges. Telegram 2FA passwords remain a terminal workflow.
+The helper never accepts a password through its control pipe.
+
 ## Implemented choices
+
+- Telegram user-content reading uses pinned tdl plus an original shared skill,
+  separate from Bot API intake and ChatGPT authentication. Per-instance sessions
+  persist in private workspace state; a wrapper serializes calls and keeps
+  login/storage settings fixed. Skill restrictions scope ordinary use to reads,
+  rather than claiming the full upstream executable has no write capabilities.
 
 - One Telegram owner per instance, with isolated workspace, state and Codex home.
 - Node.js 24+, pinned Codex SDK/CLI, service-owned MCP tools and SQLite.
@@ -94,3 +120,17 @@ Reflection notifications depend on useful findings and quiet hours; their qualit
 and all-source coverage require real authorized connections. Full autonomy is
 within granted resources and standing user instructions, not blanket authority
 for a development agent or content retrieved from tools.
+
+## Automatic learning within a stable core (2026-10-03)
+
+- Retain user-chosen goals, privacy and authority in an image-owned core supplied
+  after editable instructions on each SDK turn. Ordinary full-access code retains
+  existing filesystem/account privileges; the core is not a new execution sandbox.
+- Learn through small sourced deltas, independent proposal/validation turns and
+  service-owned SQLite revisions. Preserve custom profiles and use marked projections.
+- Start operating lessons as scoped trials. Promote only with later evidence, and
+  retire harmful changes on explicit feedback. Validation is not proof of benefit.
+- Keep useful knowledge-gap questions durable, offer once within a daily limit,
+  honor quiet hours/dismissals, and never treat silence as consent.
+- Reuse existing history, jobs, scheduling and delivery; add no provider, vector
+  service or weight training. See [learning](learning.md) and [research](memory-research.md).

@@ -106,7 +106,7 @@ test('failed consolidation rolls back all changes and checkpoint; successful ret
   assert.throws(()=>memory.consolidate('daily',batch,{summary:'',changes:[]},'test'));
 });
 test('memory schedules are idempotent, timezone-aware, independent of proactivity and preserve cancellation',async t=>{
-  const {store,service,cfg}=await fixture(t,{TIMEZONE:'Europe/Madrid'});assert.equal(store.db.prepare('SELECT count(*) AS n FROM schedules').get().n,0);
+  const {store,service,cfg}=await fixture(t,{TIMEZONE:'Europe/Madrid'});assert.equal(store.db.prepare("SELECT count(*) AS n FROM schedules WHERE kind!='learning'").get().n,0);
   service.ingest(update());service.ingest(update());await service.init();
   let rows=store.db.prepare("SELECT * FROM schedules WHERE kind='memory'").all();assert.equal(rows.length,2);
   assert.deepEqual(rows.map(x=>x.cron).sort(),['15 3 * * *','45 3 * * 0']);assert(rows.every(x=>x.timezone==='Europe/Madrid'));

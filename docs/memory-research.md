@@ -46,3 +46,20 @@ uncertain; absent evidence should produce an honest unknown. Changing live state
 own authoritative tool rather than taken from a historical note.
 
 See [memory implementation](memory.md) for the actual layout and schedule.
+
+## Continuous learning research (2026-10-03)
+
+- [Reflexion](https://arxiv.org/abs/2303.11366): retain textual lessons derived from
+  task feedback for subsequent attempts; no model weight update is required.
+- [Agentic Context Engineering](https://arxiv.org/abs/2510.04618): separate execution,
+  reflection and curation; incremental context updates reduce loss from full rewrites.
+- [GEPA](https://arxiv.org/abs/2507.19457): propose and evaluate prompt changes from
+  execution feedback. We borrow evidence-based iteration, not its evolutionary optimizer.
+- [Ask Now, Use Later](https://arxiv.org/abs/2605.28108): acquire reusable preferences
+  before later tasks need them, while recognizing the interaction cost of questions.
+- [Intrinsic self-correction limits](https://arxiv.org/abs/2310.01798): the tested
+  reasoning settings showed that self-critique without external feedback can degrade
+  results. Independent validation is a gate, not a substitute for observed outcomes.
+
+These motivate [learning](learning.md); their benchmark results are not a claim of
+measured benefit for this personal assistant. Trials need later outcome evidence.

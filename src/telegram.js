@@ -41,6 +41,7 @@ export class Telegram {
     const commands=[
       {command:'help',description:'Show bot commands and supported messages'},
       {command:'auth',description:'Sign in or change ChatGPT account; status or cancel'},
+      {command:'tdl_auth',description:'Connect Telegram user account; status or cancel'},
       {command:'usage',description:'Show Codex remaining limits and reset times'},
       {command:'status',description:'List worker tasks and their status'},
       {command:'new',description:'Start a fresh conversation; keep profile and files'},
@@ -84,11 +85,12 @@ export class Telegram {
       const data=new FormData(); data.set('chat_id',user);
       const field=payload.type === 'voice'?'voice':payload.type==='photo'?'photo':'document';
       data.set(field,new Blob([await fs.readFile(payload.path)],{type:payload.type==='voice'?'audio/ogg':mimeTypes[path.extname(payload.path).toLowerCase()]||'application/octet-stream'}),path.basename(payload.path));
+      if(payload.caption)data.set('caption',payload.caption);
       if(payload.type==='voice') data.set('caption','AI-generated voice');
       try {return await this.call(payload.type==='voice'?'sendVoice':payload.type==='photo'?'sendPhoto':'sendDocument',data);}
       catch(e) {
         if(payload.type!=='photo'||e.code!==400) throw e;
-        const fallback=new FormData();fallback.set('chat_id',user);fallback.set('document',data.get('photo'));
+        const fallback=new FormData();fallback.set('chat_id',user);fallback.set('document',data.get('photo'));if(payload.caption)fallback.set('caption',payload.caption);
         return this.call('sendDocument',fallback);
       }
     }

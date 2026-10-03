@@ -33,6 +33,7 @@ services:
       - ./shared-skill/skillify:/workspace/.agents/skills/skillify:ro
       - ./shared-skill/investigate:/workspace/.agents/skills/investigate:ro
       - ./shared-skill/planning:/workspace/.agents/skills/planning:ro
+      - ./shared-skill/telegram-read:/workspace/.agents/skills/telegram-read:ro
     tmpfs:
       - /tmp:size=512m,exec
     read_only: true

@@ -34,6 +34,29 @@ async function fixture(t,options={}) {
   t.after(async()=>{await auth.close();store.db.close();await fs.rm(dir,{recursive:true,force:true});});
   return {dir,cfg,store,service,auth,state,clients,sent,calls:()=>modelCalls};
 }
+test('plugin preparation gates model work, runs after login and does not repeat on routine checks',async t=>{
+  let calls=0,release;
+  const f=await fixture(t,{prepare:()=>{calls++;return new Promise(resolve=>{release=resolve;});}});
+  assert.equal(calls,0);
+  f.service.ingest(update(1,'hello'));f.state.account=accountA;
+  const checking=f.auth.check();await until(()=>Boolean(release));
+  assert.equal(f.auth.health,'setup:plugins');assert(!f.auth.ready);
+  await f.service.conversation();assert.equal(f.calls(),0);
+  release();await checking;assert(f.auth.ready);
+  await f.auth.check();assert.equal(calls,1);
+  f.auth.command('/auth');f.auth.tick();await until(()=>f.auth.phase==='waiting');
+  release=undefined;f.state.account=accountB;f.clients[0].complete();await until(()=>Boolean(release));
+  assert(!f.auth.ready);assert.equal(calls,2);
+  release();await f.auth.task;assert(f.auth.ready);
+});
+test('plugin preparation failures do not prevent login readiness and shutdown aborts preparation',async t=>{
+  const f=await fixture(t,{account:accountA,prepare:async()=>{throw new Error('private');}});
+  assert(f.auth.ready);
+  f.auth.prepared=false;let aborted=false,started=false;
+  f.auth.prepare=signal=>new Promise(resolve=>{started=true;signal.addEventListener('abort',()=>{aborted=true;resolve();},{once:true});});
+  const checking=f.auth.check();await until(()=>started);
+  await f.auth.close();await checking;assert(aborted);assert(!f.auth.ready);
+});
 test('missing auth prompts once, gates model calls and starts login from /start',async t=>{
   const f=await fixture(t);f.service.ingest(update(1,'hello'));f.service.ingest(update(2,'hello again'));
   await f.auth.check();await f.service.conversation();

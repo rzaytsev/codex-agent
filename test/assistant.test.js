@@ -40,7 +40,7 @@ test('one-shot schedule persists, deduplicates and fires only once',async t=>{
  const a=await service.tool({user:'123'},'schedule',args);const b=await service.tool({user:'123'},'schedule',args);assert.equal(a.id,b.id);
  service.schedules(a.due+1);service.schedules(a.due+2);
  assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,1);
- assert.equal(store.db.prepare('SELECT enabled FROM schedules').get().enabled,0);
+ assert.equal(store.db.prepare('SELECT enabled FROM schedules WHERE id=?').get(a.id).enabled,0);
 });
 test('invalid scheduling times rejected and cron respects timezone',()=>{
  assert.throws(()=>dueTime({due:'2027-01-01T09:00:00'},'Europe/Madrid'));
@@ -118,7 +118,7 @@ test('Telegram command menu replaces old commands in default, private and allowe
  assert.deepEqual(calls.map(c=>c.body.scope),[{type:'default'},{type:'all_private_chats'},{type:'chat',chat_id:'123'},{type:'chat',chat_id:'456'}]);
  for(const call of calls) {
   assert.equal(call.method,'setMyCommands');
-  assert.deepEqual(call.body.commands.map(c=>c.command),['help','auth','usage','status','new','cancel','stop','location']);
+  assert.deepEqual(call.body.commands.map(c=>c.command),['help','auth','tdl_auth','usage','status','new','cancel','stop','location']);
  }
  telegram.call=async()=>{throw new TelegramError(429);};
  await assert.rejects(telegram.registerCommands(new Set()),TelegramError);

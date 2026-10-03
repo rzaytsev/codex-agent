@@ -2,7 +2,7 @@
 set -eu
 umask 077
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-usage() { echo 'Usage: bin/agent {create|up|login|config|ps|logs|exec|run|build|start|stop|restart|down} NAME [arguments]' >&2; exit 2; }
+usage() { echo 'Usage: bin/agent {create|up|login|tdl-login|config|ps|logs|exec|run|build|start|stop|restart|down} NAME [arguments]' >&2; exit 2; }
 [ "$#" -ge 2 ] || usage
 action=$1
 name=$2
@@ -32,6 +32,7 @@ case "$action" in
     if [ "$build" = true ]; then compose up -d --build "$@"; else compose up -d "$@"; fi
     ;;
   login) [ "$#" -eq 0 ] || usage; compose exec assistant node_modules/.bin/codex login --device-auth ;;
+  tdl-login) [ "$#" -eq 0 ] || usage; compose exec assistant tdl login -T code ;;
   config) [ "$#" -eq 0 ] || usage; compose config --quiet ;;
   ps|logs|exec|run|build|start|stop|restart|down) compose "$action" "$@" ;;
   *) usage ;;

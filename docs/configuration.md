@@ -16,6 +16,7 @@ runtime default; available names/reasoning levels depend on the signed-in accoun
 | TELEGRAM_BOT_TOKEN | Empty setup mode; unique token per instance |
 | TELEGRAM_ALLOWED_USER_IDS | Exactly one positive numeric owner ID, or empty deny-all setup mode |
 | WORKSPACE_HOST_PATH, CODEX_HOST_PATH | Absolute, separate existing host directories outside source sync |
+| PLUGINS_FILE | Optional container path override; otherwise SEED_DIR/plugins.json, if present |
 | TIMEZONE | UTC for new instances; use an IANA timezone explicitly |
 | MAIN_MODEL / MAIN_REASONING | Runtime default / low |
 | WORKER_MODEL / WORKER_REASONING | Runtime default / high |
@@ -69,6 +70,50 @@ Private backup settings are JSON, separately documented in [backups](backups.md)
 Optional Codex MCP/plugins live in the selected persistent Codex home; the runtime
 app-server probes report availability without proving every operation's scope.
 
+## Desired plugins
+
+Edit `private/instances/NAME/seed/plugins.json`, a JSON array of exact
+`plugin@marketplace` references. New instances start with `[]`. For example:
+
+```json
+["linear@openai-curated-remote"]
+```
+
+[Example plugin list](../examples/plugins.json) declares Exa, Linear, Booking.com
+and GitHub using their catalog identifiers. To use it for a selected instance:
+
+```sh
+cp examples/plugins.json private/instances/demo/seed/plugins.json
+./bin/agent restart demo
+```
+
+Instance lists remain private; the example contains only public plugin references.
+New instances retain the empty default unless the operator chooses a list.
+
+The seed directory is already mounted read-only. This file is read directly on
+startup after ChatGPT login is verified, and again after a completed or uncertain
+`/auth` attempt. It is not copied into the workspace as a profile seed. Restart
+the instance after list edits; env/path changes require recreation. A missing
+default file preserves compatibility with existing instances. An explicitly set
+PLUGINS_FILE must exist. Local tests without SEED_DIR can supply PLUGINS_FILE.
+
+The service installs missing plugins into that instance's persistent CODEX_HOME.
+It preserves unrelated plugins and does not remove plugins omitted from the list
+or enable explicitly disabled plugins. When new plugins are installed, the next
+main model conversation starts fresh; durable history, profiles and files remain.
+Disabled, unavailable, malformed-list and
+failed-install statuses appear in safe logs and an owner notice; they do not
+prevent ordinary assistant work. No raw CLI output or connection codes are
+forwarded. A pass allows at most 20 entries, 32 KiB of JSON, 90 seconds per CLI
+command and three minutes overall. Interrupted/failed entries are checked on the
+next startup/login, without a background retry loop.
+
+Use IDs from `codex plugin list --available --json`, not display names or page
+slugs. Some plugins use opaque `app-...` names. Account tools can be callable
+without a corresponding installable catalog entry. Installation does not grant
+service permissions or complete OAuth; account/workspace policy and connector
+authorization still apply. See [Google services](google-services.md) for checks.
+
 ## ChatGPT authentication
 
 No extra secret or public callback URL is required for Telegram /auth. Service
@@ -76,3 +121,12 @@ account processes and SDK turns select ChatGPT-only login and file-backed
 credentials in the existing CODEX_HOME. Login attempts have a ten-minute service
 deadline; routine account checks run once per minute. See
 [authentication](authentication.md) for first start and account replacement.
+
+## Continuous learning
+
+LEARNING_ENABLED defaults to true. LEARNING_CRON defaults to `30 3 * * *` in
+TIMEZONE; LEARNING_MAX_BATCHES defaults to 2 (1–10). The idle review is independent
+of memory consolidation and proactive notifications. PROACTIVE_ENABLED controls new
+question offers. Recreate existing instances to inherit defaults while preserving
+profiles, state and account grants. See [learning](learning.md) for trial, rollback,
+coverage and verification boundaries.

@@ -35,7 +35,7 @@ export class Store {
   recover() {
     return this.transaction(() => {
       const interrupted = this.db.prepare("SELECT * FROM jobs WHERE state='running'").all();
-      for (const j of interrupted) { this.db.prepare("UPDATE jobs SET state='interrupted' WHERE id=?").run(j.id); if(!this.get(`memory-job:${j.id}`))this.enqueue(j.user,{text:`Task ${j.id} was interrupted by a restart. Ask me to review/resume it; external actions will not be retried blindly.`}); }
+      for (const j of interrupted) { this.db.prepare("UPDATE jobs SET state='interrupted' WHERE id=?").run(j.id); if(!this.get(`memory-job:${j.id}`)&&!this.get(`learning-job:${j.id}`))this.enqueue(j.user,{text:`Task ${j.id} was interrupted by a restart. Ask me to review/resume it; external actions will not be retried blindly.`}); }
       const inputs = this.db.prepare("SELECT * FROM inputs WHERE state='processing'").all();
       for (const i of inputs) this.enqueue(i.user,{text:`Message ${i.id} was interrupted by a restart. Please ask me to review it before retrying actions.`});
       this.db.exec("UPDATE inputs SET state='interrupted' WHERE state='processing'; UPDATE outbox SET state='uncertain' WHERE state='sending';");
