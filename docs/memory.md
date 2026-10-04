@@ -27,8 +27,8 @@ workspace/
 Records carry a stable key, category, title/content, confirmed/tentative label,
 sources, status, revision and dates. Corrections update the same key with the
 expected revision. A stale writer gets the current record and must reconcile it.
-Prior revisions remain available for historical questions; only the current
-active record enters ordinary search. A confirmed record needs a primary or
+Prior revisions remain available for historical questions; only the latest
+active record within its explicit validity interval enters ordinary search. A confirmed record needs a primary or
 already-confirmed source; tentative-only summaries cannot directly confirm a
 claim. Source existence/ownership is validated, not its semantic truth.
 
@@ -98,6 +98,63 @@ This guards concurrent conversation tools, not arbitrary direct filesystem write
 or multiple service processes on one workspace. It is not a new filesystem sandbox
 or a persisted profile revision history; profile reads and conflicts expose current
 content only. Existing transcripts and backups retain their usual boundaries.
+
+## Validity, review dates and focused retrieval
+
+Records may include `observed_at`, `valid_from`, `valid_to`, `review_after`,
+`entity` and `project`. These fields are optional. Existing records keep null
+metadata and their previous recall behavior; no age-based TTL is inferred.
+
+- Date fields require an ISO-8601 timestamp with `Z` or an explicit numeric offset.
+  They are normalized to UTC at millisecond precision (UTC years 0000–9999).
+  `observed_at` records when the supporting observation happened; it does not
+  establish when the fact is valid or when it became known to the assistant.
+- `valid_from` is inclusive and `valid_to` is exclusive. Omitted/null bounds are
+  open-ended; when both exist, the start must precede the end. Explicitly expired
+  or future facts are excluded from ordinary search and injected context. Their
+  content, revisions and generated Markdown remain available.
+- `review_after` is an advisory check date. Search, read and context return
+  `review_due=true` at or after that date. Due records remain eligible, and no
+  revalidation, notification, deletion or status change runs automatically.
+  Recheck authoritative sources before treating changing information as current.
+- `entity` and `project` are single exact, case-sensitive tags, at most 160
+  characters, with surrounding whitespace removed. They are retrieval hints,
+  never owner namespaces or access controls. They do not resolve aliases or
+  imply relationships between records.
+
+`memory_save` preserves omitted metadata when correcting an existing key. Pass
+null to clear a field deliberately. Each revision retains its own metadata.
+Consolidation proposals include the same nullable fields and must preserve known
+values unless the evidence supports a change; unknown values are null.
+
+`memory_search` and internal context retrieval accept `entity`, `project` and
+`as_of`. Search defaults to now; a supplied `as_of` applies the validity bounds
+at that timestamp. Filtering happens before result limits, retaining the existing
+FTS5 BM25 ranking or ID-list pagination. There is no semantic search, changed
+ranking formula or universal expiry. Automatic turn context uses current time
+and does not infer tags from the request; absent metadata does not consume its
+excerpt budget. Validity is local to each record and is not inferred for derived
+summaries or other unannotated copies.
+
+`memory_read` keeps unfiltered access to a key or explicit revision, including
+expired/archived evidence, so it can be inspected and corrected. Optional
+`entity`, `project` and `as_of` filters apply to that exact selected record.
+For example, read a prior revision with its historical `as_of` to check whether
+that version's explicit validity covered the question date.
+
+`as_of` is a valid-time filter on the latest record (search) or selected revision
+(read), not a reconstruction of what the assistant knew then. It does not select
+an old revision automatically, search revision text, infer intervals, or revive
+archived/forgotten records into search. Use explicit revision reads and original
+history for historical questions. Omitted bounds mean unknown/unbounded, not
+proof that a fact was always true.
+
+Startup adds nullable columns without changing old revision payloads, timestamps,
+provenance or checkpoints. Generated Markdown includes populated metadata only;
+old unannotated files retain their format and remain migration-compatible. The
+index is a record catalog, not a clock-refreshed current-fact view. Use the tools
+for time-aware recall. Forgetting also clears these fields in the selected
+structured record; the documented transcript/source/backup limits still apply.
 
 ## Quiet consolidation
 

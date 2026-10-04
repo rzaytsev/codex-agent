@@ -159,8 +159,8 @@ export class Service {
         return this.store.search(user,String(args.query || ''),since,{all:args.scope==='all'});
       }
       case 'history_read': {if(args.scope!==undefined&&!['conversation','all'].includes(args.scope))throw new Error('Invalid history scope');return this.store.historyPage(user,{after:args.after??0,since:args.since?Date.parse(args.since):0,until:args.until?Date.parse(args.until):Date.now(),limit:args.limit??50,all:args.scope==='all'});}
-      case 'memory_search': return this.memory.search(args.query||'',{category:args.category,limit:args.limit??10,after:args.after??0,since:args.since?Date.parse(args.since):0});
-      case 'memory_read': return this.memory.get(args.key,args.revision);
+      case 'memory_search': return this.memory.search(args.query||'',{category:args.category,limit:args.limit??10,after:args.after??0,since:args.since?Date.parse(args.since):0,entity:args.entity,project:args.project,as_of:args.as_of});
+      case 'memory_read': return this.memory.get(args.key,args.revision,{entity:args.entity,project:args.project,as_of:args.as_of});
       case 'profile_read': return this.profiles.read(args.file,cap);
       case 'learning_read': return args.key?this.learning.get(args.key,args.revision):this.learning.list();
       case 'learning_evidence': return this.learning.evidence(args.source);

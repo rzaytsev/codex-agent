@@ -214,3 +214,16 @@ for a development agent or content retrieved from tools.
   critical section covers conversation tools and learning projection, not external
   filesystem writers. No new database, provider or profile history is introduced.
 - See [memory](memory.md#concurrent-profile-updates) for the API and limits.
+
+## Explicit memory validity and scoped recall (2026-10-04)
+
+- Add optional observed/valid/review dates and single exact entity/project tags to
+  the existing versioned SQLite records. Preserve old records, omitted metadata
+  on corrections, provenance, revision conflicts and atomic consolidation.
+- Exclude only explicitly outside-validity records from current search/context;
+  keep review-due records with an advisory marker and retain historical evidence.
+  No inferred TTL, automatic expiry writes, deletion or new maintenance task.
+- Apply filters before the existing FTS/list limits without changing ranking.
+  `as_of` means valid-time filtering of the latest/selected record, not automatic
+  revision selection or transaction-time reconstruction. Explicit revision reads
+  remain the historical path. See [memory](memory.md) for boundary details.

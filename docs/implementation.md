@@ -12,6 +12,13 @@ and operational history are private and are not public runtime evidence.
   authority and truthful verification. [Prompt contracts](prompts.md) documents
   initialization/update behavior and synthetic validation limits.
 
+- Optional temporal metadata and exact entity/project tags on structured memory.
+  Current search/context filter explicit validity before limits; review dates are
+  advisory, historical revisions remain readable, and old records stay unbounded.
+  `as_of` filters validity, not historical knowledge snapshots. Synthetic storage,
+  migration, MCP and context tests cover these contracts; model tagging/date
+  extraction quality needs live evaluation. See [memory](memory.md).
+
 - Owner-linked topic-specific groups with owner-only entity-addressed intake;
   shared memory, rules, profiles, learning, files and configured tools; separate
   main sessions, recent context, queues/settings and source delivery. Canonical

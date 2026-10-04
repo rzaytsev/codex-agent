@@ -85,3 +85,21 @@ test('migration rejects foreign memory records atomically',async t=>{
   assert.equal(root.db.prepare('SELECT count(*) AS n FROM memories').get().n,0);
   assert.equal(root.get(`shared-owner-migration:${row.id}`),undefined);
 });
+
+
+test('shared-owner migration retains temporal fields and each revision without changing source routing',async t=>{
+  const {root,old,memory,oldMemory,row,workspace,codex}=await fixture(t);
+  root.history('123','user','Existing root evidence');
+  old.history('123','user','Temporal group evidence');const source=old.search('123')[0].id;
+  const value={key:'temporary-role',category:'facts',title:'Cobalt role',content:'Cobalt owner',certainty:'confirmed',sources:[`history:${source}`],expected_revision:0,entity:`history:${source}`,project:'projects/Launch',observed_at:'2026-05-01T00:00:00Z',valid_from:'2026-06-01T00:00:00Z',valid_to:'2026-07-01T00:00:00Z',review_after:'2026-06-15T00:00:00Z'};
+  oldMemory.save(value);oldMemory.save({...value,content:'Cobalt advisor',expected_revision:1,valid_from:'2026-07-01T00:00:00Z',valid_to:'2026-08-01T00:00:00Z'});
+  await migrateConversation(root,workspace,codex,row);
+  const current=memory.get(value.key),previous=memory.get(value.key,1,{as_of:'2026-06-01T00:00:00Z'});
+  assert.equal(current.valid_from,'2026-07-01T00:00:00.000Z');assert.equal(previous.valid_from,'2026-06-01T00:00:00.000Z');
+  for(const key of ['entity','project']){assert.equal(current[key],value[key]);assert.equal(previous[key],value[key]);}
+  assert.equal(previous.observed_at,'2026-05-01T00:00:00.000Z');assert.equal(previous.review_after,'2026-06-15T00:00:00.000Z');
+  const imported=root.search('123','Temporal group evidence',0,{all:true})[0];assert.equal(imported.conversation_id,row.id);assert.deepEqual(previous.sources,[`history:${imported.id}`]);
+  assert.equal(memory.search('cobalt',{as_of:'2026-08-01T00:00:00Z'}).entries.length,0);
+  assert.equal(memory.search('cobalt',{as_of:'2026-07-15T00:00:00Z',project:'projects/Launch'}).entries[0].key,value.key);
+  assert(memory.project());assert.match(await fs.readFile(path.join(workspace,'memory/facts/temporary-role.md'),'utf8'),/Valid to: 2026-08-01T00:00:00.000Z/);
+});

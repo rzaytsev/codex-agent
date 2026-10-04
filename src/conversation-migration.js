@@ -93,7 +93,14 @@ export async function migrateConversation(root,workspace,codexHome,row) {
         value.seq=db.prepare('SELECT coalesce(max(seq),0)+1 AS n FROM memories').get().n;
         const result=insert('memories',value);db.prepare('INSERT INTO memory_fts(rowid,title,content) VALUES (?,?,?)').run(result.lastInsertRowid,value.title,value.content);
       }
-      for(const record of rows('memory_versions')) {const {id,...value}=record;value.key=memoryMap.get(value.key);value.payload=JSON.stringify(rewrite(JSON.parse(value.payload)));insert('memory_versions',value);}
+      for(const record of rows('memory_versions')) {
+        const {id,...value}=record;value.key=memoryMap.get(value.key);
+        const original=JSON.parse(value.payload),{entity,project,...evidence}=original;
+        // Exact retrieval tags are literals, even when they look like source IDs/paths.
+        const payload=rewrite(evidence);
+        for(const field of ['entity','project'])if(Object.hasOwn(original,field))payload[field]=original[field];
+        value.payload=JSON.stringify(payload);insert('memory_versions',value);
+      }
       for(const record of rows('memory_tombstones')) {
         const value={...record,key:memoryMap.get(record.key),blocked_history:JSON.stringify(JSON.parse(record.blocked_history).map(id=>{if(!historyMap.has(id))throw new Error('Missing forgotten source');return historyMap.get(id);} ))};insert('memory_tombstones',value);
       }
