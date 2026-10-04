@@ -95,7 +95,7 @@ Only the configured owner can instruct them; groups never become new owners.
 Personal accounts and authentication management remain in the DM. Container
 isolation is not a guarantee against every malicious generated program.
 
-Forgetting can update profile/memory files; original transcripts, Codex session files and backups require an explicit retention/erasure policy. No automatic comprehensive erasure is implemented.
+Structured forgetting deletes only the selected memory and its versions. Revision dependencies and shared-history memory/learning records retain content and report needs_review, leaving ordinary recall/projections; pending affected questions are cancelled. Read-only preview and provenance explanation expose recorded impact and limits. History, sessions, source files, learning audit rows and backups remain. Restoration is disabled, including the former restore=true API; forgotten keys remain tombstoned until a separately designed owner-authorized workflow exists. No automatic comprehensive erasure or semantic dependence detection is implemented.
 
 Templates initialize missing files only. Generated skills follow Codex's native .agents/skills layout. Dependencies added by generated code should be installed into writable workspace directories because the image root is read-only.
 

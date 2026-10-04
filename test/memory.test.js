@@ -77,8 +77,8 @@ test('archive preserves evidence; explicit forget purges the selected record and
   assert.throws(()=>memory.save(record('codename','cobalt','history:1')));
   memory.save(record('new-note','new topic','https://example.com/'));
   assert(memory.get('new-note').seq>seq);
-  memory.save(record('codename','explicitly remembered again','https://example.com/'),{restore:true});
-  assert.equal(memory.get('codename').revision,1);
+  assert.throws(()=>memory.save(record('codename','explicitly remembered again','https://example.com/'),{restore:true}),/restoration is disabled/i);
+  assert.equal(memory.get('codename'),null);
 });
 test('unsafe Markdown export does not corrupt SQLite and can be repaired without touching a symlink target',async t=>{
   const {memory,store,service,dir}=await fixture(t);const sink=path.join(dir,'sink');await fs.mkdir(sink);await fs.symlink(sink,path.join(dir,'memory','facts'));
@@ -191,7 +191,7 @@ test('nested-to-flat migration preserves revisions, sources, tombstones, checkpo
   store.db.exec("DELETE FROM meta WHERE key IN ('memory-layout','memory-owner')");
   const migrated=new Service(cfg,store,{},service.agent);await migrated.init();
   assert.match(await fs.readFile(path.join(dir,'memory/projects/codename.md'),'utf8'),/Revision: 2/);
-  assert.match(await fs.readFile(path.join(dir,'memory/archive/facts/retired.md'),'utf8'),/Retired fact/);
+  assert.match(await fs.readFile(path.join(dir,'memory/review/facts/retired.md'),'utf8'),/Retired fact/);
   assert.equal(migrated.memory.get('codename',1).content,'Codename cobalt.');assert.equal(migrated.memory.search('amber').entries.length,1);
   assert.equal(migrated.memory.get('forgotten'),null);
   assert.deepEqual(store.db.prepare('SELECT * FROM memory_versions ORDER BY id').all(),versions);

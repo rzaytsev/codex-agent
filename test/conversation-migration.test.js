@@ -103,3 +103,56 @@ test('shared-owner migration retains temporal fields and each revision without c
   assert.equal(memory.search('cobalt',{as_of:'2026-07-15T00:00:00Z',project:'projects/Launch'}).entries[0].key,value.key);
   assert(memory.project());assert.match(await fs.readFile(path.join(workspace,'memory/facts/temporary-role.md'),'utf8'),/Valid to: 2026-08-01T00:00:00.000Z/);
 });
+
+test('legacy import retains review reasons and remaps blocked evidence before ordinary recall',async t=>{
+  const {root,old,memory,oldMemory,row,workspace,codex}=await fixture(t);
+  root.history('123','user','Independent root evidence.');old.history('123','user','Legacy project cobalt.');
+  const value={key:'source',category:'facts',title:'Source',content:'Cobalt source',certainty:'confirmed',sources:['history:1'],expected_revision:0};
+  oldMemory.save(value);oldMemory.save({...value,key:'derived',sources:['memory:source@1'],entity:'memory:source@1',project:'history:1',valid_from:'2026-01-01T00:00:00Z',valid_to:'2026-12-31T00:00:00Z'});
+  oldMemory.save({...value,key:'shared'});oldMemory.forget('source');
+  await migrateConversation(root,workspace,codex,row);
+  assert.equal(memory.get('derived').review_state,'needs_review');assert.equal(memory.get('shared').review_state,'needs_review');
+  assert.equal(memory.search('cobalt').entries.length,0);
+  const imported=root.search('123','Legacy project',0,{all:true})[0];
+  assert(memory.blockedHistory().has(imported.id));assert(!memory.blockedHistory().has(1));
+  assert.throws(()=>memory.save({...value,key:'replay',sources:[`history:${imported.id}`]}),/Forgotten source/);
+  assert.match(memory.get('derived',1).content,/Cobalt/);
+  for(const record of [memory.get('derived'),memory.get('derived',1)]){assert.equal(record.entity,'memory:source@1');assert.equal(record.project,'history:1');assert.equal(record.valid_to,'2026-12-31T00:00:00.000Z');}
+  assert(memory.explain('derived').entry.review_reasons.some(r=>r.source==='memory:source@1'));
+});
+
+test('imported retained lessons cannot crowd independent current learning out of bounded selection',async t=>{
+  const {root,memory,learning,workspace,codex}=await fixture(t);
+  root.history('123','user','Independent current planning evidence.');
+  const lesson=(key,source,extra={})=>({key,kind:'rule',target:'PLAYBOOK.md',content:'Independent ready planning rule.',scope:'planning',expected_benefit:'Better plans.',check:'Check the next plan.',sources:[source],expected_revision:0,status:'trial',...extra});
+  for(const value of [lesson('ready-rule','history:1'),lesson('ready-question','history:1',{kind:'question',status:'pending',content:'Which day works for planning?'})]) {
+    learning.validate(value,{records:[{source:'history:1'}]});learning.put(value);
+  }
+  for(let group=0;group<3;group++) {
+    const id=randomUUID(),session=randomUUID(),chatId=String(-200-group);
+    const row={id,owner:'123',chat_id:chatId,kind:'group',session_id:session,title:'Synthetic group'};
+    root.db.prepare('INSERT INTO conversations(id,owner,chat_id,kind,title,session_id) VALUES (?,?,?,?,?,?)').run(id,'123',chatId,'group',row.title,session);
+    const base=path.join(workspace,'state/conversations',id),groupDir=path.join(workspace,'conversations',id);
+    await fs.mkdir(base,{recursive:true});await fs.mkdir(groupDir,{recursive:true});
+    const legacy=new Store(path.join(base,'assistant.sqlite'));
+    try {
+      legacy.bindConversation('123',{id,chatId,kind:'group',sessionId:session});
+      legacy.db.prepare('INSERT INTO meta VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run('conversation-owner','123');
+      const oldMemory=new Memory(groupDir,legacy,'123'),oldLearning=new Learning(groupDir,legacy,'123');
+      legacy.history('123','user','Legacy evidence shared by forty lessons.');
+      oldMemory.save({key:'legacy-source-'+group,category:'facts',title:'Source',content:'Legacy evidence',certainty:'confirmed',sources:['history:1'],expected_revision:0});
+      for(let i=0;i<40;i++) {
+        const value=lesson('legacy-'+group+'-'+i,'history:1',{content:'Retained historical lesson.'});
+        oldLearning.validate(value,{records:[{source:'history:1'}]});oldLearning.put(value);
+      }
+      oldMemory.forget('legacy-source-'+group);oldLearning.purgeForgotten();
+      await migrateConversation(root,workspace,codex,row);
+    } finally {legacy.db.close();}
+  }
+  assert.equal(root.db.prepare('SELECT count(*) AS n FROM learning_records').get().n,122);
+  assert.equal(learning.get('ready-rule').review_state,'ready');assert.equal(learning.get('legacy-0-0').review_state,'needs_review');
+  assert(learning.context('planning').some(entry=>entry.key==='ready-rule'));
+  assert.equal(learning.offer('UTC',Date.parse('2026-10-04T12:00:00Z')),'ready-question');
+  assert.equal(learning.project(),true);assert.match(await fs.readFile(path.join(workspace,'PLAYBOOK.md'),'utf8'),/Independent ready planning rule/);
+  assert.equal(memory.search('Legacy').entries.length,0);
+});

@@ -39,7 +39,7 @@ export class Learning {
     }
   }
   checkOwner() {if(!this.owner||this.store.get('learning-owner')!==this.owner)throw new Error('Learning owner unavailable');}
-  blocked() {return new Set(this.db.prepare('SELECT blocked_history FROM memory_tombstones WHERE user=?').all(this.owner).flatMap(x=>JSON.parse(x.blocked_history)).map(id=>'history:'+id));}
+  blocked() {return new Set(this.db.prepare('SELECT history_id FROM memory_blocked_history WHERE user=? UNION SELECT j.value AS history_id FROM memory_tombstones t,json_each(t.blocked_history) j WHERE t.user=?').all(this.owner,this.owner).map(row=>'history:'+row.history_id));}
   evidence(source) {
     this.checkOwner();if(typeof source!=='string'||this.blocked().has(source))throw new Error('Unavailable learning evidence');
     const history=source.match(/^history:([1-9]\d*)$/);
@@ -56,14 +56,29 @@ export class Learning {
   get(key,revision) {
     this.checkOwner();if(!keyPattern.test(key))throw new Error('Invalid learning key');
     const row=revision===undefined?this.db.prepare('SELECT * FROM learning_records WHERE user=? AND key=?').get(this.owner,key):this.db.prepare('SELECT * FROM learning_versions WHERE user=? AND key=? AND revision=?').get(this.owner,key,revision);
-    return row?{...JSON.parse(row.payload),revision:row.revision,updated:row.updated??row.created,offered:row.offered??null,outbox_id:row.outbox_id??null}:null;
+    if(!row)return null;const record={...JSON.parse(row.payload),revision:row.revision,updated:row.updated??row.created,offered:row.offered??null,outbox_id:row.outbox_id??null};
+    const blocked=this.blocked(),review_reasons=record.sources.filter(s=>blocked.has(s)).map(source=>({source,reason:'shared_history_forgotten'}));
+    return {...record,review_state:review_reasons.length?'needs_review':'ready',review_reasons};
   }
   list() {this.checkOwner();return this.db.prepare("SELECT key FROM learning_records WHERE user=? ORDER BY CASE WHEN json_extract(payload,'$.status') IN ('active','trial','pending') THEN 0 ELSE 1 END,updated DESC,key LIMIT 100").all(this.owner).map(row=>this.get(row.key));}
+  current({limit=100,kind,status,unoffered=false}={}) {
+    this.checkOwner();
+    if(!Number.isInteger(limit)||limit<1||limit>100||kind!==undefined&&!['rule','preference','style','question'].includes(kind)||status!==undefined&&!['active','trial','pending'].includes(status))throw new Error('Invalid current learning selection');
+    // Retained historical rows must not consume current capacity or crowd useful
+    // evidence out of bounded context, projection, question and review inputs.
+    return this.db.prepare(`SELECT r.key FROM learning_records r WHERE r.user=?
+      AND json_extract(r.payload,'$.status') IN ('active','trial','pending')
+      AND NOT EXISTS (SELECT 1 FROM json_each(r.payload,'$.sources') s JOIN json_each(?) b ON s.value=b.value)
+      AND (? IS NULL OR json_extract(r.payload,'$.kind')=?)
+      AND (? IS NULL OR json_extract(r.payload,'$.status')=?)
+      AND (?=0 OR r.offered IS NULL)
+      ORDER BY r.updated DESC,r.key LIMIT ?`).all(this.owner,JSON.stringify([...this.blocked()]),kind??null,kind??null,status??null,status??null,Number(unoffered),limit).map(row=>this.get(row.key));
+  }
   usable(record) {return record.sources.every(source=>!this.blocked().has(source));}
   context(query='') {
     const tokens=(query.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)||[]).slice(0,40);
     let budget=0;
-    return this.list().filter(r=>['active','trial','pending'].includes(r.status)&&this.usable(r)).map(r=>({r,score:tokens.filter(t=>(r.scope+' '+r.content).toLowerCase().includes(t)).length})).filter(({r,score})=>r.kind!=='rule'||score>0||r.scope==='general').sort((a,b)=>b.score-a.score).slice(0,8).flatMap(({r})=>{
+    return this.current().map(r=>({r,score:tokens.filter(t=>(r.scope+' '+r.content).toLowerCase().includes(t)).length})).filter(({r,score})=>r.kind!=='rule'||score>0||r.scope==='general').sort((a,b)=>b.score-a.score).slice(0,8).flatMap(({r})=>{
       const entry={key:r.key,kind:r.kind,target:r.target,content:r.content,scope:r.scope,status:r.status,check:r.check,revision:r.revision,offered:r.offered,sources:r.sources};budget+=JSON.stringify(entry).length;return budget<=6500?[entry]:[];
     });
   }
@@ -100,7 +115,8 @@ export class Learning {
       if(!['pending','resolved','retired'].includes(change.status)||change.status!=='pending'&&!current)throw new Error('Invalid question state');
     } else if(!['active','retired'].includes(change.status)||!evidence.some(e=>e.original_owner_statement===true))throw new Error('Profile learning needs explicit owner evidence');
     if(!current&&change.status==='retired')throw new Error('Cannot retire missing learning');
-    if(!current&&this.list().filter(r=>['trial','active','pending'].includes(r.status)).length>=40)throw new Error('Learning context capacity reached');
+    const wasCurrent=current&&['trial','active','pending'].includes(current.status)&&this.usable(current);
+    if(!wasCurrent&&['trial','active','pending'].includes(change.status)&&this.current({limit:40}).length>=40)throw new Error('Learning context capacity reached');
     return current;
   }
   put(change) {
@@ -139,7 +155,7 @@ export class Learning {
   offer(timezone,now=Date.now(),withinTransaction=false) {
     this.checkOwner();const day=new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now));
     if(this.store.get(`learning-question-day:${this.owner}`)===day)return null;
-    const question=this.list().find(r=>r.kind==='question'&&r.status==='pending'&&!r.offered&&this.usable(r));
+    const question=this.current({kind:'question',status:'pending',unoffered:true,limit:1})[0];
     if(!question)return null;
     const queue=()=>{
       this.store.enqueue(this.owner,{text:question.content+'\n\n'+question.expected_benefit},true);
@@ -150,20 +166,27 @@ export class Learning {
     if(withinTransaction)queue();else this.store.transaction(queue);
     return question.key;
   }
+  previewForget(historyIds=[]) {
+    this.checkOwner();const blocked=new Set([...this.blocked(),...historyIds.map(id=>'history:'+id)]),affected=[];
+    for(const {key} of this.db.prepare('SELECT key FROM learning_records WHERE user=? ORDER BY key').all(this.owner)) {
+      const record=this.get(key);if(!record.sources.some(s=>blocked.has(s)))continue;
+      const pending=record.outbox_id&&this.db.prepare("SELECT id FROM outbox WHERE id=? AND user=? AND state='pending'").get(record.outbox_id,this.owner);
+      affected.push({key,revision:record.revision,kind:record.kind,target:record.target,status:record.status,review_state:record.review_state,basis:'shared_history',versions_retained:this.db.prepare('SELECT count(*) AS n FROM learning_versions WHERE user=? AND key=?').get(this.owner,key).n,pending_question_cancelled:pending?.id??null});
+    }
+    return affected;
+  }
   purgeForgotten() {
-    const blocked=this.blocked();
+    // The legacy method name is retained for callers. A shared history ID does
+    // not establish semantic dependence: preserve records and revisions for review.
     this.store.transaction(()=>{
-      for(const {key} of this.db.prepare('SELECT key FROM learning_records WHERE user=?').all(this.owner)){const record=this.get(key);if(record.sources.some(s=>blocked.has(s))){
-        if(record.outbox_id)this.db.prepare("UPDATE outbox SET state='cancelled' WHERE id=? AND user=? AND state='pending'").run(record.outbox_id,this.owner);
-        this.db.prepare('DELETE FROM learning_versions WHERE user=? AND key=?').run(this.owner,record.key);
-        this.db.prepare('DELETE FROM learning_records WHERE user=? AND key=?').run(this.owner,record.key);
-      }}
+      for(const record of this.previewForget())if(record.pending_question_cancelled)this.db.prepare("UPDATE outbox SET state='cancelled' WHERE id=? AND user=? AND state='pending'").run(record.pending_question_cancelled,this.owner);
+      this.store.set('learning-export-dirty','1');
     });
     return this.project();
   }
   project() {
     try {
-      const records=this.list().filter(r=>['active','trial','pending'].includes(r.status)&&this.usable(r));
+      const records=this.current();
       for(const target of ['PLAYBOOK.md','AGENTS.md','USER.md','SOUL.md']) {
         const dest=path.join(this.workspace,target),stat=fs.existsSync(dest)?fs.lstatSync(dest):null;
         if(stat&&(!stat.isFile()||stat.isSymbolicLink()))throw new Error('Unsafe learning projection');
