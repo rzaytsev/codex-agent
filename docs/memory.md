@@ -231,3 +231,8 @@ Profiles, custom instruction sections, schedules and legacy learning notes are
 preserved. No shared skills or another agent's memory are changed by consolidation.
 Model extraction and judgment remain fallible and require real task evaluation;
 passing storage tests alone does not establish good recall.
+
+The [memory quality suite](memory-quality-evals.md) complements storage/smoke
+checks with synthetic later-turn recall, correction, ambiguity, abstention and
+source-authority cases. It separates scorer expectations from model input and
+reports memory-on/off answers separately from record-capture checks.
