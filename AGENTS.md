@@ -45,6 +45,22 @@ Read the relevant deeper document before changing a subsystem:
 - `bin/agent`, `scripts/`, `examples/`, `systemd/`: local/host operations and examples.
 - `test/`: synthetic tests. `private/`: ignored instance configs and operations.
 
+## Instruction changes
+
+This root file guides repository contributors. It is not the Telegram assistant's
+persona or a grant of runtime access. Workspace `templates/AGENTS.md` supplies
+operating guidance, `SOUL.md` character, and `USER.md` explicit owner facts;
+`templates/CORE.md` is image-owned policy. `src/agent.js` assembles these with
+role/delivery instructions and bounded source context. See [prompt contracts](docs/prompts.md).
+
+Before editing a prompt, trace how it reaches existing instances. Profile seeds
+initialize missing files only, and managed sections have their own update rules.
+Do not overwrite custom profiles to distribute new defaults. Check main, worker,
+read-only and internal review turns against their actual service tools; a prompt
+must not advertise a denied tool or imply that wording creates a security boundary.
+Use original project guidance and synthetic examples, never private assistant
+instructions, personal profiles or operational transcripts.
+
 ## Non-negotiable behavior
 
 1. Keep exactly one owner per instance. Validate private-chat sender and recipient,

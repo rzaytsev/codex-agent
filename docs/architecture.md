@@ -42,8 +42,11 @@ worker threads; a coordinator enforces fair shared execution limits. Stable IDs
 survive Telegram renames/migrations. See [conversations](conversations.md).
 
 agent.js reads workspace AGENTS.md, SOUL.md and USER.md each turn, removes generated
-learning sections, appends the image-owned stable core and supplies scoped learning
-records. A separate read-only proposer/validator loop applies service-validated
+learning sections, selects application-owned role/delivery instructions, appends
+the image-owned stable core and supplies scoped learning records. Role rules are
+SDK developer instructions; requests and retrieved sources remain turn input.
+See [prompt contracts](prompts.md) for ownership and update behavior.
+A separate read-only proposer/validator loop applies service-validated
 versioned adaptations; see [learning](learning.md). It supplies recent
 history and bounded relevant memory, and runs the pinned SDK with a structured
 response schema. The subprocess environment includes required runtime paths and

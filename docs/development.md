@@ -29,6 +29,11 @@ proactivity for an unconfigured local service test.
 
 ## Runtime validation ladder
 
+For instruction changes, read [prompt contracts](prompts.md) and run
+`test/prompts.test.js` alongside the affected service suites. Inspect assembled
+SDK instructions for main, worker, read-only and internal review roles. Synthetic
+assembly checks cannot establish model adherence or deployed behavior.
+
 For shared owner conversations, run `test/conversations.test.js` and
 `test/conversation-migration.test.js` first. Verify shared recall/rules/tools,
 separate recent context, migration and source routing. `scripts/conversations-smoke.js`
