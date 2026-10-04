@@ -10,7 +10,7 @@ choice are in [memory-research.md](memory-research.md).
 
 ```text
 workspace/
-  USER.md                         compact profile; existing profile tool
+  USER.md                         compact profile; hash-checked profile tools
   SOUL.md                         character
   AGENTS.md                       capture/recall/consolidation policy
   memory/
@@ -65,6 +65,39 @@ rules, exactly once. Legacy files are not automatically
 classified/imported: inspect them when relevant and promote verified records
 through the memory tools. Existing local conversation history is eligible for
 the daily backlog from its beginning, not only the last 100 messages.
+
+## Concurrent profile updates
+
+`profile_read({file})` returns `{file, content, hash}` for `USER.md` or `SOUL.md`.
+The SHA-256 hash covers the complete exposed text, including managed learning
+sections. Main agents should use `profile_patch({file, expected_hash, old_text,
+new_text})` for one unique exact-text replacement. Empty replacement text deletes
+that match; missing, ambiguous or empty match text is rejected. Unchanged custom
+text is retained. Generated learning sections cannot be edited through these tools.
+
+`profile_write({file, content, expected_hash?})` remains a full-replacement tool.
+Without an explicit hash it requires a prior `profile_read` on the same turn
+capability, consumed after one successful write. Blind replacement returns
+`{updated:false, conflict:true, reason:"read_required", current}`. A stale hash
+returns the same shape with `reason:"stale_hash"`. Neither writes nor grants a
+fresh implicit read; reread and reconcile current content before retrying.
+Success returns `updated`, the resulting `hash` and `learning_projection_synced`.
+A full replacement may omit the generated learning block; the service retains it.
+Clean writes do not reproject learning or move custom sections. A pending learning
+projection is retried before the hash check; if it changes the profile, the writer
+receives a conflict and must reconcile the repaired content.
+Existing deployments receive this guidance through the image-owned core without
+rewriting custom workspace instructions or profiles.
+
+Profiles stay shared across the owner's conversations. Reads are available to
+workers, curators and read-only tasks; writes remain main-only under the existing
+owner/conversation/session/cancellation checks. Profile tools do not queue messages
+or change reply destinations. Hash comparison and atomic rename run without an
+asynchronous gap in the single service process, including learning projection.
+This guards concurrent conversation tools, not arbitrary direct filesystem writers
+or multiple service processes on one workspace. It is not a new filesystem sandbox
+or a persisted profile revision history; profile reads and conflicts expose current
+content only. Existing transcripts and backups retain their usual boundaries.
 
 ## Quiet consolidation
 

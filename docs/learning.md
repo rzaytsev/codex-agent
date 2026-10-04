@@ -32,8 +32,10 @@ separately, avoiding loading the whole playbook on every task.
 
 Goals and commitments remain sourced project memories. Executable procedures and
 skills retain their existing validation rules; a learned instruction is not proof
-that a procedure works. The main profile_write tool continues to support direct
-owner-driven edits and reprojects managed sections after writing.
+that a procedure works. Main profile_write and profile_patch tools support
+hash-checked owner-driven edits. Pending learning projection is repaired before
+the hash check; clean managed sections are preserved without reprojection.
+See [concurrent profile updates](memory.md#concurrent-profile-updates).
 
 ## Evidence and review
 

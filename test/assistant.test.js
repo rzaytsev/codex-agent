@@ -75,7 +75,7 @@ test('delivery rejects revoked users; uncertain network outcome is not blindly r
  assert.equal(store.db.prepare('SELECT state FROM outbox ORDER BY id DESC LIMIT 1').get().state,'uncertain');
 });
 test('profile update is atomic and disallows arbitrary target paths',async t=>{
- const {service,dir}=await fixture(t);await service.tool({user:'123'},'profile_write',{file:'USER.md',content:'Name: Test'});
+ const {service,dir}=await fixture(t),cap={user:'123'};await service.tool(cap,'profile_read',{file:'USER.md'});await service.tool(cap,'profile_write',{file:'USER.md',content:'Name: Test'});
  assert.equal(await fs.readFile(path.join(dir,'USER.md'),'utf8'),'Name: Test');
  await assert.rejects(service.tool({user:'123'},'profile_write',{file:'../x',content:'bad'}));
 });

@@ -200,3 +200,17 @@ for a development agent or content retrieved from tools.
   turn instructions ask the main agent to avoid duplicate final acknowledgments.
 - Tests prove exact delivery payloads for Russian, Spanish and English plus
   persistence and validation. Model language choice still requires live acceptance.
+
+## Conflict-checked shared profiles (2026-10-04)
+
+- Use content hashes and small exact patches for shared USER.md/SOUL.md updates.
+  Atomic rename alone prevents partial files, but cannot detect stale full rewrites
+  from concurrent conversation mains.
+- Preserve the full-replacement tool with a supplied hash or single-use same-turn
+  read snapshot. Missing/stale snapshots fail closed with current content to
+  reconcile, rather than allowing an unguarded compatibility path.
+- Keep learning projections service-owned, custom sections intact during patches,
+  and existing role/owner/source-routing boundaries. The synchronous service
+  critical section covers conversation tools and learning projection, not external
+  filesystem writers. No new database, provider or profile history is introduced.
+- See [memory](memory.md#concurrent-profile-updates) for the API and limits.

@@ -27,7 +27,17 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
   const client=new Client({name:'integration-test',version:'1.0.0'});
   await client.connect(transport);
   try {
-   const tools=await client.listTools();assert.equal(tools.tools.length,review?8:worker?9:25);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
+   const tools=await client.listTools();assert.equal(tools.tools.length,review?9:worker?10:27);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
+   assert(tools.tools.some(tool=>tool.name==='profile_read'));assert.equal(tools.tools.some(tool=>tool.name==='profile_patch'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='profile_write'),!worker);
+   const profileResult=await client.callTool({name:'profile_read',arguments:{file:'USER.md'}});assert.equal(profileResult.isError,false);
+   const snapshot=JSON.parse(profileResult.content[0].text);assert.match(snapshot.hash,/^[a-f0-9]{64}$/);
+   if(!worker) {
+    const changed=await client.callTool({name:'profile_write',arguments:{file:'USER.md',content:'Synthetic profile'}});assert.equal(changed.isError,false);assert.equal(JSON.parse(changed.content[0].text).updated,'USER.md');
+    const stale=await client.callTool({name:'profile_patch',arguments:{file:'USER.md',expected_hash:snapshot.hash,old_text:'Synthetic',new_text:'Updated'}});assert.equal(stale.isError,false);assert.equal(JSON.parse(stale.content[0].text).conflict,true);
+    const current=JSON.parse((await client.callTool({name:'profile_read',arguments:{file:'USER.md'}})).content[0].text);
+    const patched=await client.callTool({name:'profile_patch',arguments:{file:'USER.md',expected_hash:current.hash,old_text:'Synthetic',new_text:'Updated'}});assert.equal(patched.isError,false);assert.equal(JSON.parse(patched.content[0].text).updated,'USER.md');
+    assert.equal((await client.callTool({name:'profile_patch',arguments:{file:'USER.md',old_text:'Updated',new_text:'Missing hash'}})).isError,true);
+   }
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
    if(!worker) {
     const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.'}});

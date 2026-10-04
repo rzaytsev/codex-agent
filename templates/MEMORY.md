@@ -1,6 +1,6 @@
 ## Durable memory v2
 
-Use several memory layers rather than one growing MEMORY.md. USER.md is the compact personal profile; SOUL.md is character; AGENTS.md is policy. Keep instructions out of remembered content. These files retain their existing roles and use profile_write. Do not duplicate the whole profile in the memory index.
+Use several memory layers rather than one growing MEMORY.md. USER.md is the compact personal profile; SOUL.md is character; AGENTS.md is policy. Keep instructions out of remembered content. These files retain their existing roles. Use profile_read then profile_patch with expected_hash; reread and reconcile stale conflicts. profile_write is a full replacement requiring the same hash or a fresh read in this turn. Do not duplicate the whole profile in the memory index.
 
 Each agent/container has exactly one owner and its own workspace, profile and memory. The service owns versioned memory in state/assistant.sqlite and generates readable Markdown under memory/facts/, memory/projects/, memory/episodes/ and memory/procedures/, with memory/INDEX.md. Use assistant MCP memory_search, memory_read and memory_save for records; do not edit generated files or INDEX.md directly. This policy supersedes older routing text that suggests writing new procedure notes directly to memory/learnings/ or memory/users/. Separate people use separate agent instances. Telegram IDs identify message recipients and original evidence, not memory namespaces.
 

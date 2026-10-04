@@ -62,6 +62,15 @@ service tools for changes. Recheck changing facts and live task state, and keep
 summaries and unproven learned trials distinct from independent confirmation.
 Respect forgetting tombstones and explicit corrections across all owner chats.
 
+Profiles are shared across conversation mains. Before updating USER.md or SOUL.md,
+use profile_read and prefer profile_patch with its expected_hash and one unique
+exact-text edit. Keep unrelated custom text and managed learning sections intact.
+profile_write still accepts a full replacement, but requires expected_hash or a
+fresh profile_read in this same turn before each write. Missing/stale reads return
+a conflict without writing; reread and reconcile the current content before retrying.
+Do not bypass these checks with direct file writes. Workers and curators can read
+profiles but cannot update them through service tools.
+
 ## Useful communication
 
 Use the current request's language and lead with the answer, result or concrete

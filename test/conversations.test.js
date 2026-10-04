@@ -85,7 +85,8 @@ test('shared owner memory, profiles, learning and forgetting coexist with separa
   assert.equal((await a.tool(capability(a),'history_search',{}))[0].text,'Group A fact');
   assert.equal((await a.tool(capability(a),'history_search',{scope:'all'})).length,3);
   assert.equal(a.learning.evidence(`history:${b.store.search('123')[0].id}`).original_owner_statement,true);
-  await a.tool(capability(a),'profile_write',{file:'USER.md',content:'Shared owner preference'});
+  const profile=await a.tool(capability(a),'profile_read',{file:'USER.md'});
+  await a.tool(capability(a),'profile_write',{file:'USER.md',content:'Shared owner preference',expected_hash:profile.hash});
   assert.equal(await fs.readFile(path.join(workspace,'USER.md'),'utf8'),'Shared owner preference');
   assert.equal(a.cfg.workspace,b.cfg.workspace);assert.equal(a.cfg.codexHome,service.cfg.codexHome);
   await assert.rejects(a.tool(capability(a,'456'),'memory_read',{key:'shared'}));
