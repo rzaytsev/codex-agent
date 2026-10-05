@@ -27,7 +27,7 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
   const client=new Client({name:'integration-test',version:'1.0.0'});
   await client.connect(transport);
   try {
-   const tools=await client.listTools();assert.equal(tools.tools.length,review?9:worker?10:27);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
+   const tools=await client.listTools();assert.equal(tools.tools.length,review?11:worker?12:29);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='memory_explain'));assert(tools.tools.some(tool=>tool.name==='memory_forget_preview'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
    assert(tools.tools.some(tool=>tool.name==='profile_read'));assert.equal(tools.tools.some(tool=>tool.name==='profile_patch'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='profile_write'),!worker);
    const profileResult=await client.callTool({name:'profile_read',arguments:{file:'USER.md'}});assert.equal(profileResult.isError,false);
    const snapshot=JSON.parse(profileResult.content[0].text);assert.match(snapshot.hash,/^[a-f0-9]{64}$/);
@@ -42,7 +42,7 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
    const readSchema=tools.tools.find(tool=>tool.name==='memory_read').inputSchema.properties;
    for(const name of ['entity','project','as_of']){assert.ok(searchSchema[name]);assert.ok(readSchema[name]);}
    if(!review) {
-    const saveSchema=tools.tools.find(tool=>tool.name==='memory_save').inputSchema.properties;
+    const saveSchema=tools.tools.find(tool=>tool.name==='memory_save').inputSchema.properties;assert.equal(saveSchema.restore,undefined);
     for(const name of ['observed_at','valid_from','valid_to','review_after','entity','project'])assert.ok(saveSchema[name]);
     const key=worker?'worker-memory':'main-memory';
     const saved=await client.callTool({name:'memory_save',arguments:{key,category:'facts',title:'Temporal',content:'Cobalt evidence',certainty:'confirmed',sources:['https://example.com/'],expected_revision:0,entity:'Traveler',project:'Launch',valid_from:'2026-06-01T00:00:00Z',valid_to:'2026-07-01T00:00:00Z'}});
@@ -55,6 +55,11 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
    const invalid=await client.callTool({name:'memory_search',arguments:{as_of:'2026-06-01T00:00:00'}});assert.equal(invalid.isError,true);
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
    if(!worker) {
+    const memoryArgs={key:'forgotten-test',category:'facts',title:'Test',content:'Synthetic evidence',certainty:'confirmed',sources:['https://example.com/evidence'],expected_revision:0};
+    assert.equal((await client.callTool({name:'memory_save',arguments:memoryArgs})).isError,false);
+    assert.equal((await client.callTool({name:'memory_forget',arguments:{key:memoryArgs.key}})).isError,false);
+    assert.equal((await client.callTool({name:'memory_save',arguments:{...memoryArgs,restore:true}})).isError,true);
+    assert.equal(service.memory.get(memoryArgs.key),null);
     const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.'}});
     assert.equal(created.isError,false);assert.equal(store.jobs('123')[0].profile,'research');
     assert.equal(store.get(`task-acknowledgment:${store.jobs('123')[0].id}`),'Хорошо, ищу рестораны.');

@@ -91,10 +91,11 @@ For example: repeated requests for a next step support a scoped planning trial.
 A later owner report that it saved another correction can support promotion. A
 later instruction to stop retires it. Silence leaves usefulness unknown.
 
-Explicit structured-memory forgetting also removes learning records and revisions
-that cite its blocked history IDs, cancels pending linked questions and repairs
-projections. Review receipts, original transcripts, sessions, derived copies and
-backups can remain. This is not comprehensive erasure.
+Explicit structured-memory forgetting marks learning records citing blocked
+history IDs for review, retains their content and revisions, cancels pending
+linked questions and removes them from ordinary context/projections. Review
+receipts, original transcripts, sessions, derived copies and backups remain.
+This is not comprehensive erasure; see [shared evidence](#forgetting-shared-evidence).
 
 ## Configuration and verification
 
@@ -128,3 +129,21 @@ The [held-out quality suite](memory-quality-evals.md) adds uncoached extraction,
 fresh-task transfer, provenance checks and rollback observations. Its fake-adapter
 tests verify the harness only; real subscription runs are opt-in and require
 review of individual results before any learning-quality claim.
+
+## Forgetting shared evidence
+
+When structured forgetting blocks a history ID, learning records citing that ID
+are retained with `review_state=needs_review`, including historical revisions.
+Shared source IDs do not prove that every fact in the message is the same fact.
+These records leave ordinary context and managed profile/playbook projections;
+pending associated questions are cancelled and no new offers use them. Explicit
+`learning_read` inspection remains available. Original history, delivered or
+uncertain messages, learning review audit rows and backups remain. Use
+`memory_forget_preview` to inspect the impact; it cannot enumerate unlinked copies.
+
+Current learning selection filters retained `needs_review` records out before
+capacity checks and bounded selection. The same selector supplies context,
+profile/playbook projection, pending question offers and automatic learning-review
+prompts. Historical retention does not consume the 40-current-record allowance or
+crowd independent current lessons out of the first 100 candidates. Explicit
+`learning_read` by key or revision remains available for inspection.

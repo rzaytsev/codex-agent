@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
+import { Memory } from './memory.js';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const maintenance=/^\[(MEMORY|LEARNING|REFLECTION|CLEANUP)\]/;
@@ -35,12 +36,13 @@ export async function migrateConversation(root,workspace,codexHome,row) {
   try {
     const owner=old.prepare("SELECT value FROM meta WHERE key='conversation-owner'").get()?.value;
     if(owner!==row.owner||old.prepare('SELECT owner FROM conversations WHERE id=?').get(row.id)?.owner!==row.owner)throw new Error('Legacy conversation owner mismatch');
+    const memory=new Memory(workspace,root,row.owner);
     root.transaction(()=>{
       const historyMap=new Map(),memoryMap=new Map(),learningMap=new Map();
       const tables=new Set(old.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r=>r.name));
       const rows=table=>tables.has(table)?old.prepare(`SELECT * FROM ${table}`).all():[];
       const insert=(table,value)=>{const keys=Object.keys(value);return db.prepare(`INSERT INTO ${table}(${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`).run(...keys.map(k=>value[k]));};
-      for(const table of ['inputs','history','jobs','schedules','outbox','memories','memory_versions','memory_tombstones','learning_records','learning_versions','learning_reviews'])for(const record of rows(table))if(record.user!==row.owner)throw new Error('Foreign owner in legacy data');
+      for(const table of ['inputs','history','jobs','schedules','outbox','memories','memory_versions','memory_tombstones','memory_sources','memory_invalidations','memory_blocked_history','learning_records','learning_versions','learning_reviews'])for(const record of rows(table))if(record.user!==row.owner)throw new Error('Foreign owner in legacy data');
       for(const record of rows('main_sessions')) {
         if(record.conversation_id!==row.id)throw new Error('Foreign session in legacy data');
         if(db.prepare('SELECT id FROM main_sessions WHERE id=?').get(record.id))throw new Error('Conflicting legacy session');
@@ -104,6 +106,14 @@ export async function migrateConversation(root,workspace,codexHome,row) {
       for(const record of rows('memory_tombstones')) {
         const value={...record,key:memoryMap.get(record.key),blocked_history:JSON.stringify(JSON.parse(record.blocked_history).map(id=>{if(!historyMap.has(id))throw new Error('Missing forgotten source');return historyMap.get(id);} ))};insert('memory_tombstones',value);
       }
+      for(const record of rows('memory_blocked_history')) {
+        const id=historyMap.get(record.history_id);if(!id)throw new Error('Missing forgotten source');
+        db.prepare('INSERT OR IGNORE INTO memory_blocked_history VALUES (?,?,?)').run(row.owner,id,record.created);
+      }
+      for(const record of rows('memory_invalidations'))insert('memory_invalidations',{...record,key:memoryMap.get(record.key)||record.key,source:source(record.source)});
+      // Imported source links are indexed by the memory insert triggers. Reconcile
+      // older databases lacking review metadata before committing their recall state.
+      memory.reconcileEvidence();
       for(const table of ['learning_records','learning_versions'])for(const record of rows(table)) {
         const value={...record,key:learningMap.get(record.key)||record.key};
         const payload=rewrite(JSON.parse(record.payload));payload.key=value.key;

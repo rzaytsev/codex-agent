@@ -227,3 +227,19 @@ for a development agent or content retrieved from tools.
   `as_of` means valid-time filtering of the latest/selected record, not automatic
   revision selection or transaction-time reconstruction. Explicit revision reads
   remain the historical path. See [memory](memory.md) for boundary details.
+
+## Evidence invalidation and scoped forgetting
+
+- Block forgotten history IDs for every save origin and destination key. Retain
+  that owner-bound ledger separately from key tombstones. Restoration is disabled
+  at the tool/service/storage boundary, including the legacy restore=true option;
+  a future owner-authorized remember-again workflow is deliberately deferred.
+- Track exact revision dependencies. Corrections and forgetting invalidate
+  descendants recursively; stale derived content stays inspectable and is
+  excluded from ordinary recall until re-evidenced. Never infer semantic
+  dependence solely from shared history or delete independent facts in a cascade.
+- Conservatively flag shared-history memory and learning for review, preserving
+  content and revisions while suppressing projections and pending questions.
+  This supersedes deleting learning records merely because they share a source ID.
+- Provide read-only impact preview and evidence explanation. State retention and
+  provenance-validation limits explicitly; source content grants no authority.

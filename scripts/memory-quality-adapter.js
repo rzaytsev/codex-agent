@@ -155,7 +155,10 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
       } catch (error) {
         throw new EvaluationRunError(error instanceof Error ? error.message : 'Adapter runtime failed', observation);
       } finally {
-        clearTimeout(timer);local.abort();
+        // SDK 0.159.2 removes child error listeners after the event stream drains.
+        // Aborting that completed stream can then emit an unhandled AbortError.
+        // Timeout and caller cancellation already abort active work.
+        clearTimeout(timer);
         for (const store of stores.values()) store.db.close();
         await fs.rm(root, {recursive:true, force:true});
       }

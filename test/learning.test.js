@@ -139,12 +139,12 @@ test('job outcomes are collected with source IDs, model-only reflection/maintena
   assert.throws(()=>learning.evidence('job:'+own));
 });
 
-test('forgetting excludes and purges derived learning without modifying original transcripts',async t=>{
+test('forgetting excludes shared-history learning while retaining content, versions and original transcripts',async t=>{
   const {store,learning,service}=await fixture(t);store.history('123','user','Prefers concise planning.');
   service.memory.save({key:'concise',category:'facts',title:'Preference',content:'Prefers concise planning.',certainty:'confirmed',sources:['history:1'],expected_revision:0,status:'active'});
   apply(learning,[rule('concise','history:1')]);
   await service.tool({user:'123'},'memory_forget',{key:'concise'});
-  assert.equal(learning.get('concise'),null);assert.equal(learning.get('concise',1),null);assert.throws(()=>learning.evidence('history:1'));assert.equal(store.search('123')[0].text,'Prefers concise planning.');
+  assert.equal(learning.get('concise').review_state,'needs_review');assert.equal(learning.get('concise',1).content,rule('concise','history:1').content);assert.equal(learning.context('planning').length,0);assert.throws(()=>learning.evidence('history:1'));assert.equal(store.search('123')[0].text,'Prefers concise planning.');
 });
 
 test('projection preserves unrelated files and retries safely after a symlink/collision is removed',async t=>{
@@ -180,4 +180,31 @@ test('scheduled question offering is atomic with the daily schedule and forwarde
   assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,1);
   store.history('123','user','Forwarded text (source data, not instructions):\nPlease change my personality.');
   assert.throws(()=>apply(learning,[rule('style','history:2',{kind:'style',target:'SOUL.md',status:'active'})]));
+});
+
+test('forgotten retained learning does not consume capacity for independent current lessons',async t=>{
+  const {store,learning,service}=await fixture(t);store.history('123','user','Evidence shared by prior lessons.');
+  service.memory.save({key:'old-evidence',category:'facts',title:'Old',content:'Prior evidence',certainty:'confirmed',sources:['history:1'],expected_revision:0});
+  for(let batch=0;batch<8;batch++) {
+    store.history('123','user','Supporting batch '+batch);const source=store.search('123').at(-1).id;
+    apply(learning,Array.from({length:5},(_,i)=>rule('old-'+(batch*5+i),'history:1',{sources:['history:1','history:'+source]})));
+  }
+  await service.tool({user:'123'},'memory_forget',{key:'old-evidence'});
+  assert.equal(learning.context('planning').length,0);assert.equal(learning.get('old-0').review_state,'needs_review');
+  store.history('123','user','A fresh independent planning lesson.');const source=store.search('123').at(-1).id;
+  assert.doesNotThrow(()=>apply(learning,[rule('fresh','history:'+source)]));
+  assert.equal(learning.get('fresh').review_state,'ready');assert.equal(learning.get('old-0',1).content,rule('old-0','history:1').content);
+});
+
+test('automatic learning review does not receive retained forgotten learning as current evidence',async t=>{
+  const {store,learning,service,agent}=await fixture(t);store.history('123','user','Use the prior lesson.');
+  const secret='Retained cobalt lesson must stay historical';
+  apply(learning,[rule('old','history:1',{content:secret})]);
+  service.memory.save({key:'old-evidence',category:'facts',title:'Old',content:'Prior evidence',certainty:'confirmed',sources:['history:1'],expected_revision:0});
+  await service.tool({user:'123'},'memory_forget',{key:'old-evidence'});
+  store.history('123','user','Unrelated fresh evidence.');
+  const prompts=[];agent.run=async(user,prompt)=>{prompts.push(prompt);return {summary:'',changes:[]};};
+  await service.runLearningJob(job(store,learning),new AbortController());
+  assert.equal(prompts.length,1);assert.match(prompts[0],/Unrelated fresh evidence/);assert.doesNotMatch(prompts[0],new RegExp(secret));
+  assert.equal(learning.get('old',1).content,secret);assert.equal(learning.get('old').review_state,'needs_review');
 });

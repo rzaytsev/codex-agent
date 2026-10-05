@@ -72,8 +72,8 @@ function fakeCodex(captures, toolEvent = false, respond) {
     constructor(options) {this.options=options;}
     startThread(options) {
       const sdkOptions=this.options;
-      return {runStreamed:async(input,{outputSchema})=>{
-        captures.push({sdkOptions,options,input,outputSchema});
+      return {runStreamed:async(input,{outputSchema,signal})=>{
+        captures.push({sdkOptions,options,input,outputSchema,signal});
         const output=respond ? respond(outputSchema) : outputSchema.properties.changes ? {summary:'',changes:[{key:'entries',category:'facts',title:'Entries',content:'Use five entries.',certainty:'confirmed',sources:['history:1'],expected_revision:0,status:'active'}]} : {text:'Use five entries.',voice:false,files:[]};
         return {events:(async function*(){
           if(toolEvent)yield {type:'item.started',item:{type:'command_execution'}};
@@ -217,4 +217,13 @@ test('later probe failure preserves safe quota accounting and completed syntheti
   assert.equal(report.cases[0].observation.probes[0].id,'q1');
   assert.equal(JSON.stringify(report).includes('private-error-do-not-publish'),false);
   assert.deepEqual(report.cases[0].metricCounts,{passed:0,failed:0,unscored:3});
+});
+
+
+test('completed evaluation does not abort SDK streams after their cleanup',async()=>{
+  const captures=[];
+  const adapter=adapterApi.createAdapter({CodexClass:fakeCodex(captures),model:'synthetic-model'});
+  await adapter.run(scenario,{memoryEnabled:true});
+  assert.equal(captures.length,2);
+  assert.ok(captures.every(call=>!call.signal.aborted));
 });
