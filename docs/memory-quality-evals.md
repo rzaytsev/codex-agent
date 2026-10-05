@@ -104,6 +104,8 @@ put scorer expectations into model input. Each case/mode/repeat has its own
 status, probe answers, record snapshots, source IDs and per-check result. `sources` maps real
 history references to fixture message IDs; `sourceRefs` retains the synthetic
 SQLite references. Generated memory keys are reported, not dictated or scored.
+Completed evaluation streams are not aborted again during cleanup: the pinned SDK removes child-process error listeners after draining, so a late abort can emit an unhandled error. Active calls still honor the case deadline and caller cancellation.
+
 Errors are separate from failed quality checks: their checks have passed=null
 and are counted as unscored, not failed. Comparison denominators come from the
 expected checks even if either arm errors. Each case and comparison arm reports
