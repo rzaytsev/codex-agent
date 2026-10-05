@@ -123,3 +123,8 @@ with an existing login. It starts no Telegram poller, contacts no user and store
 real personal content. It checks proposal/validation, restart, a fresh turn and
 rollback. Real deployment quality still requires observing actual assistance and
 user outcomes; healthy containers do not establish long-term improvement.
+
+The [held-out quality suite](memory-quality-evals.md) adds uncoached extraction,
+fresh-task transfer, provenance checks and rollback observations. Its fake-adapter
+tests verify the harness only; real subscription runs are opt-in and require
+review of individual results before any learning-quality claim.

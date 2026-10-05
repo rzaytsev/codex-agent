@@ -76,3 +76,10 @@ worker code installs extra Python dependencies in workspace/project venvs, not t
 read-only image. Python upgrades can invalidate old venvs: startup fails visibly
 rather than deleting user-installed packages. See [configuration](configuration.md)
 and [deployment](deployment.md) before changing runtime paths or versions.
+
+## Held-out memory and learning checks
+
+Use [memory quality evaluations](memory-quality-evals.md) for the synthetic
+multi-turn suite, per-case scoring and paired memory-on/off observations.
+Deterministic harness tests run with npm test; subscription inference requires
+explicit opt-in in a disposable runtime. Existing smoke helpers remain separate.

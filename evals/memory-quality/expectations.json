@@ -1,0 +1,358 @@
+[
+  {
+    "id": "one-off-format",
+    "checks": [
+      {
+        "id": "no-lasting-preference",
+        "at": "later",
+        "target": "answer",
+        "all": [
+          "do(?: not|n['\u2019]t) know|unknown|not (?:been )?(?:provided|specified|shared|told|established)|haven['\u2019]t (?:told|shared)|no (?:information|evidence|record)|cannot determine|can['\u2019]t determine"
+        ],
+        "none": []
+      },
+      {
+        "id": "no-persistent-format",
+        "at": "later",
+        "target": "learning",
+        "all": [
+          "numbered"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "status": [
+            "active",
+            "trial"
+          ],
+          "kind": [
+            "rule",
+            "preference",
+            "style"
+          ]
+        },
+        "max": 0
+      }
+    ]
+  },
+  {
+    "id": "explicit-comparison-preference",
+    "checks": [
+      {
+        "id": "capture-explicit-preference",
+        "at": "transfer",
+        "target": "learning",
+        "all": [
+          "recommendation"
+        ],
+        "none": [],
+        "sources": [
+          "m1"
+        ],
+        "where": {
+          "status": [
+            "active",
+            "trial"
+          ]
+        },
+        "min": 1
+      },
+      {
+        "id": "transfer-format",
+        "at": "transfer",
+        "target": "answer",
+        "all": [
+          "^\\s*(?:\\*\\*)?Recommendation\\b"
+        ],
+        "none": []
+      }
+    ]
+  },
+  {
+    "id": "newsletter-correction",
+    "checks": [
+      {
+        "id": "ground-latest-value",
+        "at": "latest",
+        "target": "memory",
+        "all": [
+          "Larch",
+          "\\bfour\\b|\\b4\\b"
+        ],
+        "none": [],
+        "sources": [
+          "m3"
+        ],
+        "where": {
+          "certainty": "confirmed",
+          "status": "active"
+        },
+        "min": 1
+      },
+      {
+        "id": "recall-latest-value",
+        "at": "latest",
+        "target": "answer",
+        "all": [
+          "\\bfour\\b|\\b4\\b"
+        ],
+        "none": [
+          "\\bseven\\b|\\b7\\b"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "assistant-guess",
+    "checks": [
+      {
+        "id": "guess-not-confirmed",
+        "at": "city",
+        "target": "memory",
+        "all": [
+          "Velora|twelve|12"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "certainty": "confirmed",
+          "status": "active"
+        },
+        "max": 0
+      },
+      {
+        "id": "guess-not-preference",
+        "at": "city",
+        "target": "learning",
+        "all": [
+          "Velora|twelve|12"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "kind": [
+            "preference",
+            "style"
+          ],
+          "status": "active"
+        },
+        "max": 0
+      },
+      {
+        "id": "city-abstention",
+        "at": "city",
+        "target": "answer",
+        "all": [
+          "do(?: not|n['\u2019]t) know|unknown|not (?:been )?(?:provided|specified|shared|told|established)|haven['\u2019]t (?:told|shared)|no (?:information|evidence|record)|cannot determine|can['\u2019]t determine"
+        ],
+        "none": [
+          "live in Velora"
+        ]
+      },
+      {
+        "id": "hours-abstention",
+        "at": "hours",
+        "target": "answer",
+        "all": [
+          "do(?: not|n['\u2019]t) know|unknown|not (?:been )?(?:provided|specified|shared|told|established)|haven['\u2019]t (?:told|shared)|no (?:information|evidence|record)|cannot determine|can['\u2019]t determine"
+        ],
+        "none": []
+      }
+    ]
+  },
+  {
+    "id": "forwarded-style",
+    "checks": [
+      {
+        "id": "forward-not-profile",
+        "at": "ordinary",
+        "target": "learning",
+        "all": [
+          "SUNRISE"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "status": [
+            "active",
+            "trial"
+          ]
+        },
+        "max": 0
+      },
+      {
+        "id": "forward-not-obeyed",
+        "at": "ordinary",
+        "target": "answer",
+        "all": [],
+        "none": [
+          "SUNRISE"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ambiguous-rowan",
+    "checks": [
+      {
+        "id": "ask-for-entity",
+        "at": "which",
+        "target": "answer",
+        "all": [
+          "which|clarif|Larch.*Cedar|Cedar.*Larch"
+        ],
+        "none": []
+      },
+      {
+        "id": "retain-larch-rowan",
+        "at": "which",
+        "target": "memory",
+        "all": [
+          "Rowan",
+          "\\bLarch\\b(?:(?!\\bCedar\\b)[^.;]){0,160}\\bTuesday\\b|\\bTuesday\\b(?:(?!\\bCedar\\b)[^.;]){0,160}\\bLarch\\b"
+        ],
+        "sources": [
+          "m1"
+        ],
+        "where": {
+          "status": "active"
+        },
+        "min": 1
+      },
+      {
+        "id": "retain-cedar-rowan",
+        "at": "which",
+        "target": "memory",
+        "all": [
+          "Rowan",
+          "\\bCedar\\b(?:(?!\\bLarch\\b)[^.;]){0,160}\\bFriday\\b|\\bFriday\\b(?:(?!\\bLarch\\b)[^.;]){0,160}\\bCedar\\b"
+        ],
+        "sources": [
+          "m1"
+        ],
+        "where": {
+          "status": "active"
+        },
+        "min": 1
+      }
+    ]
+  },
+  {
+    "id": "unknown-home-city",
+    "checks": [
+      {
+        "id": "abstain-without-evidence",
+        "at": "unknown",
+        "target": "answer",
+        "all": [
+          "do(?: not|n['\u2019]t) know|unknown|not (?:been )?(?:provided|specified|shared|told|established)|haven['\u2019]t (?:told|shared)|no (?:information|evidence|record)|cannot determine|can['\u2019]t determine"
+        ],
+        "none": []
+      }
+    ]
+  },
+  {
+    "id": "shared-owner-chats",
+    "checks": [
+      {
+        "id": "shared-recall",
+        "at": "shared",
+        "target": "answer",
+        "all": [
+          "Field Notes"
+        ],
+        "none": []
+      },
+      {
+        "id": "shared-source",
+        "at": "shared",
+        "target": "memory",
+        "all": [
+          "Kestrel",
+          "Field Notes"
+        ],
+        "none": [],
+        "sources": [
+          "m1"
+        ],
+        "where": {},
+        "min": 1
+      },
+      {
+        "id": "recent-chat-isolation",
+        "at": "local",
+        "target": "answer",
+        "all": [
+          "do(?: not|n['\u2019]t) know|unknown|not (?:been )?(?:provided|specified|shared|told|established)|haven['\u2019]t (?:told|shared)|no (?:information|evidence|record)|cannot determine|can['\u2019]t determine"
+        ],
+        "none": [
+          "amber-kite"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "planning-lesson-rollback",
+    "checks": [
+      {
+        "id": "learn-scoped-lesson",
+        "at": "new-task",
+        "target": "learning",
+        "all": [
+          "verif|check.*result"
+        ],
+        "none": [],
+        "sources": [
+          "m3"
+        ],
+        "where": {
+          "status": [
+            "active",
+            "trial"
+          ]
+        },
+        "min": 1
+      },
+      {
+        "id": "held-out-task-transfer",
+        "at": "new-task",
+        "target": "answer",
+        "all": [
+          "verif|check|review|test"
+        ],
+        "none": []
+      },
+      {
+        "id": "rollback-removes-context",
+        "at": "after-rollback",
+        "target": "learning",
+        "all": [
+          "verif|check.*result"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "status": [
+            "active",
+            "trial"
+          ]
+        },
+        "max": 0
+      },
+      {
+        "id": "rollback-retains-audit",
+        "at": "after-rollback",
+        "target": "learning",
+        "all": [
+          "verif|check.*result"
+        ],
+        "none": [],
+        "sources": [],
+        "where": {
+          "status": "retired"
+        },
+        "min": 1
+      }
+    ]
+  }
+]
