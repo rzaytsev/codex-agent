@@ -62,7 +62,7 @@ and operational history are private and are not public runtime evidence.
   Tests preserve transaction rollback, quiet hours, backoff, uncertain sends and
   disconnected routes. The periodic scheduler remains the retry/recovery fallback.
 - Authenticated local MCP bridge for history, background jobs, cancellation, profile/personality writes, and reminders/task schedules.
-- USER.md onboarding and ongoing updates through agent instructions and atomic profile tools; SOUL.md behavior configuration. Model adherence needs live acceptance and is not asserted from unit tests.
+- USER.md onboarding and SOUL.md behavior configuration through hash-checked profile reads, exact patches and guarded full replacements. Concurrent conversation mains receive stale-write conflicts and managed learning sections stay service-owned. Model adherence needs live acceptance and is not asserted from unit tests.
 - Original attachment and forward provenance storage, PDF text extraction, image model input, CPU Whisper transcription and local voice generation.
 - Formatted Telegram text, chunking, files and requested voice; durable delivery queue with rate-limit retry and explicit uncertain delivery state.
 - Daily/weekly/monthly reflection jobs after first authorized interaction; connected sources discovered through configured Codex tools. No external sources preconnected.

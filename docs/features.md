@@ -7,6 +7,7 @@ receipts are excluded. Consult [implementation](implementation.md) for limits.
 
 | Feature / decision | Current behavior | Code and verification entry point |
 | --- | --- | --- |
+| Concurrent shared profiles | Complete profile reads, SHA-256 compare-and-swap exact patches and guarded legacy replacements; custom text and managed learning preserved | [Memory](memory.md#concurrent-profile-updates); `src/profiles.js`; `test/profile.test.js`, `test/integration.test.js` |
 | ChatGPT subscription runtime | Pinned Codex SDK/CLI; forced ChatGPT login; no API-key fallback; account/model eligibility still applies | `src/agent.js`, `src/main.js`; `test/integration.test.js`, `test/usage.test.js` |
 | Telegram ChatGPT login | /auth sign-in/replacement, status/cancel, first-start prompt, persistent credentials, drain active work and expire stale codes | [Authentication](authentication.md); `src/auth.js`, `src/codex-account.js`; `test/auth.test.js` |
 | Multiple independent bots | One token, owner, Compose project, workspace and Codex home per instance; shared image | `bin/agent`, `compose.yaml`; `test/instances.test.js` |

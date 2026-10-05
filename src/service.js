@@ -14,6 +14,7 @@ import { pythonEnvironment } from './python.js';
 import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
 import { AgentMail } from './agent-mail.js';
 import { Learning, LEARNING_HEADING } from './learning.js';
+import { Profiles } from './profiles.js';
 export function nextCron(cron,timezone,from=Date.now()) { return CronExpressionParser.parse(cron,{tz:timezone,currentDate:new Date(from),strict:false}).next().getTime(); }
 export function dueTime(args,timezone) {
   if(Boolean(args.cron)===Boolean(args.due)) throw new Error('Supply exactly one of due or cron');
@@ -23,7 +24,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -140,11 +141,11 @@ export class Service {
     if(!this.cfg.allowed.has(user)) throw new Error('User revoked');
     if(cap.owner!==undefined&&(cap.owner!==this.cfg.owner||cap.conversationId!==this.store.get('conversation-id')||cap.sessionId!==this.store.get('main-session')))throw new Error('Conversation capability revoked');
     if(cap.taskId&&!this.store.prepare("SELECT id FROM jobs WHERE $scope AND id=? AND conversation_id=? AND state='running'").get(cap.taskId,cap.conversationId))throw new Error('Task capability revoked');
-    if(cap.toolScope==='read'&&!['history_search','history_read','task_status','memory_search','memory_read','learning_read','learning_evidence','list_schedules','location_get'].includes(name))throw new Error('Read-only task');
+    if(cap.toolScope==='read'&&!['history_search','history_read','task_status','memory_search','memory_read','learning_read','learning_evidence','profile_read','list_schedules','location_get'].includes(name))throw new Error('Read-only task');
     if(this.cfg.group) {
       if(!cap.conversationId||this.cfg.group.state!=='active'||cap.actorId!==this.cfg.owner)throw new Error('Owner group capability unavailable');
     }
-    const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read','learning_read','learning_evidence'];
+    const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read','learning_read','learning_evidence','profile_read'];
     if((memoryReview&&!reads.includes(name))||(worker&&![...reads,'memory_save'].includes(name))) throw new Error('Worker tool not allowed');
     switch(name) {
       case 'mail_agents': if(!this.mail)throw new Error('Messaging disabled');return this.mail.call('list',{},signal);
@@ -160,6 +161,7 @@ export class Service {
       case 'history_read': {if(args.scope!==undefined&&!['conversation','all'].includes(args.scope))throw new Error('Invalid history scope');return this.store.historyPage(user,{after:args.after??0,since:args.since?Date.parse(args.since):0,until:args.until?Date.parse(args.until):Date.now(),limit:args.limit??50,all:args.scope==='all'});}
       case 'memory_search': return this.memory.search(args.query||'',{category:args.category,limit:args.limit??10,after:args.after??0,since:args.since?Date.parse(args.since):0});
       case 'memory_read': return this.memory.get(args.key,args.revision);
+      case 'profile_read': return this.profiles.read(args.file,cap);
       case 'learning_read': return args.key?this.learning.get(args.key,args.revision):this.learning.list();
       case 'learning_evidence': return this.learning.evidence(args.source);
       case 'learning_feedback': return this.learning.feedback(args);
@@ -193,11 +195,12 @@ export class Service {
         return {id};
       }
       case 'cancel_task': return this.cancelTask(user,args.id,cap.actorId);
+      case 'profile_patch':
       case 'profile_write': {
-        if(!['USER.md','SOUL.md'].includes(args.file)||typeof args.content!=='string'||args.content.length>50000) throw new Error('Invalid profile');
-        const dest=path.join(this.cfg.workspace,args.file);const temp=dest+'.'+randomUUID();
-        try {await fs.writeFile(temp,args.content,{flag:'wx',mode:0o600});signal?.throwIfAborted();await fs.rename(temp,dest);return {updated:args.file,learning_projection_synced:this.learning.project()};}
-        finally {await fs.rm(temp,{force:true});}
+        if(this.learning.store.get('learning-export-dirty')==='1')this.learning.project();
+        const result=this.profiles.write(args,cap,name==='profile_patch');
+        if(result.conflict)return result;
+        return {...result,hash:this.profiles.snapshot(args.file).hash,learning_projection_synced:this.learning.store.get('learning-export-dirty')!=='1'};
       }
       case 'schedule': {
         if(!['reminder','task'].includes(args.kind)||typeof args.prompt!=='string'||!args.prompt||args.prompt.length>30000||typeof args.key!=='string'||!args.key||args.key.length>200) throw new Error('Invalid schedule');
