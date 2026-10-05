@@ -38,6 +38,21 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
     const patched=await client.callTool({name:'profile_patch',arguments:{file:'USER.md',expected_hash:current.hash,old_text:'Synthetic',new_text:'Updated'}});assert.equal(patched.isError,false);assert.equal(JSON.parse(patched.content[0].text).updated,'USER.md');
     assert.equal((await client.callTool({name:'profile_patch',arguments:{file:'USER.md',old_text:'Updated',new_text:'Missing hash'}})).isError,true);
    }
+   const searchSchema=tools.tools.find(tool=>tool.name==='memory_search').inputSchema.properties;
+   const readSchema=tools.tools.find(tool=>tool.name==='memory_read').inputSchema.properties;
+   for(const name of ['entity','project','as_of']){assert.ok(searchSchema[name]);assert.ok(readSchema[name]);}
+   if(!review) {
+    const saveSchema=tools.tools.find(tool=>tool.name==='memory_save').inputSchema.properties;
+    for(const name of ['observed_at','valid_from','valid_to','review_after','entity','project'])assert.ok(saveSchema[name]);
+    const key=worker?'worker-memory':'main-memory';
+    const saved=await client.callTool({name:'memory_save',arguments:{key,category:'facts',title:'Temporal',content:'Cobalt evidence',certainty:'confirmed',sources:['https://example.com/'],expected_revision:0,entity:'Traveler',project:'Launch',valid_from:'2026-06-01T00:00:00Z',valid_to:'2026-07-01T00:00:00Z'}});
+    assert.equal(saved.isError,false);assert.equal(JSON.parse(saved.content[0].text).entry.project,'Launch');
+   }
+   const recalled=await client.callTool({name:'memory_search',arguments:{query:'cobalt',entity:'Traveler',project:'Launch',as_of:'2026-06-15T00:00:00Z'}});
+   assert.equal(recalled.isError,false);assert.ok(JSON.parse(recalled.content[0].text).entries.length);
+   const excluded=await client.callTool({name:'memory_read',arguments:{key:'main-memory',as_of:'2026-07-01T00:00:00Z'}});
+   assert.equal(excluded.isError,false);assert.equal(JSON.parse(excluded.content[0].text),null);
+   const invalid=await client.callTool({name:'memory_search',arguments:{as_of:'2026-06-01T00:00:00'}});assert.equal(invalid.isError,true);
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
    if(!worker) {
     const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.'}});

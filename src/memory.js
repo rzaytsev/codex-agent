@@ -1,14 +1,43 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 
 export const MEMORY_HEADING='## Durable memory v2';
 export const categories=['facts','projects','episodes','procedures'];
 const properties={key:{type:'string',pattern:'^[a-z0-9][a-z0-9-]{0,79}$'},category:{type:'string',enum:categories},title:{type:'string'},content:{type:'string'},certainty:{type:'string',enum:['confirmed','tentative']},sources:{type:'array',items:{type:'string'}},expected_revision:{type:'integer',minimum:0},status:{type:'string',enum:['active','archived']}};
+const timeFields=['observed_at','valid_from','valid_to','review_after'];
+const tagFields=['entity','project'];
+const metadataFields=[...timeFields,...tagFields];
+for(const field of metadataFields)properties[field]={type:['string','null'],maxLength:timeFields.includes(field)?40:160};
 export const memorySchema={type:'object',additionalProperties:false,required:['summary','changes'],properties:{summary:{type:'string'},changes:{type:'array',items:{type:'object',additionalProperties:false,required:Object.keys(properties),properties}}}};
 const keyPattern=/^[a-z0-9][a-z0-9-]{0,79}$/;
 const secretPattern=/-----BEGIN (?:[A-Z ]*PRIVATE KEY)|\bsk-[A-Za-z0-9_-]{16,}|\bBearer\s+\S{12,}|(?:api[_-]?key|password|token|secret)\s*[=:]\s*["']?[A-Za-z0-9_/-]{16,}/i;
 const stop=new Set('the and for with from this that what when where which have has was are you your how please about show tell find use мне меня тебя это как что для или где когда чтобы пожалуйста'.split(' '));
+const timestampSchema=z.iso.datetime({offset:true}).max(40);
+function timestamp(value) {
+  if(!timestampSchema.safeParse(value).success)throw new Error('Invalid memory timestamp; include a timezone offset');
+  const normalized=new Date(value).toISOString();
+  if(!/^\d{4}-/.test(normalized))throw new Error('Invalid memory timestamp year');
+  return normalized;
+}
+function tag(value) {
+  if(typeof value!=='string'||!value.trim()||value.length>160||/[\x00-\x1f\x7f]/.test(value)||secretPattern.test(value))throw new Error('Invalid memory tag');
+  return value.trim();
+}
+function metadata(value,previous={}) {
+  const result={};
+  for(const field of metadataFields) {
+    const input=value[field]===undefined?previous[field]??null:value[field];
+    result[field]=input===null?null:timeFields.includes(field)?timestamp(input):tag(input);
+  }
+  if(result.valid_from&&result.valid_to&&result.valid_from>=result.valid_to)throw new Error('Invalid memory validity interval');
+  return result;
+}
+function filters({entity,project,as_of}={}) {
+  return {entity:entity===undefined?undefined:tag(entity),project:project===undefined?undefined:tag(project),as_of:as_of===undefined?new Date().toISOString():timestamp(as_of)};
+}
+function validAt(row,at) {return (!row.valid_from||row.valid_from<=at)&&(!row.valid_to||row.valid_to>at);}
 export class MemoryConflict extends Error { constructor(current){super('Memory revision conflict');this.current=current;} }
 
 // SQLite owns the records and revisions. Markdown is a repairable projection,
@@ -29,36 +58,53 @@ export class Memory {
       if((previous&&previous!==owner)||this.db.prepare('SELECT user FROM memories WHERE user!=? UNION SELECT user FROM memory_versions WHERE user!=? UNION SELECT user FROM memory_tombstones WHERE user!=? LIMIT 1').get(owner,owner,owner))throw new Error('Workspace memory belongs to another owner; use a separate workspace');
       this.store.set('memory-owner',owner);
     }
+    // Additive migration: legacy records remain unbounded, with untouched versions.
+    this.store.transaction(()=>{
+      const columns=new Set(this.db.prepare('PRAGMA table_info(memories)').all().map(row=>row.name));
+      for(const field of metadataFields)if(!columns.has(field))this.db.exec(`ALTER TABLE memories ADD COLUMN ${field} TEXT`);
+      this.db.exec('CREATE INDEX IF NOT EXISTS memories_user_entity ON memories(user,entity); CREATE INDEX IF NOT EXISTS memories_user_project ON memories(user,project)');
+    });
   }
   checkOwner() {if(typeof this.owner!=='string'||!/^[1-9]\d*$/.test(this.owner))throw new Error('Configure a memory owner first');}
   checkKey(key) {if(typeof key!=='string'||!keyPattern.test(key))throw new Error('Invalid memory key');}
-  decode(row) {return row?{...row,sources:JSON.parse(row.sources),path:this.relativePath(row)}:null;}
-  relativePath(row) {return `memory/${row.status==='archived'?'archive/':''}${row.category}/${row.key}.md`;}
-  get(key,revision) {
-    const user=this.owner;this.checkOwner();this.checkKey(key);
-    if(this.db.prepare('SELECT key FROM memory_tombstones WHERE user=? AND key=?').get(user,key))return null;
-    const current=this.decode(this.db.prepare('SELECT * FROM memories WHERE user=? AND key=?').get(user,key));
-    if(revision===undefined||current?.revision===revision)return current;
-    if(!Number.isSafeInteger(revision)||revision<1)throw new Error('Invalid revision');
-    const version=this.db.prepare('SELECT payload FROM memory_versions WHERE user=? AND key=? AND revision=?').get(user,key,revision);
-    return version?JSON.parse(version.payload):null;
+  decode(row,at=new Date().toISOString()) {
+    if(!row)return null;
+    return {...row,...Object.fromEntries(metadataFields.map(field=>[field,row[field]??null])),sources:typeof row.sources==='string'?JSON.parse(row.sources):row.sources,path:this.relativePath(row),review_due:!!row.review_after&&row.review_after<=at};
   }
-  search(query='',{category,limit=10,after=0,since=0}={}) {
-    const user=this.owner;this.checkOwner();
+  relativePath(row) {return `memory/${row.status==='archived'?'archive/':''}${row.category}/${row.key}.md`;}
+  get(key,revision,options={}) {
+    const user=this.owner;this.checkOwner();this.checkKey(key);const selected=filters(options);
+    if(revision!==undefined&&(!Number.isSafeInteger(revision)||revision<1))throw new Error('Invalid revision');
+    if(this.db.prepare('SELECT key FROM memory_tombstones WHERE user=? AND key=?').get(user,key))return null;
+    let row=this.db.prepare('SELECT * FROM memories WHERE user=? AND key=?').get(user,key);
+    if(revision!==undefined&&row?.revision!==revision) {
+      const version=this.db.prepare('SELECT payload FROM memory_versions WHERE user=? AND key=? AND revision=?').get(user,key,revision);
+      row=version?JSON.parse(version.payload):null;
+    }
+    if(!row||(selected.entity!==undefined&&row.entity!==selected.entity)||(selected.project!==undefined&&row.project!==selected.project)||(options.as_of!==undefined&&!validAt(row,selected.as_of)))return null;
+    // Unfiltered key/revision reads deliberately retain historical evidence for correction.
+    return this.decode(row,selected.as_of);
+  }
+  search(query='',{category,limit=10,after=0,since=0,entity,project,as_of}={}) {
+    const user=this.owner;this.checkOwner();const selected=filters({entity,project,as_of});
     if(typeof query!=='string'||query.length>30000||!Number.isInteger(limit)||limit<1||limit>30||!Number.isSafeInteger(after)||after<0||!Number.isFinite(since)||(category&&!categories.includes(category)))throw new Error('Invalid memory search');
     const tokens=[...new Set((query.toLowerCase().match(/[\p{L}\p{N}]{2,}/gu)||[]).filter(x=>!stop.has(x)))].slice(0,24);
+    // Restrict eligible rows before LIMIT in both FTS and ID-paginated listing.
+    const where=["m.user=?","m.status='active'",'(m.valid_from IS NULL OR m.valid_from<=?)','(m.valid_to IS NULL OR m.valid_to>?)','m.updated>=?'];
+    const args=[user,selected.as_of,selected.as_of,since];
+    for(const [field,value] of [['category',category||undefined],['entity',selected.entity],['project',selected.project]])if(value!==undefined){where.push(`m.${field}=?`);args.push(value);}
     let rows;
     if(query.trim()&&!tokens.length)rows=[];
     else if(tokens.length) {
       const match=tokens.map(x=>`"${x}"`).join(' OR ');
-      rows=this.db.prepare(`SELECT m.* FROM memory_fts JOIN memories m ON m.id=memory_fts.rowid WHERE memory_fts MATCH ? AND m.user=? AND m.status='active' AND (? IS NULL OR m.category=?) AND m.updated>=? ORDER BY bm25(memory_fts,4.0,1.0),m.updated DESC LIMIT ?`).all(match,user,category||null,category||null,since,limit);
-    } else rows=this.db.prepare("SELECT * FROM memories WHERE user=? AND status='active' AND id>? AND (? IS NULL OR category=?) AND updated>=? ORDER BY id LIMIT ?").all(user,after,category||null,category||null,since,limit);
-    return {entries:rows.map(row=>this.decode(row)),next_cursor:rows.at(-1)?.id||after};
+      rows=this.db.prepare(`SELECT m.* FROM memory_fts JOIN memories m ON m.id=memory_fts.rowid WHERE memory_fts MATCH ? AND ${where.join(' AND ')} ORDER BY bm25(memory_fts,4.0,1.0),m.updated DESC LIMIT ?`).all(match,...args,limit);
+    } else rows=this.db.prepare(`SELECT m.* FROM memories m WHERE ${where.join(' AND ')} AND m.id>? ORDER BY m.id LIMIT ?`).all(...args,after,limit);
+    return {entries:rows.map(row=>this.decode(row,selected.as_of)),next_cursor:rows.at(-1)?.id||after};
   }
-  context(query) {
+  context(query,{entity,project,as_of}={}) {
     const entries=[];let size=0;
-    for(const row of this.search(query,{limit:6}).entries) {
-      const entry={key:row.key,category:row.category,title:row.title,content:row.content.slice(0,900),certainty:row.certainty,revision:row.revision,updated:new Date(row.updated).toISOString(),sources:row.sources.slice(0,4),path:row.path,truncated:row.content.length>900};
+    for(const row of this.search(query,{entity,project,as_of,limit:6}).entries) {
+      const entry={key:row.key,category:row.category,title:row.title,content:row.content.slice(0,900),certainty:row.certainty,revision:row.revision,updated:new Date(row.updated).toISOString(),...Object.fromEntries(metadataFields.filter(field=>row[field]!==null).map(field=>[field,row[field]])),...(row.review_after?{review_due:row.review_due}:{}),sources:row.sources.slice(0,4),path:row.path,truncated:row.content.length>900};
       const length=JSON.stringify(entry).length;if(size+length>6500)break;size+=length;entries.push(entry);
     }
     return entries;
@@ -81,6 +127,7 @@ export class Memory {
   validate(value) {
     const user=this.owner;this.checkOwner();this.checkKey(value.key);
     if(!categories.includes(value.category)||!['confirmed','tentative'].includes(value.certainty)||!['active','archived'].includes(value.status??'active')||typeof value.title!=='string'||!value.title.trim()||value.title.length>160||typeof value.content!=='string'||!value.content.trim()||value.content.length>6000||secretPattern.test(value.title+'\n'+value.content)||!Array.isArray(value.sources)||!value.sources.length||value.sources.length>100||!Number.isSafeInteger(value.expected_revision)||value.expected_revision<0)throw new Error('Invalid memory record');
+    metadata(value);
     for(const source of value.sources)this.validateSource(source);
     if(value.certainty==='confirmed'&&!value.sources.some(source=>{
       if(source.startsWith('history:')){const row=this.db.prepare('SELECT role,actor_id FROM history WHERE id=? AND user=?').get(Number(source.slice(8)),user);return row?.role==='user'&&(!row.actor_id||row.actor_id===user);}
@@ -99,9 +146,9 @@ export class Memory {
     if(revision!==value.expected_revision)throw new MemoryConflict(old);
     if(old&&old.category!==value.category)throw new Error('Keep the existing memory category');
     if(restore&&tombstone) {this.db.prepare('DELETE FROM memory_tombstones WHERE user=? AND key=?').run(user,value.key);this.db.prepare("DELETE FROM memories WHERE user=? AND key=? AND status='forgotten'").run(user,value.key);}
-    const now=Date.now(),row={user,key:value.key,category:value.category,title:value.title.trim(),content:value.content.trim(),certainty:value.certainty,sources:[...new Set(value.sources)],status:value.status||'active',revision:revision+1,created:old?.created||now,updated:now,origin};
+    const now=Date.now(),row={user,key:value.key,category:value.category,title:value.title.trim(),content:value.content.trim(),certainty:value.certainty,sources:[...new Set(value.sources)],status:value.status||'active',revision:revision+1,created:old?.created||now,updated:now,origin,...metadata(value,old||{})};
     const seq=this.db.prepare('INSERT INTO memory_versions(user,key,revision,payload,created) VALUES (?,?,?,?,?)').run(user,row.key,row.revision,JSON.stringify(row),now).lastInsertRowid;
-    this.db.prepare(`INSERT INTO memories(user,key,category,title,content,certainty,sources,status,revision,created,updated,seq,origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user,key) DO UPDATE SET title=excluded.title,content=excluded.content,certainty=excluded.certainty,sources=excluded.sources,status=excluded.status,revision=excluded.revision,updated=excluded.updated,seq=excluded.seq,origin=excluded.origin`).run(user,row.key,row.category,row.title,row.content,row.certainty,JSON.stringify(row.sources),row.status,row.revision,row.created,row.updated,seq,origin);
+    this.db.prepare(`INSERT INTO memories(user,key,category,title,content,certainty,sources,status,revision,created,updated,seq,origin,${metadataFields.join(',')}) VALUES (${Array(13+metadataFields.length).fill('?').join(',')}) ON CONFLICT(user,key) DO UPDATE SET title=excluded.title,content=excluded.content,certainty=excluded.certainty,sources=excluded.sources,status=excluded.status,revision=excluded.revision,updated=excluded.updated,seq=excluded.seq,origin=excluded.origin,${metadataFields.map(field=>`${field}=excluded.${field}`).join(',')}`).run(user,row.key,row.category,row.title,row.content,row.certainty,JSON.stringify(row.sources),row.status,row.revision,row.created,row.updated,seq,origin,...metadataFields.map(field=>row[field]));
     const id=this.db.prepare('SELECT id FROM memories WHERE user=? AND key=?').get(user,row.key).id;
     this.db.prepare('DELETE FROM memory_fts WHERE rowid=?').run(id);
     if(row.status==='active')this.db.prepare('INSERT INTO memory_fts(rowid,title,content) VALUES (?,?,?)').run(id,row.title,row.content);
@@ -120,7 +167,7 @@ export class Memory {
       if(row)this.db.prepare('DELETE FROM memory_fts WHERE rowid=?').run(row.id);
       this.db.prepare('DELETE FROM memory_versions WHERE user=? AND key=?').run(user,key);
       // Keep only non-content identifiers to remove the projected files on recovery.
-      if(row)this.db.prepare("UPDATE memories SET title='',content='',sources='[]',status='forgotten',certainty='tentative' WHERE user=? AND key=?").run(user,key);
+      if(row)this.db.prepare("UPDATE memories SET title='',content='',sources='[]',status='forgotten',certainty='tentative',observed_at=NULL,valid_from=NULL,valid_to=NULL,review_after=NULL,entity=NULL,project=NULL WHERE user=? AND key=?").run(user,key);
       this.db.prepare('INSERT INTO memory_tombstones(user,key,blocked_history,created) VALUES (?,?,?,?) ON CONFLICT(user,key) DO UPDATE SET blocked_history=excluded.blocked_history').run(user,key,JSON.stringify([...blocked]),Date.now());
       this.store.set('memory-export-dirty','1');
     });
@@ -136,7 +183,9 @@ export class Memory {
     try {fs.writeFileSync(temp,text,{flag:'wx',mode:0o600});fs.renameSync(temp,dest);}finally{try{fs.unlinkSync(temp);}catch(e){if(e.code!=='ENOENT')throw e;}}
   }
   render(row) {
-    return `# ${row.title}\n\nCategory: ${row.category}\nStatus: ${row.status}\nCertainty: ${row.certainty}\nRevision: ${row.revision}\nCreated: ${new Date(row.created).toISOString()}\nUpdated: ${new Date(row.updated).toISOString()}\n\n${row.content}\n\nSources:\n${JSON.parse(row.sources).map(s=>'- '+s).join('\n')}\n`;
+    const labels={observed_at:'Observed at',valid_from:'Valid from',valid_to:'Valid to',review_after:'Review after',entity:'Entity',project:'Project'};
+    const detail=metadataFields.filter(field=>row[field]!=null).map(field=>`\n${labels[field]}: ${row[field]}`).join('');
+    return `# ${row.title}\n\nCategory: ${row.category}\nStatus: ${row.status}\nCertainty: ${row.certainty}\nRevision: ${row.revision}\nCreated: ${new Date(row.created).toISOString()}\nUpdated: ${new Date(row.updated).toISOString()}${detail}\n\n${row.content}\n\nSources:\n${JSON.parse(row.sources).map(s=>'- '+s).join('\n')}\n`;
   }
   migrate() {
     if(!this.owner||this.store.get('memory-layout')==='flat-v1')return;
