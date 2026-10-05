@@ -87,7 +87,11 @@ Application-controlled SDK worker threads implement durable jobs. Native Codex s
 
 USER.md is the user profile. SOUL.md defines assistant character and interaction style. Both are application conventions that must be explicitly supplied to Codex instructions/context.
 
-Onboarding asks small batches covering name, age/birth date, timezone, work, goals, interests, routines, communication style, and notification preferences. Normal use remains available before onboarding is complete. Skip or refusal does not trigger repeated interrogation.
+Onboarding helps with the current request first and offers a few useful questions
+at a time, starting with name, timezone, goals or communication preferences when
+relevant. Ask about work, routines, interests or age/birth date only when useful
+to the owner's task. Normal use remains available before onboarding is complete.
+Skip or refusal does not trigger repeated interrogation.
 
 Explicit statements update profile facts automatically. Record source/date for meaningful facts; store birth date or dated age rather than an undated age. Label inferences separately. Resolve contradictions in favor of clear newer corrections; ask if the meaning is uncertain. Only the main agent can call the atomic profile tool; workers must return proposed profile changes to it.
 

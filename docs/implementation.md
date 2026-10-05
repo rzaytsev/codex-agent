@@ -5,6 +5,13 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Application-owned main/worker/read-only/review instructions are SDK developer
+  context, separate from source data and requests. Worker voice uses the existing
+  service synthesis path; internal reviews omit editable persona instructions and
+  keep schema-only output. Core guidance covers shared memory, source routes,
+  authority and truthful verification. [Prompt contracts](prompts.md) documents
+  initialization/update behavior and synthetic validation limits.
+
 - Owner-linked topic-specific groups with owner-only entity-addressed intake;
   shared memory, rules, profiles, learning, files and configured tools; separate
   main sessions, recent context, queues/settings and source delivery. Canonical

@@ -164,6 +164,23 @@ for a development agent or content retrieved from tools.
 - Reuse existing history, jobs, scheduling and delivery; add no provider, vector
   service or weight training. See [learning](learning.md) and [research](memory-research.md).
 
+## Prompt contracts match service roles (2026-10-04)
+
+- Keep repository contributor instructions separate from runtime workspace
+  guidance, character and owner facts. Image-owned core and role rules reach
+  existing workspaces without replacing personal profiles.
+- Supply role/output instructions as SDK developer context, before the stable
+  core; keep requests and retrieved sources in turn input. Internal reviews omit
+  editable workspace persona instructions, disable native project AGENTS.md
+  discovery, and use their specific proposal/validation schemas. Global Codex
+  instructions remain an operator-managed input.
+- Describe existing tools accurately: workers return requested speech through
+  final structured output; `send_voice` remains a main tool. Read-only turns do
+  not advertise delegation or bypasses. No permissions, queues or routes change.
+- Preserve shared-owner memory and conversation-specific delivery. Add sourced
+  memory, task handoff and outcome-verification guidance, with synthetic assembly
+  checks and explicit model/deployment acceptance limits. See [prompts](prompts.md).
+
 ## Silent busy-turn input queue (2026-10-03)
 
 - Remove the automatic busy-turn queue notice in shared intake code for every
