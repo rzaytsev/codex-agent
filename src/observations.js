@@ -68,23 +68,31 @@ export class Observations {
   finishAttempt(a,reason,raw){if(!a||a.terminal)return;a.terminal=true;
     const usage={};for(const k of components)if(numeric(raw?.[k]))usage[k]=raw[k];
     const present=Object.keys(usage).length>0,complete=components.every(k=>numeric(usage[k]));let delta=null;
-    const p=this.receipt(a,reason,present?usage:null,complete?'supported_complete':present?'partial':'unknown');
     const persisted=this.safe(()=>this.store.transaction(()=>{
-      const db=this.store.db,row=a.threadKey?db.prepare('SELECT * FROM usage_baselines WHERE thread_key=?').get(a.threadKey):null;
+      const db=this.store.db;
+      // Durable identity wins before examining a newer thread lease. A replay
+      // (even changed content) must not mutate accounting or completeness.
+      if(db.prepare('SELECT id FROM attempt_observations WHERE id=?').get(a.id))return 'duplicate';
+      const p=this.receipt(a,reason,present?usage:null,complete?'supported_complete':present?'partial':'unknown');
+      const row=a.threadKey?db.prepare('SELECT * FROM usage_baselines WHERE thread_key=?').get(a.threadKey):null;
       if(reason==='completed'&&complete&&a.baseline&&row?.valid&&row.generation===a.generation&&row.active===1&&row.epoch===this.epoch&&components.every(k=>usage[k]>=a.baseline[k])){delta=Object.fromEntries(components.map(k=>[k,usage[k]-a.baseline[k]]));p.delta=delta;p.attribution='serialized';}
-      if(!this.record(p))throw new Error('Observation rejected');
+      if(!this.record(p)){
+        if(db.prepare('SELECT id FROM attempt_observations WHERE id=?').get(a.id))return 'duplicate';
+        throw new Error('Observation rejected');
+      }
       db.prepare('DELETE FROM active_attempt_observations WHERE id=?').run(a.id);
       if(row){const active=Math.max(0,row.active-1),valid=reason==='completed'&&complete&&active===0&&row.generation===a.generation&&!a.overlap;db.prepare('UPDATE usage_baselines SET usage=?,valid=?,active=? WHERE thread_key=?').run(present?JSON.stringify(usage):null,Number(valid),active,a.threadKey);}
-      return true;
+      return 'committed';
     }));
-    if(delta&&persisted){a.run.input+=delta.input_tokens;a.run.output+=delta.output_tokens;}else a.run.usageComplete=false;
+    if(persisted==='duplicate')return;
+    if(delta&&persisted==='committed'){a.run.input+=delta.input_tokens;a.run.output+=delta.output_tokens;}else a.run.usageComplete=false;
   }
   receipt(a,reason,usage=null,completeness='unknown'){
     return {schema_version:1,application_release:applicationRelease,id:a.id,runId:a.run.id,reason,elapsedMs:Math.min(1e15,Math.max(0,Math.round(performance.now()-a.started))),profile:a.profile,settings:a.settings,sdk:'0.159.2',cli:'0.159.2',runtime:runtime(),source:'codex_sdk',semantics:'thread_total',completeness:completeness,usage,delta:null,attribution:'unattributed',cacheWriteProvenance:'unknown_sdk_default',promptHash:a.promptHash,toolsHash:a.toolsHash,retryCount:0,toolCount:Math.max(0,a.run.tools-a.toolsAtStart),artifactBytes:Math.max(0,a.run.artifactBytes-a.artifactsAtStart)};
   }
   record(p){const keys=['schema_version','application_release','id','runId','reason','elapsedMs','profile','settings','sdk','cli','runtime','source','semantics','completeness','usage','delta','attribution','cacheWriteProvenance','promptHash','toolsHash','retryCount','toolCount','artifactBytes'];
     const valid=p&&p.schema_version===1&&p.application_release===applicationRelease&&Object.keys(p).length===keys.length&&Object.keys(p).every(k=>keys.includes(k))&&id(p.id)&&id(p.runId)&&reasons.includes(p.reason)&&(numeric(p.elapsedMs)||p.reason==='recovered_interruption'&&p.elapsedMs===null)&&['main','worker','research','review'].includes(p.profile)&&p.sdk==='0.159.2'&&p.cli==='0.159.2'&&runtimeValid(p.runtime)&&p.source==='codex_sdk'&&p.semantics==='thread_total'&&['supported_complete','partial','unknown'].includes(p.completeness)&&['serialized','unattributed'].includes(p.attribution)&&p.cacheWriteProvenance==='unknown_sdk_default'&&numeric(p.retryCount)&&(numeric(p.toolCount)||p.reason==='recovered_interruption'&&p.toolCount===null)&&(numeric(p.artifactBytes)||p.reason==='recovered_interruption'&&p.artifactBytes===null)&&[p.promptHash,p.toolsHash].every(v=>v===null||digest(v))&&p.settings&&Object.keys(p.settings).length===4&&Object.keys(p.settings).every(k=>['effort','toolScope','timeout','modelHash'].includes(k))&&efforts.includes(p.settings.effort)&&['read','conversation'].includes(p.settings.toolScope)&&numeric(p.settings.timeout)&&(p.settings.modelHash===null||digest(p.settings.modelHash))&&[p.usage,p.delta].every(v=>v===null||(typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).every(k=>components.includes(k)&&numeric(v[k]))));
-    if(!valid){this.dropped=Math.min(1e15,this.dropped+1);return false;}return this.safe(()=>{this.store.db.prepare('INSERT OR IGNORE INTO attempt_observations VALUES (?,?,?)').run(p.id,p.runId,JSON.stringify(p));return true;})===true;
+    if(!valid){this.dropped=Math.min(1e15,this.dropped+1);return false;}return this.safe(()=>{return this.store.db.prepare('INSERT OR IGNORE INTO attempt_observations VALUES (?,?,?)').run(p.id,p.runId,JSON.stringify(p)).changes===1;})===true;
   }
   recordRun(p){
     const keys=['schema_version','application_release','runtime','id','reason','elapsedMs','tools','artifactBytes','attempts','toolCounts','usageComplete','inputTokens','outputTokens'];

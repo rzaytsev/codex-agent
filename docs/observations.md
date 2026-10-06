@@ -45,8 +45,10 @@ A genuinely new service thread can start with zero baseline. Existing threads
 start unknown unless a valid serialized same-process baseline exists. A persisted
 thread key is a tenant-salted digest, not the private SDK thread ID. Admission
 leases and baseline/terminal writes are transactional and terminal UUIDs deduplicate
-receipts. Only nondecreasing components with a serialized matching lease produce
-deltas. Thus fresh 100/20 followed by cumulative 160/30 yields 100/20 plus 60/10.
+receipts. A previously committed attempt UUID is a transaction-wide no-op: the
+first receipt wins, including changed-content replays, without consuming a newer
+lease or changing run totals/completeness. Only nondecreasing components with a
+serialized matching lease produce deltas. Thus fresh 100/20 followed by cumulative 160/30 yields 100/20 plus 60/10.
 Failures, missing components, reset/decreasing counters, overlap, restart and
 unverified imported threads produce unattributed observations, never negative or
 invented deltas. After a gap, a subsequent complete serialized receipt can establish
