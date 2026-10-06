@@ -133,3 +133,25 @@ test('disposable read workspace excludes service/auth files and is removed after
  assert.equal(options.env.GOOGLE_MAPS_API_KEY,undefined);
  await assert.rejects(fs.stat(threadOptions.workingDirectory),{code:'ENOENT'});assert.equal(service.capabilities.size,0);
 });
+
+test('restricted profile hashes stable reviewed policy and scoped registry without runtime selection IDs',async t=>{
+ const {createHash}=await import('node:crypto');const {reviewedActionBundle}=await import('../src/action-registry.js');const {restrictedReadDefinition}=await import('../src/restricted-read.js');
+ const {cfg,agent,calls,store,service}=await fixture(t,{RESTRICTED_READ_PROFILE_PROTOTYPE:'true',BROWSER_ENABLED:'true'});
+ cfg.pythonEnv={PYTHONPATH:'SYNTHETIC_ENV_CANARY',UV_CACHE_DIR:'SYNTHETIC_ENV_CANARY'};
+ for(let i=0;i<2;i++)await agent.run('123','Synthetic research','research');
+ const hashes=store.db.prepare('SELECT payload FROM attempt_observations').all().map(row=>JSON.parse(row.payload).toolsHash);
+ const expected=createHash('sha256').update(JSON.stringify({assistant:reviewedActionBundle({worker:true,memoryReview:false,toolScope:'read',group:false}),browser:false,policyVersion:cfg.actionPolicy.version,execution:restrictedReadDefinition})).digest('hex');
+ assert.equal(expected,'94e3a5048b119ed39faf400b55742ce8dd85add2bd667695d9e7c9c2d81781e6');
+ assert.deepEqual(hashes,[expected,expected]);
+ for(const {options,threadOptions} of calls){
+  assert.equal(options.env.CODEX_HOME,cfg.codexHome);assert.equal(options.env.PYTHONPATH,undefined);assert.equal(options.env.UV_CACHE_DIR,undefined);
+  assert.ok(options.configOverrides.includes('mcp_servers={}'));
+  for(const feature of ['apps','plugins','hooks','multi_agent','multi_agent_v2'])assert.ok(options.configOverrides.includes(`features.${feature}=false`));
+  assert.equal(threadOptions.webSearchMode,'disabled');
+  assert.ok(!options.configOverrides.some(x=>x.startsWith('mcp_servers.browser=')));
+  assert.ok(options.configOverrides.some(x=>x.includes('ASSISTANT_TOOL_SCOPE="read"')));
+ }
+ const observation=JSON.stringify(store.db.prepare('SELECT payload FROM attempt_observations').all());
+ for(const canary of ['SYNTHETIC_ENV_CANARY','assistant_restricted_read_',cfg.codexHome,'ASSISTANT_CAPABILITY'])assert.ok(!observation.includes(canary));
+ assert.equal(service.capabilities.size,0);
+});

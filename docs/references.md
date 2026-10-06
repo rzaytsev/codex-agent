@@ -20,3 +20,15 @@ Implementation references:
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper): installed 1.2.1, verified by synthetic-audio transcription in the Linux container.
 
 The earlier optional OpenAI speech API research was not adopted: this implementation uses local speech without API-key billing.
+
+
+Restricted-profile prototype source verified against rust-v0.159.2 and installed
+SDK/CLI 0.159.2 (2026-10-06), with synthetic actual-SDK argv and actual-CLI sandbox
+fixtures; no authenticated model execution:
+
+- [Permission profile TOML](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/permissions_toml.rs).
+- [Profile compilation](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/config/permissions.rs).
+- [Legacy syntax and persisted selection precedence](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/config/mod.rs).
+- [Native sandboxed filesystem](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/exec-server/src/sandboxed_file_system.rs) (runtime compatibility unverified).
+- [Seatbelt construction](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt.rs) and [minimal platform defaults](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt_read_only_platform_defaults.sbpl).
+- [SDK subprocess argv](https://github.com/openai/codex/blob/rust-v0.159.2/sdk/typescript/src/exec.ts).

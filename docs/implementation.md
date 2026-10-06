@@ -177,3 +177,19 @@ block promotion and rollback retains audit. Local synthetic checks establish
 service contracts only. No live subscription/Telegram or deployed acceptance was
 performed; full credential/foreign-task isolation remains incomplete and blocking.
 See [learning](learning.md) and [evaluation limits](memory-quality-evals.md).
+
+
+## Restricted-read profile research prototype
+
+Disabled by default: RESTRICTED_READ_PROFILE_PROTOTYPE uses a fresh empty cwd and
+SDK thread for each research/read/internal review attempt, exact runtime/minimal
+roots, no application-input/task-directory grants, network-disabled raw shell and
+inherit-none shell environment. Conflicting legacy SDK sandboxMode is omitted;
+ordinary main thread/cursor and settings remain unchanged. No fallback or state
+migration. Actual SDK synthetic argv/parser, cleanup/cancellation, unsafe-input and
+fixed registry/permission-hash tests cover source behavior. Local actual CLI macOS
+canary protected its exact owned fixture routes while builtin allowed reads and
+nested execution was unavailable. Full isolation is **INCOMPLETE AND BLOCKING**:
+Linux target image, native filesystem/process/proc/IPC/tools/skills and authenticated
+parent+MCP compatibility remain unverified. No account/model/Telegram tests or
+production enablement occurred. See [precise profile and rollback](action-policy.md#disabled-restricted-read-profile-prototype).

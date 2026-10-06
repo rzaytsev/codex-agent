@@ -3,7 +3,8 @@
 Stage A registry, approval ledger and workspace prototype are implemented source
 functionality pending independent acceptance. Full compatible credential and
 foreign-task isolation is **incomplete and blocking**: the actual canary bypass
-remains unresolved. The prototype does not fulfill that isolation requirement.
+is narrowed only by the disabled restricted-profile research prototype below.
+Neither prototype fulfills the full isolation requirement.
 
 The reviewed registry in `src/action-registry.js` supplies one strict schema,
 roles, scopes, side-effect category, timeout, result-byte limit and retry class
@@ -110,21 +111,87 @@ an empty cwd nor write denial isolates that readable authentication or other tas
 Do not enable the prototype as a credential-isolation guarantee. Real ChatGPT
 auth compatibility and the deployment OS sandbox require later authorized tests.
 
-Run `node scripts/isolation-probe.js` against the installed pinned CLI. It creates
-only temporary synthetic credential/foreign-task/write canaries and temporary
-HOME/CODEX_HOME, runs no models/accounts/network calls, uses the actual built-in
-`codex sandbox -P :read-only`, emits fixed booleans/enums and removes the files.
-It reports protected, bypass or unavailable instead of silently falling back.
-The built-in profile name was verified in the pinned
-[protocol source](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/protocol/src/models.rs).
+### Disabled restricted-read profile prototype
 
-On the local macOS validation host, the nested sandbox returned unavailable
-(sandbox_apply denied, exit 71). The approved disposable probe outside that
-wrapper returned bypass: credentialReadable=true, foreignTaskReadable=true,
-taskWritable=false. Compatible credential/foreign-task isolation is incomplete
-and blocking, not an accepted isolation result; live-auth compatibility
-was unverified. This receipt covers this host/profile only, not a Linux image or
-universal sandbox behavior. No host settings, real credentials or grants changed.
+`RESTRICTED_READ_PROFILE_PROTOTYPE=true` selects application-owned exact permission
+config through SDK overrides for research, read-only and internal review attempts.
+Ordinary main/worker runs retain their existing permissions and continuity. Every
+selected attempt starts a fresh SDK thread and empty mode-0700 cwd outside service
+and auth roots; it never reads/resumes/updates the ordinary main thread or its
+history cursor. A fresh profile name avoids lower-layer same-name config merging;
+there is no application/task directory/input grant, wildcard, write grant, operator
+root list or fallback to built-in/danger mode. Local images are refused and assembled
+request/developer instructions are each bounded to 100,000 characters. Context
+comes through the host's bounded history/memory and scoped service read broker.
+Fresh restricted IDs may be retained in audit/jobs, but are never auto-resumed.
+
+The selected profile grants `:minimal` plus the canonical exact Node executable
+(`realpath(process.execPath)`), and on macOS the exact public runtime dependency
+`/System/Library/OpenSSL/openssl.cnf`. It sets network.enabled=false for raw shell
+execution, disables web search/browser/apps/plugins/hooks/subagents, and keeps only
+the read-scoped assistant MCP bridge. Shell environment policy inherits none and
+sets only PATH=/usr/bin:/bin and LANG=C.UTF-8. The privileged SDK/model parent still
+uses the existing ChatGPT HOME/CODEX_HOME and auth; Python environment overrides
+and Maps credentials are omitted for restricted attempts. Parent/auth/MCP bridge
+compatibility has not been tested with an account. This is not a network boundary
+around that privileged parent or its authorized broker.
+
+Codex SDK/CLI 0.159.2 emits a legacy `--sandbox` flag when sandboxMode is supplied;
+that override selects legacy permission syntax over custom profiles. The prototype
+omits sandboxMode. A valid persisted profile also precedes configured default
+permissions, so fresh threads are required rather than assuming SDK `-c` wins on
+resume. Actual-SDK synthetic child tests check both emitted argv conditions without
+running a model. Observation bundle hashes include only fixed reviewed permission
+metadata, beside the effective read registry; runtime paths, profile IDs, credentials
+and raw config/environment are excluded.
+
+macOS `:minimal` is a platform runtime baseline, **not a list of harmless public
+files**: it includes system config/library/preferences directories and IPC helpers,
+including /etc, /private/etc, /var/db, /Library/Preferences, library/runtime roots,
+standard executables/devices and selected system services. Review the pinned
+[platform policy](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt_read_only_platform_defaults.sbpl)
+and exact target roots/content before opting in. No real system credentials or
+host services were inspected. Allowed system content and IPC remain limits.
+
+### Disposable actual-CLI canary
+
+Run `node scripts/isolation-probe.js --mode=builtin` (also the default) or
+`node scripts/isolation-probe.js --mode=restricted`. Both create only temporary
+synthetic HOME/CODEX_HOME, service/approval/credential/foreign fixtures, links and
+an exact owned sibling PID. No model/account/network call or host configuration
+change occurs. Restricted mode alone adds an exact owned single-link regular
+input file as a positive read control; this grant is probe-only and is absent from
+runtime attempts. Symlink/multilink inputs are refused before a grant. A fixed
+stdin/stdout handshake creates a foreign file after the sandbox starts. All writes
+are attempted only against synthetic fixtures. `/bin/ps -p OWNED_PID -o command=`
+checks one known process argument route, with an outside positive control; no
+process inventory or real environment is read. Ambient env is excluded and the
+child validates absence of known credential/env-canary keys. stdout parses only
+bounded exact booleans; stderr/error/config/paths/environment are never emitted or
+stored. Finally cleanup stops the sibling and removes all fixture roots, including
+unavailable/failure exits.
+
+Local macOS, Node 24.21.0, CLI 0.159.2: nested wrapper **unavailable**, exit 71.
+Approved outside-wrapper builtin comparison **bypass**: allowed input and synthetic
+credential/foreign/symlink/hardlink/late/service/approval reads succeeded; writes
+were denied. Restricted comparison **protected for these fixtures**: allowed input
+read succeeded; all listed denied reads/writes failed, sanitized child environment
+passed, owned-PID argument read failed, and late/process positive controls passed.
+`credentialIsolationProved` in that receipt refers only to these disposable
+fixtures on this host/profile. An initial restricted run used an overstrict HOME/
+CODEX_HOME presence check; accepting absent or exact disposable paths reflects the
+profile's inherit-none behavior. It was rerun successfully. No raw diagnostics were
+persisted. This does not prove all process-memory/proc/IPC/native filesystem routes.
+
+Full compatible isolation remains **INCOMPLETE AND BLOCKING**. Linux target-image
+shell/native canaries, process-env/proc/native filesystem/skills/tool review and
+opt-in authenticated ChatGPT+MCP compatibility remain unverified; no Docker daemon
+is available locally. Ordinary main/worker code keeps existing danger grants and
+can modify other task files. Same-grant outside writers can replace a permitted
+pathname after validation; removing runtime application-input grants avoids that
+particular grant, not mutual worker isolation. Do not expand autonomy or enable this
+option as production acceptance. The next gate is synthetic target-image validation,
+then separately authorized authenticated compatibility.
 
 ## Migration, backup and rollback
 
@@ -146,3 +213,14 @@ uncertain operations first. Additive tables can remain with older source, but
 its missing controls must be accepted explicitly; a complete state rollback uses
 the matching pre-upgrade snapshot and also reverts later history/delivery state.
 Do not mix approval/outbox tables from different snapshots.
+
+
+The restricted-read option changes no schema, persistent tasks, schedules, profiles,
+account config or existing ordinary thread/cursor. It creates no backup root and
+copies no DB/ledger/auth into temporary cwd. Preserve existing consistent database,
+workspace and CODEX_HOME backups before an eventual opted-in rollout. To roll back,
+stop/drain restricted attempts, reconcile interrupted work and any uncertain external
+operations, set RESTRICTED_READ_PROFILE_PROTOTYPE=false and restart the selected
+instance. Do not automatically replay a failed attempt under broader permissions.
+Disabling retains fresh restricted audit/job IDs but does not resume them; ordinary
+continuity is unchanged. No state restoration is required for this prototype alone.

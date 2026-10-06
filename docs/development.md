@@ -97,8 +97,12 @@ faults, abrupt process exit, restart replay and uncertain no-send recovery.
 `node scripts/isolation-probe.js` uses only disposable canaries and no real auth,
 models or network requests. Nested sandbox unavailability is an honest gate; an
 approved disposable execution outside that wrapper can measure the installed
-sandbox. The observed read-only macOS profile blocks writes and allows canary
-credential/foreign-task reads. See [action policy](action-policy.md).
+sandbox. The built-in read-only macOS profile blocks writes and allows canary
+credential/foreign-task reads; `--mode=restricted` selects the separate exact-root
+probe and tests its owned positive/denial controls. Run `node --test
+test/restricted-read.test.js test/prompts.test.js` for fresh-thread/cursor, actual-SDK
+argv, cleanup and fixed reviewed hash regressions. Outside-wrapper restricted
+macOS fixture protection does not complete Linux/auth/native/tool acceptance. See [action policy](action-policy.md).
 
 The approval regression drives persisted multi-chunk envelopes through real
 Service.deliver and Telegram.sendPart with a fake fetcher. Verify literal
