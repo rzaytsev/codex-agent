@@ -131,8 +131,8 @@ test('screenshots enter the photo queue and Telegram falls back to document for 
  const payload=JSON.parse(store.db.prepare('SELECT payload FROM outbox').get().payload);assert.equal(payload.type,'photo');
  const telegram=new Telegram('unused');const calls=[];
  telegram.call=async(method,body)=>{calls.push({method,body});if(method==='sendPhoto')throw new TelegramError(400);return true;};
- await telegram.sendPart('123',payload);
+ telegram.action=async()=>{};service.telegram=telegram;await service.deliver();
  assert.deepEqual(calls.map(c=>c.method),['sendPhoto','sendDocument']);assert.equal(calls[0].body.get('chat_id'),'123');assert.equal(calls[0].body.get('photo').name,'shot.png');assert.equal(calls[1].body.get('document').name,'shot.png');
  telegram.call=async()=>{throw new TelegramError('network');};
- await assert.rejects(telegram.sendPart('123',payload),TelegramError);
+ const row=store.db.prepare('SELECT * FROM outbox').get();await assert.rejects(telegram.sendPart('123',await service.artifacts.load(row,payload)),TelegramError);
 });

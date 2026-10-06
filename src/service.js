@@ -6,7 +6,7 @@ import { assistantMcp } from './mcp-tools.js';
 import { randomUUID } from 'node:crypto';
 import { CronExpressionParser } from 'cron-parser';
 import { authorized, quiet } from './config.js';
-import { prepare, voice, workspaceFile } from './media.js';
+import { prepare, voice } from './media.js';
 import { readUsage, formatUsage, isUsageLimit } from './usage.js';
 import { chunks } from './telegram.js';
 import { Locations, LOCATION_HEADING } from './location.js';
@@ -15,6 +15,7 @@ import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
 import { AgentMail } from './agent-mail.js';
 import { Learning, LEARNING_HEADING } from './learning.js';
 import { Profiles } from './profiles.js';
+import { Artifacts } from './artifacts.js';
 import { AdmissionConflict } from './store.js';
 function requestKey(key,normalize=true) {
   if(typeof key!=='string'||!key.trim()||key.length>200)throw new Error('Invalid request key');
@@ -29,7 +30,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -185,7 +186,8 @@ export class Service {
         if(typeof args.text!=='string'||!args.text.trim()||args.text.length>12000) throw new Error('Invalid voice text');
         const file=await voice(args.text,this.cfg,signal);
         signal?.throwIfAborted();
-        this.store.transaction(()=>{this.store.enqueue(user,{type:'voice',path:file});this.store.history(user,'assistant',args.text);});
+        const payload=await this.artifacts.snapshot(user,{type:'voice',path:file},{},signal);signal?.throwIfAborted();
+        this.store.transaction(()=>{this.store.enqueue(user,payload);this.store.history(user,'assistant',args.text);});
         return {queued:true,format:'ogg/opus'};
       }
       case 'task_status': return this.store.jobs(user);
@@ -335,11 +337,11 @@ export class Service {
     signal?.throwIfAborted();
     const payloads=[];let text=result.text || '';
     if(result.voice&&result.text) {
-      try { payloads.push({type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)}); }
+      try { payloads.push(await this.artifacts.snapshot(user,{type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)},{},signal)); }
       catch {signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
     for(const part of chunks(text))payloads.push({text:part});
-    payloads.push(...await this.filePayloads(result.files));
+    payloads.push(...await this.filePayloads(result.files,user,{},signal));
     signal?.throwIfAborted();
     // Commit the complete prepared response together; cancellation during preparation publishes nothing.
     this.store.transaction(()=>{
@@ -347,14 +349,17 @@ export class Service {
       if(text)this.store.history(user,'assistant',text);
     });
   }
-  async filePayloads(files=[]) {
+  async filePayloads(files=[],user=this.cfg.owner,scope={},signal) {
     const payloads=[];const seen=new Set();
     for(const file of files) {
+      signal?.throwIfAborted();
       try {
-        const actual=await workspaceFile(this.cfg.workspace,file);if(seen.has(actual)) continue;
-        const stat=await fs.stat(actual);if(!stat.isFile()||stat.size>49*1024*1024) throw new Error('Invalid file');
-        seen.add(actual);payloads.push({type:/\.(png|jpe?g)$/i.test(actual)&&stat.size<=10*1024*1024?'photo':'file',path:actual});
-      } catch {payloads.push({text:'A requested output file could not be sent (missing, outside the workspace, or larger than 49 MiB).'});}
+        const actual=path.resolve(this.cfg.workspace,file);if(seen.has(actual))continue;
+        const payload=await this.artifacts.snapshot(user,{type:'file',path:actual},scope,signal);
+        const a=this.store.db.prepare('SELECT size FROM artifacts WHERE id=?').get(payload.artifactId);
+        if(/\.(png|jpe?g)$/i.test(actual)&&a.size<=10*1024*1024)payload.type='photo';
+        seen.add(actual);payloads.push(payload);
+      } catch {signal?.throwIfAborted();payloads.push({text:'A requested output file could not be sent (unsafe, missing, sensitive, or larger than 49 MiB).'});}
     }
     return payloads;
   }
@@ -436,9 +441,10 @@ export class Service {
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
       const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
-      const files=await this.filePayloads(result.files);
+      const scope={sessionId:job.session_id,actorId:job.actor_id};
+      const files=await this.filePayloads(result.files,job.user,scope,ctrl.signal);
       if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
-        try {files.unshift({type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)});}
+        try {files.unshift(await this.artifacts.snapshot(job.user,{type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)},scope,ctrl.signal));}
         catch {ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
       }
       if(ctrl.signal.aborted) throw new Error('Cancelled');
@@ -567,6 +573,7 @@ export class Service {
             payload=this.tdlAuth?.payload(payload.attempt,payload.version);
             if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(['photo','voice','file'].includes(payload.type)) {
+            payload=await this.artifacts.load(row,payload);
             // Indicators are optional feedback, never a prerequisite for delivery.
             void Promise.resolve().then(()=>this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':'upload_document')).catch(()=>{});
           }

@@ -123,3 +123,10 @@ Other files are copied live. Source-sync and runtime storage stay separate.
 Tests exercise source contracts; image/runtime tests verify installed tools and
 permissions; live acceptance verifies model, Telegram and connector behavior.
 See [development](development.md), [deployment](deployment.md), [backups](backups.md).
+
+Ordinary outgoing files are service-generated snapshots under
+`state/outbox-artifacts`, inventoried in SQLite before the final response commit.
+Outbox rows bind the artifact ID to the original owner/conversation/session/actor.
+Delivery verifies the snapshot once and passes those buffered bytes to Telegram,
+including photo fallback. Source paths are no longer delivery inputs for ordinary
+outputs. See [artifact storage](artifacts.md) for retention and legacy gates.

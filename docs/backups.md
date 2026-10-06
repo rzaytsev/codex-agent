@@ -95,3 +95,17 @@ with an older version and then assume the ledger covers those writes. For full
 state rollback, stop the instance and restore the consistent pre-upgrade database
 using the procedure above, accepting that later admissions and delivery state
 will also revert. Never combine a ledger from one snapshot with jobs from another.
+
+## Immutable outbox snapshots
+
+The canonical database contains artifact inventory and outbox references. The
+existing workspace backup also covers `state/outbox-artifacts`, including pending,
+uncertain, sent and orphan files. Retention of local artifacts is indefinite;
+backup retention does not authorize deleting them. Preserve the whole directory
+and restore it with the matching consistent database while the instance is stopped.
+Snapshots are synced before DB publication, but the filesystem backup is still
+not simultaneous with arbitrary same-grant modifications. Verify every referenced
+hash before restart; missing/tampered files fail locally. Source rollback to older
+code requires stopping delivery and reconciling queued snapshots because it cannot
+verify hashes. Legacy path-only rows remain an explicit operator gate; never invent
+old hashes from current source files. See [artifacts](artifacts.md).

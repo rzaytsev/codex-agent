@@ -131,7 +131,7 @@ test('worker results, files, reminders and restart notices retain the source des
   a.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(task.id);await a.runJob(job,new AbortController());await a.conversation();
   const schedule=await a.tool(capability(a,'123'),'schedule',{kind:'reminder',prompt:'A reminder',due:new Date(Date.now()+60000).toISOString(),key:'same'});a.schedules(schedule.due+1);
   const interrupted=a.store.job('123','Interrupted A');a.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(interrupted);a.store.recover();
-  await a.deliver();assert.ok(sent.every(r=>r.chat==='-100'));assert.ok(sent.some(r=>r.payload.text==='A reminder'));assert.ok(sent.some(r=>r.payload.path?.endsWith('a.txt')));assert.ok(sent.some(r=>r.payload.text?.includes('restart')));
+  await a.deliver();assert.ok(sent.every(r=>r.chat==='-100'));assert.ok(sent.some(r=>r.payload.text==='A reminder'));assert.ok(sent.some(r=>r.payload.filename==='a.txt'&&r.payload.bytes?.toString()==='A artifact'));assert.ok(sent.some(r=>r.payload.text?.includes('restart')));
 });
 
 test('/new affects only its conversation and a late worker result bypasses its new model session',async t=>{

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 const mimeTypes={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.txt':'text/plain','.md':'text/markdown','.csv':'text/csv','.html':'text/html','.svg':'image/svg+xml','.mp4':'video/mp4','.mp3':'audio/mpeg','.ogg':'audio/ogg'};
+export const mimeType=file=>mimeTypes[path.extname(file).toLowerCase()]||'application/octet-stream';
 export class TelegramError extends Error {
   constructor(code,retryAfter=0) { super(`Telegram request failed (${code})`); this.code=code; this.retryAfter=retryAfter; }
 }
@@ -83,9 +84,10 @@ export class Telegram {
   }
   async sendPart(user,payload) {
     if (payload.type === 'file' || payload.type === 'voice' || payload.type === 'photo') {
+      if(payload.artifactId&&!Buffer.isBuffer(payload.bytes))throw new Error('Artifact bytes must be verified before sending');
       const data=new FormData(); data.set('chat_id',user);
       const field=payload.type === 'voice'?'voice':payload.type==='photo'?'photo':'document';
-      data.set(field,new Blob([await fs.readFile(payload.path)],{type:payload.type==='voice'?'audio/ogg':mimeTypes[path.extname(payload.path).toLowerCase()]||'application/octet-stream'}),path.basename(payload.path));
+      data.set(field,new Blob([payload.bytes??await fs.readFile(payload.path)],{type:payload.mime||(payload.type==='voice'?'audio/ogg':mimeType(payload.path))}),payload.filename||path.basename(payload.path));
       if(payload.caption)data.set('caption',payload.caption);
       if(payload.type==='voice') data.set('caption','AI-generated voice');
       try {return await this.call(payload.type==='voice'?'sendVoice':payload.type==='photo'?'sendPhoto':'sendDocument',data);}

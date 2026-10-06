@@ -57,8 +57,13 @@ extraction/transcription failure remain available.
 The service prepares a final response before committing all its delivery entries
 and assistant history in one SQLite transaction. Cancellation before that commit
 does not leave a partial response queued. This does not undo external actions,
-individual tool outputs already committed, or messages already delivered. Artifact
-paths in the outbox reference files; they are not immutable snapshots of file bytes.
+individual tool outputs already committed, or messages already delivered. Ordinary
+artifacts are immutable snapshots with durable hashes and route bindings, prepared
+before the transaction and verified into the exact bytes passed to Telegram.
+Sensitive state/auth/profile paths, symlinks and hardlinks are denied. Deterministic
+integrity failures fail before network sending. Legacy path-only rows are retained
+behind an operator gate. See [artifact storage](artifacts.md) for indefinite
+retention, migration, filesystem-grant limits and privileged auth exceptions.
 
 Quiet hours filter proactive messages before the delivery batch limit, so a backlog
 does not block requested replies. Ineligible maintenance jobs do not consume worker

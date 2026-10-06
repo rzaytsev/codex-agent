@@ -113,7 +113,8 @@ test('text delivery skips typing and media delivery does not wait for a stalled 
   const {store,service,sent}=await fixture(t);let actions=0,finish;
   service.telegram.action=()=>{actions++;return new Promise(r=>{finish=r;});};
   store.enqueue('123',{text:'Immediate text'});await service.deliver();assert.equal(actions,0);
-  store.enqueue('123',{type:'file',path:'/synthetic/document.pdf'});
+  const file=path.join(service.cfg.workspace,'outputs','document.pdf');await fs.writeFile(file,'synthetic PDF');
+  await service.output('123',{text:'',files:[file]});
   await service.deliver();assert.equal(actions,1);assert.equal(sent.length,2);finish();
 });
 

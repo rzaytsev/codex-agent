@@ -260,3 +260,15 @@ for a development agent or content retrieved from tools.
   loss and session rotation cannot silently duplicate admitted work. This is local
   admission idempotency, not exactly-once execution or external delivery. No queue,
   overlap, misfire or configured maintenance policy changes are introduced.
+
+## Immutable outbox files
+
+- Prepare ordinary main/worker/voice snapshots and durable metadata before the
+  final SQLite response transaction; publish all references atomically. Retain
+  orphan inventory indefinitely without automatic GC.
+- Verify route, size and SHA-256 into the exact buffered upload bytes. Deterministic
+  integrity failure is local failure; remote uncertainty remains distinct.
+- Preserve existing path-only rows as gated legacy rather than inventing their
+  enqueue-time contents. Keep privileged auth challenges on their existing lifecycle.
+- Reject sensitive paths, symlinks and hardlinks at the service boundary. Same-grant
+  arbitrary code remains outside this protection. See [artifacts](artifacts.md).
