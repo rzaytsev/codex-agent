@@ -37,7 +37,7 @@ test('runner sends only model input, keeps expectations private and pairs modes'
 
 test('runner records a safe per-case error and continues without exposing runtime errors',async()=>{
   let calls=0;
-  const report=await required('runSuite')({scenarios:[scenario],expectations:[expectations],adapter:{name:'fake-test-only',qualityEvidence:false,run:async()=>{if(++calls===1)throw Error('private-path-and-credential');return observation;}},modes:['on','off']});
+  const report=await required('runSuite')({scenarios:[scenario],expectations:[expectations],modes:['on','off'],adapter:{name:'fake-test-only',qualityEvidence:false,run:async()=>{if(++calls===1)throw Error('private-path-and-credential');return observation;}},modes:['on','off']});
   assert.equal(report.cases[0].status,'error');assert.equal(report.cases[1].status,'passed');
   assert.equal(JSON.stringify(report).includes('private-path-and-credential'),false);assert.equal(report.summary.errors,1);
   assert.equal(report.comparisons[0].delta,null);
@@ -56,7 +56,7 @@ test('held-out fixtures cover meaningful risk categories with source-backed reco
   assert.ok(suite.scenarios.length>=8);
   for(const category of ['one-off','persistent-preference','correction','unsupported-claim','source-authority','ambiguity','unknown','cross-conversation','learning-transfer'])assert.ok(suite.scenarios.some(x=>x.category===category),category);
   assert.ok(suite.expectations.some(x=>x.checks.some(c=>c.sources?.length)));
-  await required('runSuite')({...suite,adapter:{name:'fake-test-only',qualityEvidence:false,run:async()=>({probes:[],calls:0})}});
+  await required('runSuite')({...suite,modes:['on','off'],adapter:{name:'fake-test-only',qualityEvidence:false,run:async()=>({probes:[],calls:0})}});
 });
 
 test('CLI defaults to zero model calls and requires explicit quota consent',()=>{
@@ -116,7 +116,7 @@ test('adapter rejects unexpected tool activity and enforces a global call budget
 });
 
 test('comparison separates answer behavior from trivially absent baseline records',async()=>{
-  const report=await api.runSuite({scenarios:[scenario],expectations:[expectations],adapter:{name:'fake-test-only',run:async(input,{memoryEnabled})=>memoryEnabled ? observation : {probes:[{id:'q1',answer:'Use five entries.',memory:[],learning:[]}],calls:1}}});
+  const report=await api.runSuite({scenarios:[scenario],expectations:[expectations],modes:['on','off'],adapter:{name:'fake-test-only',run:async(input,{memoryEnabled})=>memoryEnabled ? observation : {probes:[{id:'q1',answer:'Use five entries.',memory:[],learning:[]}],calls:1}}});
   assert.equal(report.comparisons[0].answers.delta,0);
   assert.equal(report.comparisons[0].records.delta,1);
 });
@@ -167,7 +167,7 @@ test('ambiguity scoring requires each project/person/day association',async()=>{
 
 test('comparison denominators and unscored counts survive an error in either arm',async()=>{
   for(const errorMode of ['on','off']) {
-    const report=await api.runSuite({scenarios:[scenario],expectations:[expectations],adapter:{name:'fake-test-only',run:async(input,{memoryEnabled})=>{
+    const report=await api.runSuite({scenarios:[scenario],expectations:[expectations],modes:['on','off'],adapter:{name:'fake-test-only',run:async(input,{memoryEnabled})=>{
       if((memoryEnabled?'on':'off')===errorMode)throw Error('private-runtime-detail');
       return observation;
     }}});
@@ -226,4 +226,19 @@ test('completed evaluation does not abort SDK streams after their cleanup',async
   await adapter.run(scenario,{memoryEnabled:true});
   assert.equal(captures.length,2);
   assert.ok(captures.every(call=>!call.signal.aborted));
+});
+
+test('real adapter independently runs memory and learning maintenance for all four feature combinations',async()=>{
+  const input={id:'independent-flags',stages:[{messages:[{id:'m1',conversation:'dm',role:'user',text:'Planning should include verification.'}],maintenance:['memory','learning'],probes:[{id:'q1',conversation:'fresh',fresh:true,prompt:'Planning task.'}]}]};
+  const respond=schema=>schema.properties.decisions?{decisions:[{key:'verify',accept:true,reason:'Synthetic trial.'}]}:schema.properties.changes?.items.properties.kind?{summary:'',changes:[{key:'verify',kind:'rule',target:'PLAYBOOK.md',content:'Include verification in planning.',scope:'planning',expected_benefit:'Avoid missed checks.',check:'Later plan includes verification.',sources:['history:1'],expected_revision:0,status:'trial'}]}:schema.properties.changes?{summary:'',changes:[{key:'planning',category:'facts',title:'Planning',content:'Planning includes verification.',certainty:'confirmed',sources:['history:1'],expected_revision:0,status:'active'}]}:{text:'Synthetic planning answer.',voice:false,files:[]};
+  for(const [memoryEnabled,learningEnabled,calls] of [[false,false,1],[true,false,2],[false,true,3],[true,true,4]]){
+    const captures=[];const a=adapterApi.createAdapter({CodexClass:fakeCodex(captures,false,respond),model:'synthetic-model'});const o=await a.run(input,{memoryEnabled,learningEnabled});
+    assert.equal(o.calls,calls);assert.equal(o.probes[0].memory.length,Number(memoryEnabled));assert.equal(o.probes[0].learning.length,Number(learningEnabled));
+  }
+});
+
+test('missing fresh-thread usage components remain unknown instead of becoming measured zero',async()=>{
+  const MissingUsage=class {startThread(){return {runStreamed:async()=>({events:(async function*(){yield {type:'item.completed',item:{type:'agent_message',text:'{"text":"synthetic","voice":false,"files":[]}'}};yield {type:'turn.completed',usage:{input_tokens:3}};})()})};}};
+  const adapter=adapterApi.createAdapter({CodexClass:MissingUsage,model:'synthetic-model'});const result=await adapter.run({...scenario,stages:scenario.stages.map(s=>({...s,maintenance:[]}))},{memoryEnabled:false,learningEnabled:false});
+  assert.equal(result.usage.input_tokens,3);assert.equal(result.usage.output_tokens,null);assert.equal(result.usage.cached_input_tokens,null);
 });

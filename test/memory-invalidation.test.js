@@ -131,7 +131,7 @@ test('read-only memory explanations and previews are owner-bound and cannot muta
 
 test('shared-history learning is retained for review instead of deleting an independent fact or question',async t=>{
   const {store,memory,service,dir}=await fixture(t);const learning=service.learning;
-  store.history('123','user','Project cobalt. Also use concise planning replies and ask about available hours.');
+  store.ownerHistory(service.cfg,{from:{id:123},chat:{id:123,type:'private'},text:'Project cobalt. Also use concise planning replies and ask about available hours.'},'Project cobalt. Also use concise planning replies and ask about available hours.');
   memory.save(record('root','history:1'));
   const preference={key:'concise',kind:'preference',target:'USER.md',content:'Prefers concise planning replies.',scope:'planning',expected_benefit:'Useful plans.',check:'Verify reply style.',sources:['history:1'],expected_revision:0,status:'active'};
   const question={...preference,key:'hours',kind:'question',target:'PLAYBOOK.md',content:'How many hours are available?',status:'pending'};
@@ -244,7 +244,7 @@ test('temporal and tag eligibility combines with source review before FTS and li
 });
 
 test('forgetting shared learning invalidates profile CAS snapshots while preserving manual profile content',async t=>{
-  const {store,memory,service,dir}=await fixture(t);store.history('123','user','Project cobalt and concise plans.');memory.save(record('root','history:1'));
+  const {store,memory,service,dir}=await fixture(t);store.ownerHistory(service.cfg,{from:{id:123},chat:{id:123,type:'private'},text:'Project cobalt and concise plans.'},'Project cobalt and concise plans.');memory.save(record('root','history:1'));
   await fs.writeFile(path.join(dir,'USER.md'),'Manual independent fact.\n');
   const change={key:'concise',kind:'preference',target:'USER.md',content:'Prefers concise planning replies.',scope:'planning',expected_benefit:'Useful plans.',check:'Verify reply style.',sources:['history:1'],expected_revision:0,status:'active'};
   const learning=service.learning,batch=learning.batch(learning.target());learning.apply(batch,{summary:'',changes:[change]},{decisions:[{key:change.key,accept:true,reason:'Original evidence.'}]},'profile-forget');

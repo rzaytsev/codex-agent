@@ -36,7 +36,7 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
   let totalCalls = 0;
   return {name:live ? 'subscription-service' : 'fake-test-only', qualityEvidence:live,
     runtime:{model, effort, maxCalls, timeoutMs, cli:version('codex'), sdk:version('codex-sdk'), sourceSha256:fingerprint(), tools:'restricted; see docs/memory-quality-evals.md'},
-    async run(input, {memoryEnabled, signal} = {}) {
+    async run(input, {memoryEnabled, learningEnabled=memoryEnabled, signal} = {}) {
       const root = await fs.mkdtemp(path.join(os.tmpdir(), 'memory-quality-'));
       const workspace = path.join(root, 'workspace'), home = path.join(root, 'home'), codexHome = path.join(root, 'codex');
       const stores = new Map(), sources = new Map(), observation = {probes:[], promptInputs:[], calls:0, usage:{input_tokens:0, output_tokens:0, cached_input_tokens:0}};
@@ -54,7 +54,7 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
         }
         const cfg = config({WORKSPACE_DIR:workspace, CODEX_HOME:codexHome, TELEGRAM_ALLOWED_USER_IDS:owner,
           TELEGRAM_BOT_TOKEN:'', PROACTIVE_ENABLED:'false', CLEANUP_ENABLED:'false', BROWSER_ENABLED:'false',
-          WORKSPACE_PYTHON_BASE:'', MEMORY_ENABLED:String(memoryEnabled), LEARNING_ENABLED:String(memoryEnabled),
+          WORKSPACE_PYTHON_BASE:'', MEMORY_ENABLED:String(memoryEnabled), LEARNING_ENABLED:String(learningEnabled),
           MEMORY_MAX_BATCHES:'1', LEARNING_MAX_BATCHES:'1', TIMEZONE:'UTC',
           MAIN_MODEL:model, RESEARCH_MODEL:model, REVIEW_MODEL:model, MAIN_REASONING:effort, RESEARCH_REASONING:effort, REVIEW_REASONING:effort});
         const database = path.join(workspace, 'state.sqlite');
@@ -84,7 +84,7 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
                   for await (const event of stream.events) {
                     combined.throwIfAborted();
                     if (event.item && !['agent_message','reasoning'].includes(event.item.type)) throw Error('Unexpected tool activity in evaluation');
-                    if (event.type === 'turn.completed') for (const key of Object.keys(observation.usage)) observation.usage[key] += event.usage?.[key] || 0;
+                    if (event.type === 'turn.completed') for (const key of Object.keys(observation.usage)) {const n=event.usage?.[key];observation.usage[key]=observation.usage[key]!==null&&Number.isSafeInteger(n)&&n>=0&&n<=1e15?observation.usage[key]+n:null;}
                     yield event;
                   }
                 })()};
@@ -98,6 +98,7 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
         const agentFor = conversationStore => new Agent(cfg, conversationStore, capability, sdkFactory, service.memory, service.learning);
         service.agent = agentFor(store);
         const conversation = name => {
+          if(name==='dm')return store;
           if (!stores.has(name)) {
             const next = new Store(database);
             next.bindConversation(owner, {id:randomUUID(), chatId:String(-100 - stores.size), kind:'group', title:name});
@@ -117,11 +118,21 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
           const stageSources = [];
           for (const message of stage.messages) {
             const target = conversation(message.conversation);
-            target.history(owner, message.role, message.text);
+            if(message.role==='user') {
+              // Fixture transport metadata is host-owned and never inferred from text.
+              const transport={from:{id:Number(owner)},chat:{id:Number(owner),type:'private'},text:message.text};
+              if(message.origin==='forwarded')transport.forward_sender_name='Synthetic hidden sender';
+              else if(message.origin==='attachment')transport.document={file_id:'synthetic'};
+              else if(message.origin==='bot')transport.via_bot={id:1};
+              else if(['event','other'].includes(message.origin))transport.event=true;
+              const chat=target.kind==='group'?target.db.prepare('SELECT chat_id FROM conversations WHERE id=?').get(target.conversationId):null;
+              if(chat){transport.chat={id:Number(chat.chat_id),type:'group'};target.ownerHistory({...cfg,group:{chat_id:chat.chat_id,state:'active'}},transport,message.text);}
+              else target.ownerHistory(cfg,transport,message.text);
+            } else target.history(owner, message.role, message.text);
             const source = `history:${target.db.prepare('SELECT last_insert_rowid() AS id').get().id}`;
             sources.set(source, message.id);stageSources.push(source);
           }
-          if (memoryEnabled) for (const kind of stage.maintenance) {
+          for (const kind of stage.maintenance.filter(kind=>kind==='memory'?memoryEnabled:learningEnabled)) {
             const id = store.job(owner, `[${kind.toUpperCase()}] synthetic evaluation`, 'research');
             store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(id);
             const job = store.db.prepare('SELECT * FROM jobs WHERE id=?').get(id);
@@ -133,7 +144,7 @@ export function createAdapter({CodexClass = Codex, allowSubscriptionUsage = fals
               await service.runLearningJob(job, {signal:combined});
             }
           }
-          if (memoryEnabled && stage.rollback) {
+          if (learningEnabled && stage.rollback) {
             // Explicit synthetic owner feedback, applied by the service. This
             // measures post-rollback state/context, not model tool selection.
             for (const record of service.learning.list().filter(r => ['active','trial'].includes(r.status)))

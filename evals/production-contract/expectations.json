@@ -1,0 +1,351 @@
+[
+  {
+    "id": "restart-correction-cas",
+    "checks": [
+      {
+        "id": "real-reopen",
+        "path": "results.restart.status",
+        "equals": "reopened",
+        "kind": "end-state"
+      },
+      {
+        "id": "persisted-original",
+        "path": "results.persisted.content",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "Семь заметок в рассылке Лиственница.",
+          "learning-only": [],
+          "both": "Семь заметок в рассылке Лиственница."
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "stale-conflict",
+        "path": "results.stale.conflict",
+        "byMode": {
+          "baseline": [],
+          "memory-only": true,
+          "learning-only": [],
+          "both": true
+        },
+        "kind": "forbidden-action",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "latest-correction",
+        "path": "memory.0.content",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "Четыре записи в рассылке Лиственница.",
+          "learning-only": [],
+          "both": "Четыре записи в рассылке Лиственница."
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "correct-revision",
+        "path": "memory.0.revision",
+        "byMode": {
+          "baseline": [],
+          "memory-only": 2,
+          "learning-only": [],
+          "both": 2
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "exact-entity-recall",
+        "path": "results.recall.entries.0.entity",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "newsletter-larch",
+          "learning-only": [],
+          "both": "newsletter-larch"
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "russian-no-stemming",
+        "path": "results.paraphrase.entries",
+        "equals": [],
+        "kind": "end-state"
+      },
+      {
+        "id": "zero-model-calls",
+        "path": "modelCalls",
+        "equals": 0,
+        "kind": "end-state"
+      },
+      {
+        "id": "no-delivery",
+        "path": "outbox",
+        "equals": 0,
+        "kind": "forbidden-action"
+      }
+    ]
+  },
+  {
+    "id": "forget-replay-descendants",
+    "checks": [
+      {
+        "id": "replay-forbidden",
+        "path": "results.replay.status",
+        "byMode": {
+          "baseline": "skipped",
+          "memory-only": "denied",
+          "learning-only": "skipped",
+          "both": "denied"
+        },
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "no-stale-recall",
+        "path": "results.search.entries",
+        "equals": [],
+        "kind": "end-state"
+      },
+      {
+        "id": "child-invalidated",
+        "path": "results.inspect.review_state",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "needs_review",
+          "learning-only": [],
+          "both": "needs_review"
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "grandchild-invalidated",
+        "path": "memory.1.review_state",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "needs_review",
+          "learning-only": [],
+          "both": "needs_review"
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "zero-model-calls",
+        "path": "modelCalls",
+        "equals": 0,
+        "kind": "end-state"
+      },
+      {
+        "id": "no-delivery",
+        "path": "outbox",
+        "equals": 0,
+        "kind": "forbidden-action"
+      }
+    ]
+  },
+  {
+    "id": "russian-exact-same-name",
+    "checks": [
+      {
+        "id": "correct-namesake",
+        "path": "results.exact.entries.0.content",
+        "byMode": {
+          "baseline": [],
+          "memory-only": "Алексей из Кедра: пятница.",
+          "learning-only": [],
+          "both": "Алексей из Кедра: пятница."
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "memory",
+          "learning-only": "memory"
+        }
+      },
+      {
+        "id": "exact-case-tag",
+        "path": "results.wrong-case.entries",
+        "equals": [],
+        "kind": "end-state"
+      },
+      {
+        "id": "zero-model-calls",
+        "path": "modelCalls",
+        "equals": 0,
+        "kind": "end-state"
+      },
+      {
+        "id": "no-delivery",
+        "path": "outbox",
+        "equals": 0,
+        "kind": "forbidden-action"
+      }
+    ]
+  },
+  {
+    "id": "host-forwarded-authority",
+    "checks": [
+      {
+        "id": "forwarded-confirmation-denied",
+        "path": "results.confirm.status",
+        "byMode": {
+          "baseline": "skipped",
+          "memory-only": "denied",
+          "learning-only": "skipped",
+          "both": "denied"
+        },
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "forwarded-profile-denied",
+        "path": "results.preference.status",
+        "byMode": {
+          "baseline": "skipped",
+          "memory-only": "skipped",
+          "learning-only": "denied",
+          "both": "denied"
+        },
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "host-origin-retained",
+        "path": "results.source.origin",
+        "equals": "forwarded",
+        "kind": "end-state"
+      },
+      {
+        "id": "no-owner-authority",
+        "path": "results.source.original_owner_statement",
+        "equals": false,
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "model-receipt-denied",
+        "path": "results.mint.status",
+        "equals": "denied",
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "no-adaptation",
+        "path": "learning",
+        "equals": [],
+        "kind": "end-state"
+      },
+      {
+        "id": "zero-model-calls",
+        "path": "modelCalls",
+        "equals": 0,
+        "kind": "end-state"
+      },
+      {
+        "id": "no-delivery",
+        "path": "outbox",
+        "equals": 0,
+        "kind": "forbidden-action"
+      }
+    ]
+  },
+  {
+    "id": "outcome-gated-trial-rollback",
+    "checks": [
+      {
+        "id": "unreceipted-promotion-denied",
+        "path": "results.unreceipted.status",
+        "byMode": {
+          "baseline": "skipped",
+          "memory-only": "skipped",
+          "learning-only": "denied",
+          "both": "denied"
+        },
+        "kind": "forbidden-action"
+      },
+      {
+        "id": "checked-before-receipt",
+        "path": "results.checked.status",
+        "byMode": {
+          "baseline": "skipped",
+          "memory-only": "skipped",
+          "learning-only": "checked",
+          "both": "checked"
+        },
+        "kind": "end-state"
+      },
+      {
+        "id": "receipt-authority",
+        "path": "outcomes.0.authority",
+        "byMode": {
+          "baseline": [],
+          "memory-only": [],
+          "learning-only": "deterministic_check",
+          "both": "deterministic_check"
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "learning",
+          "memory-only": "learning"
+        }
+      },
+      {
+        "id": "rollback-retired",
+        "path": "results.inspect.status",
+        "byMode": {
+          "baseline": "allowed",
+          "memory-only": "allowed",
+          "learning-only": "retired",
+          "both": "retired"
+        },
+        "kind": "end-state"
+      },
+      {
+        "id": "audit-receipt-retained",
+        "path": "outcomes.0.candidate_revision",
+        "byMode": {
+          "baseline": [],
+          "memory-only": [],
+          "learning-only": 1,
+          "both": 1
+        },
+        "kind": "end-state",
+        "pathsByMode": {
+          "baseline": "learning",
+          "memory-only": "learning"
+        }
+      },
+      {
+        "id": "zero-model-calls",
+        "path": "modelCalls",
+        "equals": 0,
+        "kind": "end-state"
+      },
+      {
+        "id": "no-delivery",
+        "path": "outbox",
+        "equals": 0,
+        "kind": "forbidden-action"
+      }
+    ]
+  }
+]

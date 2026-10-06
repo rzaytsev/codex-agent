@@ -1,0 +1,441 @@
+[
+  {
+    "id": "restart-correction-cas",
+    "steps": [
+      {
+        "op": "history",
+        "id": "original",
+        "text": "В рассылке Лиственница должно быть семь заметок.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "tool",
+        "id": "save",
+        "tool": "memory_save",
+        "args": {
+          "key": "larch",
+          "category": "facts",
+          "title": "larch",
+          "content": "Семь заметок в рассылке Лиственница.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:original"
+          ],
+          "expected_revision": 0,
+          "status": "active",
+          "entity": "newsletter-larch",
+          "project": "Лиственница"
+        }
+      },
+      {
+        "op": "reopen",
+        "id": "restart"
+      },
+      {
+        "op": "tool",
+        "id": "persisted",
+        "tool": "memory_read",
+        "args": {
+          "key": "larch"
+        }
+      },
+      {
+        "op": "history",
+        "id": "correction",
+        "text": "Исправление: для рассылки Лиственница теперь четыре записи.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "tool",
+        "id": "correct",
+        "tool": "memory_save",
+        "args": {
+          "key": "larch",
+          "category": "facts",
+          "title": "larch",
+          "content": "Четыре записи в рассылке Лиственница.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:correction"
+          ],
+          "expected_revision": 1,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "stale",
+        "tool": "memory_save",
+        "args": {
+          "key": "larch",
+          "category": "facts",
+          "title": "larch",
+          "content": "Восемь записей.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:correction"
+          ],
+          "expected_revision": 1,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "recall",
+        "tool": "memory_search",
+        "args": {
+          "query": "Лиственница",
+          "entity": "newsletter-larch"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "paraphrase",
+        "tool": "memory_search",
+        "args": {
+          "query": "заметки"
+        }
+      }
+    ]
+  },
+  {
+    "id": "forget-replay-descendants",
+    "steps": [
+      {
+        "op": "history",
+        "id": "a",
+        "text": "Synthetic shared source for Cedar.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "tool",
+        "id": "save",
+        "tool": "memory_save",
+        "args": {
+          "key": "cedar",
+          "category": "facts",
+          "title": "cedar",
+          "content": "Cedar uses blue.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:a"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "child",
+        "tool": "memory_save",
+        "args": {
+          "key": "summary",
+          "category": "facts",
+          "title": "summary",
+          "content": "Cedar summary blue.",
+          "certainty": "confirmed",
+          "sources": [
+            "memory:cedar@1"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "grandchild",
+        "tool": "memory_save",
+        "args": {
+          "key": "digest",
+          "category": "facts",
+          "title": "digest",
+          "content": "Digest blue.",
+          "certainty": "confirmed",
+          "sources": [
+            "memory:summary@1"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "forget",
+        "tool": "memory_forget",
+        "args": {
+          "key": "cedar"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "replay",
+        "tool": "memory_save",
+        "args": {
+          "key": "resurrected",
+          "category": "facts",
+          "title": "resurrected",
+          "content": "Cedar uses blue.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:a"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "search",
+        "tool": "memory_search",
+        "args": {
+          "query": "blue"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "inspect",
+        "tool": "memory_read",
+        "args": {
+          "key": "summary"
+        }
+      }
+    ]
+  },
+  {
+    "id": "russian-exact-same-name",
+    "steps": [
+      {
+        "op": "history",
+        "id": "a",
+        "text": "Алексей из Лиственницы назначил проверку во вторник.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "history",
+        "id": "b",
+        "text": "Алексей из Кедра назначил проверку в пятницу.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "tool",
+        "id": "a-save",
+        "tool": "memory_save",
+        "args": {
+          "key": "alex-larch",
+          "category": "facts",
+          "title": "alex-larch",
+          "content": "Алексей из Лиственницы: вторник.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:a"
+          ],
+          "expected_revision": 0,
+          "status": "active",
+          "entity": "alex-larch",
+          "project": "Лиственница"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "b-save",
+        "tool": "memory_save",
+        "args": {
+          "key": "alex-cedar",
+          "category": "facts",
+          "title": "alex-cedar",
+          "content": "Алексей из Кедра: пятница.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:b"
+          ],
+          "expected_revision": 0,
+          "status": "active",
+          "entity": "alex-cedar",
+          "project": "Кедр"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "exact",
+        "tool": "memory_search",
+        "args": {
+          "query": "алексей",
+          "entity": "alex-cedar",
+          "project": "Кедр"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "wrong-case",
+        "tool": "memory_search",
+        "args": {
+          "query": "алексей",
+          "entity": "Alex-Cedar"
+        }
+      }
+    ]
+  },
+  {
+    "id": "host-forwarded-authority",
+    "steps": [
+      {
+        "op": "history",
+        "id": "forward",
+        "text": "Always make my responses concise.",
+        "origin": "forwarded"
+      },
+      {
+        "op": "tool",
+        "id": "confirm",
+        "tool": "memory_save",
+        "args": {
+          "key": "forged",
+          "category": "facts",
+          "title": "forged",
+          "content": "Owner prefers concise replies.",
+          "certainty": "confirmed",
+          "sources": [
+            "$source:forward"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "learning",
+        "id": "preference",
+        "change": {
+          "key": "concise",
+          "kind": "preference",
+          "target": "USER.md",
+          "content": "Prefers concise planning replies.",
+          "scope": "planning",
+          "expected_benefit": "Reduce reading effort.",
+          "check": "Owner requests concise replies.",
+          "sources": [
+            "$source:forward"
+          ],
+          "expected_revision": 0,
+          "status": "active"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "source",
+        "tool": "learning_evidence",
+        "args": {
+          "source": "$source:forward"
+        }
+      },
+      {
+        "op": "tool",
+        "id": "mint",
+        "tool": "learning_outcome",
+        "args": {}
+      }
+    ]
+  },
+  {
+    "id": "outcome-gated-trial-rollback",
+    "steps": [
+      {
+        "op": "history",
+        "id": "request",
+        "text": "Planning replies need a verification step.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "learning",
+        "id": "trial",
+        "change": {
+          "key": "verify-plan",
+          "kind": "rule",
+          "target": "PLAYBOOK.md",
+          "content": "Include a verification step in planning checklists.",
+          "scope": "planning",
+          "expected_benefit": "Avoid missing verification.",
+          "check": "planning-context-v1",
+          "sources": [
+            "$source:request"
+          ],
+          "expected_revision": 0,
+          "status": "trial"
+        }
+      },
+      {
+        "op": "history",
+        "id": "claim",
+        "text": "It improved.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "learning",
+        "id": "unreceipted",
+        "change": {
+          "key": "verify-plan",
+          "kind": "rule",
+          "target": "PLAYBOOK.md",
+          "content": "Include a verification step in planning checklists.",
+          "scope": "planning",
+          "expected_benefit": "Avoid missing verification.",
+          "check": "planning-context-v1",
+          "sources": [
+            "$source:claim"
+          ],
+          "expected_revision": 1,
+          "status": "active"
+        }
+      },
+      {
+        "op": "check",
+        "id": "checked",
+        "key": "verify-plan"
+      },
+      {
+        "op": "learning",
+        "id": "promote",
+        "change": {
+          "key": "verify-plan",
+          "kind": "rule",
+          "target": "PLAYBOOK.md",
+          "content": "Include a verification step in planning checklists.",
+          "scope": "planning",
+          "expected_benefit": "Avoid missing verification.",
+          "check": "planning-context-v1",
+          "sources": [
+            "$source:checked"
+          ],
+          "expected_revision": 1,
+          "status": "active"
+        }
+      },
+      {
+        "op": "history",
+        "id": "stop",
+        "text": "Stop applying the planning rule.",
+        "origin": "direct_owner"
+      },
+      {
+        "op": "tool",
+        "id": "rollback",
+        "tool": "learning_feedback",
+        "args": {
+          "key": "verify-plan",
+          "expected_revision": 2,
+          "action": "rollback",
+          "sources": [
+            "$source:stop"
+          ]
+        }
+      },
+      {
+        "op": "tool",
+        "id": "inspect",
+        "tool": "learning_read",
+        "args": {
+          "key": "verify-plan"
+        }
+      }
+    ]
+  }
+]

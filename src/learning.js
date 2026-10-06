@@ -1,11 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 
 const fields={key:{type:'string'},kind:{type:'string',enum:['rule','preference','style','question']},target:{type:'string',enum:['PLAYBOOK.md','AGENTS.md','USER.md','SOUL.md']},content:{type:'string'},scope:{type:'string'},expected_benefit:{type:'string'},check:{type:'string'},sources:{type:'array',items:{type:'string'}},expected_revision:{type:'integer',minimum:0},status:{type:'string',enum:['trial','active','pending','resolved','retired']}};
 export const learningSchema={type:'object',additionalProperties:false,required:['summary','changes'],properties:{summary:{type:'string'},changes:{type:'array',items:{type:'object',additionalProperties:false,required:Object.keys(fields),properties:fields}}}};
 export const validationSchema={type:'object',additionalProperties:false,required:['decisions'],properties:{decisions:{type:'array',items:{type:'object',additionalProperties:false,required:['key','accept','reason'],properties:{key:{type:'string'},accept:{type:'boolean'},reason:{type:'string'}}}}}};
 export const LEARNING_HEADING='## Continuous learning v1';
+const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const begin='<!-- assistant-learning:begin -->',end='<!-- assistant-learning:end -->';
 const keyPattern=/^[a-z0-9][a-z0-9-]{0,79}$/;
 const secretPattern=/-----BEGIN (?:[A-Z ]*PRIVATE KEY)|\bsk-[A-Za-z0-9_-]{16,}|\bBearer\s+\S{12,}|(?:api[_-]?key|password|token|secret)\s*[=:]\s*["']?[A-Za-z0-9_/-]{16,}/i;
@@ -24,6 +25,9 @@ export class Learning {
       CREATE INDEX IF NOT EXISTS learning_events_owner ON learning_events(user,id);
       CREATE TABLE IF NOT EXISTS learning_records(user TEXT NOT NULL,key TEXT NOT NULL,payload TEXT NOT NULL,revision INTEGER NOT NULL,updated INTEGER NOT NULL,offered INTEGER,outbox_id INTEGER,PRIMARY KEY(user,key));
       CREATE TABLE IF NOT EXISTS learning_versions(user TEXT NOT NULL,key TEXT NOT NULL,revision INTEGER NOT NULL,payload TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(user,key,revision));
+      CREATE TABLE IF NOT EXISTS learning_outcomes(id TEXT PRIMARY KEY,user TEXT NOT NULL,key TEXT NOT NULL,revision INTEGER NOT NULL,created INTEGER NOT NULL,payload TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS learning_outcomes_candidate ON learning_outcomes(user,key,revision);
+      CREATE TABLE IF NOT EXISTS learning_trial_bindings(user TEXT NOT NULL,key TEXT NOT NULL,revision INTEGER NOT NULL,evidence_cursor INTEGER NOT NULL,PRIMARY KEY(user,key,revision));
       CREATE TABLE IF NOT EXISTS learning_reviews(id TEXT PRIMARY KEY,user TEXT NOT NULL,created INTEGER NOT NULL,payload TEXT NOT NULL);
       CREATE TRIGGER IF NOT EXISTS learning_history AFTER INSERT ON history WHEN NEW.role IN ('user','assistant','event') BEGIN
         INSERT OR IGNORE INTO learning_events(user,source,created) VALUES(NEW.user,'history:'||NEW.id,NEW.created); END;
@@ -45,7 +49,10 @@ export class Learning {
     const history=source.match(/^history:([1-9]\d*)$/);
     if(history) {
       const row=this.db.prepare("SELECT id,role,text,created,actor_id FROM history WHERE user=? AND id=? AND role IN ('user','assistant','event')").get(this.owner,Number(history[1]));
-      if(row)return {...row,source,original_owner_statement:row.role==='user'&&(!row.actor_id||row.actor_id===this.owner)&&!/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text)};
+      if(row) {
+        const origin=this.db.prepare('SELECT origin FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id)?.origin||'legacy_unknown';
+        return {...row,source,origin,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&origin==='direct_owner'};
+      }
     }
     if(/^job:[a-z0-9-]{1,80}$/.test(source)) {
       const row=this.db.prepare("SELECT id,state,prompt,result,created FROM jobs WHERE user=? AND id=? AND state IN ('completed','failed','cancelled','interrupted') AND prompt NOT LIKE '[LEARNING]%' AND prompt NOT LIKE '[MEMORY]%' AND prompt NOT LIKE '[REFLECTION]%' AND prompt NOT LIKE '[CLEANUP]%'").get(this.owner,source.slice(4));
@@ -58,7 +65,7 @@ export class Learning {
     const row=revision===undefined?this.db.prepare('SELECT * FROM learning_records WHERE user=? AND key=?').get(this.owner,key):this.db.prepare('SELECT * FROM learning_versions WHERE user=? AND key=? AND revision=?').get(this.owner,key,revision);
     if(!row)return null;const record={...JSON.parse(row.payload),revision:row.revision,updated:row.updated??row.created,offered:row.offered??null,outbox_id:row.outbox_id??null};
     const blocked=this.blocked(),review_reasons=record.sources.filter(s=>blocked.has(s)).map(source=>({source,reason:'shared_history_forgotten'}));
-    return {...record,review_state:review_reasons.length?'needs_review':'ready',review_reasons};
+    return {...record,outcome_receipts:this.outcomes(key).filter(r=>r.candidate_revision===record.revision),candidate_hash:digest([this.owner,record.key,record.revision,record.kind,record.target,record.content,record.scope,record.expected_benefit,record.check]),check_hash:digest(record.check),review_state:review_reasons.length?'needs_review':'ready',review_reasons};
   }
   list() {this.checkOwner();return this.db.prepare("SELECT key FROM learning_records WHERE user=? ORDER BY CASE WHEN json_extract(payload,'$.status') IN ('active','trial','pending') THEN 0 ELSE 1 END,updated DESC,key LIMIT 100").all(this.owner).map(row=>this.get(row.key));}
   current({limit=100,kind,status,unoffered=false}={}) {
@@ -110,7 +117,15 @@ export class Learning {
     if(current&&['retired','resolved'].includes(current.status))throw new Error('Do not revive dismissed learning automatically');
     if(change.kind==='rule') {
       if(!['trial','active','retired'].includes(change.status))throw new Error('Invalid rule state');
-      if(change.status==='active'&&(!current||current.content!==change.content||current.scope!==change.scope||current.check!==change.check||!evidence.some(e=>!current.sources.includes(e.source))))throw new Error('Promotion needs later evidence for an unchanged trial');
+      if(change.status==='active') {
+        if(!current||current.content!==change.content||current.scope!==change.scope||current.check!==change.check||current.expected_benefit!==change.expected_benefit)throw new Error('Promotion needs an unchanged trial');
+        if(current.status==='trial') {
+          const receipts=this.outcomes(current.key).filter(r=>r.candidate_revision===current.revision&&r.candidate_hash===current.candidate_hash&&r.check_hash===current.check_hash);
+          if(receipts.some(r=>r.outcome==='regressed'))throw new Error('Regression blocks promotion');
+          const improved=receipts.find(r=>r.outcome==='improved'&&r.evidence_ids.every(s=>this.usable({sources:[s]})&&change.sources.includes(s)));
+          if(!improved)throw new Error('Promotion needs a host outcome receipt');
+        }
+      }
     } else if(change.kind==='question') {
       if(!['pending','resolved','retired'].includes(change.status)||change.status!=='pending'&&!current)throw new Error('Invalid question state');
     } else if(!['active','retired'].includes(change.status)||!evidence.some(e=>e.original_owner_statement===true))throw new Error('Profile learning needs explicit owner evidence');
@@ -125,6 +140,7 @@ export class Learning {
     this.db.prepare('INSERT INTO learning_records(user,key,payload,revision,updated) VALUES(?,?,?,?,?) ON CONFLICT(user,key) DO UPDATE SET payload=excluded.payload,revision=excluded.revision,updated=excluded.updated').run(this.owner,change.key,payload,revision,now);
     this.db.prepare('INSERT INTO learning_versions VALUES(?,?,?,?,?)').run(this.owner,change.key,revision,payload,now);
     if(current?.outbox_id&&['retired','resolved'].includes(change.status))this.db.prepare("UPDATE outbox SET state='cancelled' WHERE id=? AND user=? AND state='pending'").run(current.outbox_id,this.owner);
+    if(change.kind==='rule'&&change.status==='trial')this.db.prepare('INSERT INTO learning_trial_bindings VALUES (?,?,?,?)').run(this.owner,change.key,revision,this.target());
     this.store.set('learning-export-dirty','1');
   }
   apply(batch,result,validation,reviewId) {
@@ -139,6 +155,35 @@ export class Learning {
       this.store.set(`learning-cursor:${this.owner}`,batch.cursor);
     });
     return {applied,rejected:decisions.length-applied,markdown_synced:this.project()};
+  }
+  outcomes(key) {
+    this.checkOwner();if(!keyPattern.test(key))throw new Error('Invalid learning key');
+    return this.db.prepare('SELECT payload FROM learning_outcomes WHERE user=? AND key=? ORDER BY created,id').all(this.owner,key).map(row=>JSON.parse(row.payload));
+  }
+  // Host-only interface. Intentionally absent from the MCP/direct action registry.
+  // Caller is authenticated command intake or trusted deterministic check code,
+  // never a model validation result or self-claimed job success.
+  recordOutcome(receipt,authority) {
+    this.checkOwner();
+    const allowed=['key','candidate_revision','candidate_hash','check_hash','outcome','observed_at','evidence_ids','run_id','attempt_id'];
+    if(!receipt||Object.keys(receipt).some(k=>!allowed.includes(k))||!authority||Object.keys(authority).some(k=>k!=='kind')||!['explicit_owner','deterministic_check'].includes(authority.kind))throw new Error('Invalid host outcome authority');
+    const current=this.get(receipt.key),binding=current&&this.db.prepare('SELECT evidence_cursor FROM learning_trial_bindings WHERE user=? AND key=? AND revision=?').get(this.owner,current.key,current.revision);
+    if(!current||current.kind!=='rule'||current.status!=='trial'||!binding||current.review_state!=='ready'||receipt.candidate_revision!==current.revision||receipt.candidate_hash!==current.candidate_hash||receipt.check_hash!==current.check_hash||!['improved','inconclusive','regressed'].includes(receipt.outcome)||!Number.isSafeInteger(receipt.observed_at)||receipt.observed_at<=current.updated||receipt.observed_at>Date.now()+1000)throw new Error('Outcome candidate binding invalid');
+    if(!Array.isArray(receipt.evidence_ids)||!receipt.evidence_ids.length||receipt.evidence_ids.length>10||new Set(receipt.evidence_ids).size!==receipt.evidence_ids.length)throw new Error('Outcome needs later evidence');
+    for(const source of receipt.evidence_ids) {
+      const evidence=this.evidence(source),event=this.db.prepare('SELECT id FROM learning_events WHERE user=? AND source=?').get(this.owner,source);
+      if(!event||event.id<=binding.evidence_cursor||current.sources.includes(source)||evidence.created>receipt.observed_at||authority.kind==='explicit_owner'&&evidence.original_owner_statement!==true)throw new Error('Outcome needs later authorized evidence');
+    }
+    for(const field of ['run_id','attempt_id'])if(receipt[field]!==undefined&&(typeof receipt[field]!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(receipt[field])))throw new Error('Invalid outcome observation ID');
+    if(receipt.attempt_id&&!receipt.run_id)throw new Error('Outcome attempt needs run');
+    if(receipt.run_id) {
+      const run=this.db.prepare('SELECT r.id FROM run_observations r JOIN observation_links l ON l.run_id=r.id JOIN conversations c ON c.id=l.conversation_id WHERE r.id=? AND r.terminal IS NOT NULL AND c.owner=?').get(receipt.run_id,this.owner);
+      if(!run)throw new Error('Outcome run evidence unavailable');
+      if(receipt.attempt_id&&!this.db.prepare('SELECT id FROM attempt_observations WHERE id=? AND run_id=?').get(receipt.attempt_id,receipt.run_id))throw new Error('Outcome attempt evidence unavailable');
+    }
+    const payload={id:randomUUID(),...receipt,authority:authority.kind};
+    this.db.prepare('INSERT INTO learning_outcomes VALUES (?,?,?,?,?,?)').run(payload.id,this.owner,current.key,current.revision,Date.now(),JSON.stringify(payload));
+    return payload;
   }
   feedback({key,expected_revision,action,sources}) {
     const current=this.get(key);

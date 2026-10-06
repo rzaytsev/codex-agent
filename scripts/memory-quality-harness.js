@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const matches = (text, patterns = []) => patterns.every(pattern => new RegExp(pattern, 'is').test(text));
 const excludes = (text, patterns = []) => patterns.every(pattern => !new RegExp(pattern, 'is').test(text));
+export const featureModes=Object.freeze(Object.fromEntries(Object.entries({baseline:{memoryEnabled:false,learningEnabled:false},'memory-only':{memoryEnabled:true,learningEnabled:false},'learning-only':{memoryEnabled:false,learningEnabled:true},both:{memoryEnabled:true,learningEnabled:true},on:{memoryEnabled:true,learningEnabled:true},off:{memoryEnabled:false,learningEnabled:false}}).map(([mode,flags])=>[mode,Object.freeze(flags)])));
 const metricCounts = metrics => ({passed:metrics.filter(x => x.passed === true).length, failed:metrics.filter(x => x.passed === false).length, unscored:metrics.filter(x => x.passed === null).length});
 
 // Adapters may attach already collected synthetic observations on failure.
@@ -13,7 +14,7 @@ export class EvaluationRunError extends Error {
     super(message);
     const count = value => Number.isSafeInteger(value) && value >= 0 ? value : 0;
     this.observation = {probes:structuredClone(observation.probes || []), promptInputs:structuredClone(observation.promptInputs || []),
-      calls:count(observation.calls), usage:Object.fromEntries(['input_tokens','output_tokens','cached_input_tokens'].map(key => [key, count(observation.usage?.[key])])),
+      calls:count(observation.calls), usage:Object.fromEntries(['input_tokens','output_tokens','cached_input_tokens'].map(key => [key,Number.isSafeInteger(observation.usage?.[key])&&observation.usage[key]>=0?observation.usage[key]:null])),
       usageIncomplete:true};
   }
 }
@@ -46,7 +47,7 @@ export function scoreCase(observation, expected) {
 function modelInput(scenario) {
   // Explicit allowlist: newly added scorer/metadata fields cannot leak to adapters.
   return {id:scenario.id, stages:scenario.stages.map(stage => ({
-    messages:stage.messages.map(({id, conversation, role, text}) => ({id, conversation, role, text})),
+    messages:stage.messages.map(({id, conversation, role, text, origin}) => ({id, conversation, role, text, origin})),
     maintenance:[...stage.maintenance], rollback:Boolean(stage.rollback),
     probes:stage.probes.map(({id, conversation, fresh, prompt}) => ({id, conversation, fresh, prompt}))
   }))};
@@ -54,7 +55,7 @@ function modelInput(scenario) {
 
 function validate(scenarios, expectations, modes, repeats) {
   if (!Array.isArray(scenarios) || !scenarios.length || !Array.isArray(expectations)) throw Error('Invalid suite');
-  if (!Array.isArray(modes) || !modes.length || new Set(modes).size !== modes.length || modes.some(x => !['on','off'].includes(x))) throw Error('Invalid modes');
+  if (!Array.isArray(modes) || !modes.length || new Set(modes).size !== modes.length || modes.some(x => !Object.hasOwn(featureModes,x))) throw Error('Invalid modes');
   if (!Number.isInteger(repeats) || repeats < 1 || repeats > 10) throw Error('Invalid repeats');
   if (new Set(scenarios.map(x => x.id)).size !== scenarios.length || new Set(expectations.map(x => x.id)).size !== expectations.length || scenarios.length !== expectations.length) throw Error('Duplicate or missing cases');
   for (const scenario of scenarios) {
@@ -66,6 +67,7 @@ function validate(scenarios, expectations, modes, repeats) {
     if (new Set(expected.checks.map(x => x.id)).size !== expected.checks.length) throw Error('Duplicate metric IDs');
     for (const stage of scenario.stages) {
       if (stage.maintenance.some(x => !['memory','learning'].includes(x))) throw Error('Invalid maintenance');
+      if (stage.messages.some(x=>x.origin!==undefined&&!['direct_owner','forwarded','attachment','bot','event','other'].includes(x.origin)))throw Error('Invalid host fixture origin');
       if (stage.messages.some(x => !['user','assistant','event'].includes(x.role) || !x.text || !x.conversation)) throw Error('Invalid message');
       if (stage.probes.some(x => !x.prompt || !x.conversation || typeof x.fresh !== 'boolean')) throw Error('Invalid probe');
     }
@@ -85,16 +87,16 @@ function validate(scenarios, expectations, modes, repeats) {
   }
 }
 
-export async function runSuite({scenarios, expectations, adapter, modes = ['on','off'], repeats = 1, signal}) {
+export async function runSuite({scenarios, expectations, adapter, modes = ['baseline','memory-only','learning-only','both'], repeats = 1, signal}) {
   validate(scenarios, expectations, modes, repeats);
   const report = {version:1, startedAt:new Date().toISOString(), adapter:adapter.name, qualityEvidence:adapter.qualityEvidence === true,
-    provenance:{scenariosSha256:hash(scenarios), expectationsSha256:hash(expectations), node:process.version, runtime:adapter.runtime || {}}, cases:[], comparisons:[]};
+    provenance:{scenariosSha256:hash(scenarios), expectationsSha256:hash(expectations), node:process.version, runtime:adapter.runtime || {}, modes:modes.map(mode=>({mode,...featureModes[mode]})), repeats}, cases:[], comparisons:[]};
   for (let repeat = 1; repeat <= repeats; repeat++) for (const scenario of scenarios) for (const mode of modes) {
     signal?.throwIfAborted();
-    const start = Date.now(), row = {id:scenario.id, category:scenario.category, repeat, mode};
+    const start = Date.now(), row = {id:scenario.id, category:scenario.category, repeat, mode,pairId:hash([scenario.id,repeat,hash(scenarios),adapter.runtime?.model||'synthetic',adapter.runtime?.effort||'none'])};
     const expected = expectations.find(x => x.id === scenario.id);
     try {
-      const observation = await adapter.run(modelInput(scenario), {memoryEnabled:mode === 'on', signal});
+      const observation = await adapter.run(modelInput(scenario), {...featureModes[mode], signal});
       const metrics = scoreCase(observation, expected);
       Object.assign(row, {status:metrics.every(x => x.passed) ? 'passed' : 'failed', metrics, observation});
     } catch (error) {
@@ -105,8 +107,8 @@ export async function runSuite({scenarios, expectations, adapter, modes = ['on',
     row.metricCounts = metricCounts(row.metrics);
     row.durationMs = Date.now() - start;report.cases.push(row);
   }
-  for (const on of report.cases.filter(x => x.mode === 'on')) {
-    const off = report.cases.find(x => x.id === on.id && x.repeat === on.repeat && x.mode === 'off');
+  for (const on of report.cases.filter(x => !['baseline','off'].includes(x.mode))) {
+    const off = report.cases.find(x => x.id === on.id && x.repeat === on.repeat && x.mode === (on.mode==='on'?'off':'baseline'));
     if (!off) continue;
     const expected = expectations.find(x => x.id === on.id).checks;
     const section = include => {
@@ -114,7 +116,7 @@ export async function runSuite({scenarios, expectations, adapter, modes = ['on',
       return {on:onCounts.passed, off:offCounts.passed, total:expected.filter(include).length, onCounts, offCounts,
         delta:onCounts.unscored || offCounts.unscored ? null : onCounts.passed - offCounts.passed};
     };
-    report.comparisons.push({id:on.id, repeat:on.repeat, ...section(() => true),
+    report.comparisons.push({id:on.id, repeat:on.repeat, mode:on.mode, baseline:off.mode, ...section(() => true),
       answers:section(x => x.target === 'answer'), records:section(x => x.target !== 'answer')});
   }
   report.summary = {cases:report.cases.length, passed:report.cases.filter(x => x.status === 'passed').length,

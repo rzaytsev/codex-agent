@@ -299,3 +299,13 @@ The [memory quality suite](memory-quality-evals.md) complements storage/smoke
 checks with synthetic later-turn recall, correction, ambiguity, abstention and
 source-authority cases. It separates scorer expectations from model input and
 reports memory-on/off answers separately from record-capture checks.
+
+
+Host intake now records bounded source origins alongside history. Known hidden
+forwarding, bots, attachments and event data cannot directly confirm new owner
+facts; authenticated owner group facts remain supported. Legacy memory evidence
+keeps its existing factual-evidence behavior, while new preference/outcome learning
+requires direct-owner host attribution; see [learning](learning.md#host-outcome-receipts-and-authority).
+The separate [production contract lane](memory-quality-evals.md#separate-deterministic-production-contract-lane)
+checks restart/correction, replay refusal, descendants and Russian keyword limits
+without claiming semantic retrieval or model quality.

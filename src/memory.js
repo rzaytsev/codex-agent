@@ -133,9 +133,10 @@ export class Memory {
     const match=source.match(/^history:([1-9]\d*)$/);if(!match)return null;
     const row=this.db.prepare('SELECT id,role,actor_id,conversation_id,created,text FROM history WHERE user=? AND id=?').get(this.owner,Number(match[1]));
     if(!row)return null;
-    const knownForward=/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text);
+    const origin=this.db.prepare('SELECT origin FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id)?.origin;
+    const knownForward=origin==='forwarded'||/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text);
     const {text,...metadata}=row;
-    return {...metadata,known_forward:knownForward,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward};
+    return {...metadata,origin:origin||'legacy_unknown',known_forward:knownForward,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward&&(!origin||['direct_owner','owner_group'].includes(origin))};
   }
   explain(key,revision) {
     const entry=this.get(key,revision);if(!entry)return null;

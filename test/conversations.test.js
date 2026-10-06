@@ -84,7 +84,7 @@ test('shared owner memory, profiles, learning and forgetting coexist with separa
   for(const s of [a,b])assert.equal((await s.tool(capability(s),'memory_read',{key:'shared'})).content,'Shared owner knowledge');
   assert.equal((await a.tool(capability(a),'history_search',{}))[0].text,'Group A fact');
   assert.equal((await a.tool(capability(a),'history_search',{scope:'all'})).length,3);
-  assert.equal(a.learning.evidence(`history:${b.store.search('123')[0].id}`).original_owner_statement,true);
+  assert.equal(a.learning.evidence(`history:${b.store.search('123')[0].id}`).original_owner_statement,false); // Legacy row kind is not authority.
   const profile=await a.tool(capability(a),'profile_read',{file:'USER.md'});
   await a.tool(capability(a),'profile_write',{file:'USER.md',content:'Shared owner preference',expected_hash:profile.hash});
   assert.equal(await fs.readFile(path.join(workspace,'USER.md'),'utf8'),'Shared owner preference');
@@ -185,7 +185,7 @@ test('shared HTTP MCP dispatch routes the capability to its conversation and rej
   const mcp=body=>fetch(`http://127.0.0.1:${service.server.address().port}/mcp`,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:1,...body})});
   const tools=await (await mcp({method:'tools/list'})).json();assert.ok(tools.result.tools.some(tool=>tool.name==='memory_search'));assert.ok(tools.result.tools.some(tool=>tool.name==='location_get'));assert.ok(tools.result.tools.some(tool=>tool.name==='profile_write'));
   const called=await (await mcp({method:'tools/call',params:{name:'history_search',arguments:{}}})).json();assert.equal(JSON.parse(called.result.content[0].text)[0].text,'Group-only text');
-  assert.equal(a.learning.evidence(`history:${a.store.search('123')[0].id}`).original_owner_statement,true);
+  assert.equal(a.learning.evidence(`history:${a.store.search('123')[0].id}`).original_owner_statement,false);
   router.disconnect(a.store.get('conversation-id'));assert.equal((await request()).status,403);assert.equal((await mcp({method:'tools/list'})).status,403);
 });
 

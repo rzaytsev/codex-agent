@@ -16,6 +16,7 @@ import { pythonEnvironment } from './python.js';
 import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
 import { AgentMail } from './agent-mail.js';
 import { Learning, LEARNING_HEADING } from './learning.js';
+import {directOwner} from './owner-evidence.js';
 import { Profiles } from './profiles.js';
 import {budgetForSignal,bindBudgetSignal,terminalReason,BudgetError} from './observations.js';
 import { Artifacts } from './artifacts.js';
@@ -283,7 +284,7 @@ export class Service {
       if(!added) return false;
       this.store.prepare('UPDATE inputs SET actor_id=? WHERE $scope AND id=?').run(String(message.from.id),update.update_id);
       const command=message.text?.trim();
-      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve)(?:\s|$)/.test(command||'')) {
+      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve|learning_outcome)(?:\s|$)/.test(command||'')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);this.store.enqueue(user,{text:'This command is available only to the owner in the private chat.'});return true;
       }
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
@@ -295,6 +296,18 @@ export class Service {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         let text='Approval denied. Send the exact /approve ID HASH directly in the owner private chat before expiry.';
         try {const parts=command.split(/\s+/);if(parts.length!==3||!this.approvals)throw new Error('Invalid approval');const result=this.approvals.approve(message,parts[1],parts[2]);text=`Mail action ${result.id}: ${result.state}. Approval permits only the prepared payload; commit still queues delivery.`;}catch {}
+        this.store.enqueue(user,{text});
+      } else if(command==='/learning_outcome'||command?.startsWith('/learning_outcome ')) {
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
+        let text='Outcome denied. Send /learning_outcome KEY REVISION HASH improved|inconclusive|regressed directly in the owner private chat.';
+        try {
+          if(!directOwner(message,this.cfg)||!message.text||message.caption)throw new Error('Direct owner outcome required');
+          const parts=command.split(/\s+/),record=this.learning.get(parts[1]);
+          if(parts.length!==5||!record||String(record.revision)!==parts[2]||record.candidate_hash!==parts[3])throw new Error('Outcome binding invalid');
+          const evidence='history:'+this.store.ownerHistory(this.cfg,message,command);
+          this.learning.recordOutcome({key:record.key,candidate_revision:record.revision,candidate_hash:parts[3],check_hash:record.check_hash,outcome:parts[4],observed_at:Date.now(),evidence_ids:[evidence]},{kind:'explicit_owner'});
+          text=`Learning outcome recorded for ${record.key} revision ${record.revision}: ${parts[4]}.`;
+        } catch {}
         this.store.enqueue(user,{text});
       } else if(command==='/mail'||command?.startsWith('/mail ')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
@@ -318,7 +331,7 @@ export class Service {
         else this.auth.command(command);
       } else if(command==='/help'||command==='/status'||command==='/stop'||command==='/cancel'||command?.startsWith('/cancel ')) {
         let text;
-        if(command==='/help') text=this.cfg.group?'Only the configured owner can instruct me. Mention me to ask a question. Memory, rules, files and tools are shared with your other chats. /new, /status, /stop and /cancel <task-id> act in this group. Login challenges and mailbox acceptance stay in the private chat.':'Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/tdl_auth — connect your Telegram user account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/mail — agent inbox; read, accept or reject ID\n/group — manage linked groups\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
+        if(command==='/help') text=this.cfg.group?'Only the configured owner can instruct me. Mention me to ask a question. Memory, rules, files and tools are shared with your other chats. /new, /status, /stop and /cancel <task-id> act in this group. Login challenges and mailbox acceptance stay in the private chat.':'Send text, voice, photos, PDFs or other files. I can work in the background and return artifacts.\n/auth — sign in or change ChatGPT account; status or cancel\n/tdl_auth — connect your Telegram user account; status or cancel\n/usage — remaining limits and resets\n/status — recent tasks\n/learning_outcome KEY REVISION HASH improved|inconclusive|regressed — report a trial result\n/mail — agent inbox; read, accept or reject ID\n/group — manage linked groups\n/cancel <task-id> — cancel a background task\n/stop — stop your current reply\n/new — fresh model conversation, keep files/profile/history\n/location — saved location; use default or clear\nMessages sent while I’m replying are queued for the next turn.';
         else if(command==='/status') text=this.statusText(user);
         else if(command==='/stop') {
           const ctrl=this.mainUser===user&&(!this.cfg.group||String(message.from.id)===this.cfg.owner||String(message.from.id)===this.mainActor)?this.controllers.get('main'):undefined;
@@ -422,7 +435,7 @@ export class Service {
         const prepared=message.event?{text:message.text,images:[]}:await prepare(message,input.id,this.cfg,this.telegram,controller.signal);
         if(this.cfg.group&&!message.event)prepared.text=`Telegram participant ${input.actor_id} (source author):\n${prepared.text}`;
         if(controller.signal.aborted) throw new Error('Turn interrupted');
-        this.store.history(input.user,message.event?'event':'user',prepared.text,input.actor_id||input.user);
+        this.store.ownerHistory(this.cfg,message,prepared.text);
         const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,settings,toolScope:settings.toolScope,observationRun});
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         await this.output(input.user,result,false,controller.signal);

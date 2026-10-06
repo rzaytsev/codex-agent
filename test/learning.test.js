@@ -14,6 +14,8 @@ async function fixture(t,env={}) {
   const cfg=config({WORKSPACE_DIR:dir,TELEGRAM_ALLOWED_USER_IDS:'123',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',BROWSER_ENABLED:'false',...env});
   const store=new Store(path.join(dir,'db'));
   const agent={run:async()=>({summary:'',changes:[]})};
+  const rawHistory=store.history.bind(store);
+  store.history=(user,role,text,actor=user)=>role==='user'&&user==='123'&&!text.startsWith('Forwarded')?store.ownerHistory(cfg,{from:{id:123},chat:{id:123,type:'private'},text},text):rawHistory(user,role,text,actor);
   const service=new Service(cfg,store,{},agent);await service.init();
   t.after(async()=>{store.db.close();await fs.rm(dir,{recursive:true,force:true});});
   return {dir,cfg,store,agent,service,learning:service.learning};
@@ -89,6 +91,7 @@ test('a separate validator can reject a proposal without installing it; rejectio
 test('later original feedback can support promotion; harmful feedback removes a lesson immediately',async t=>{
   const {store,learning}=await fixture(t);store.history('123','user','Next step please.');apply(learning,[rule('step','history:1')]);
   store.history('123','user','The next-step plan saved me a second request.');
+  const candidate=learning.get('step');learning.recordOutcome({key:'step',candidate_revision:1,candidate_hash:candidate.candidate_hash,check_hash:candidate.check_hash,outcome:'improved',observed_at:Math.max(Date.now(),candidate.updated+1),evidence_ids:['history:2']},{kind:'explicit_owner'});
   apply(learning,[rule('step','history:2',{expected_revision:1,status:'active'})]);assert.equal(learning.get('step').status,'active');
   store.history('123','user','This rule is now harmful. Stop using it.');
   learning.feedback({key:'step',expected_revision:2,action:'rollback',sources:['history:3']});

@@ -1,3 +1,4 @@
+import {historyOrigin} from './owner-evidence.js';
 import { observationsForStore } from './observations.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
@@ -28,6 +29,7 @@ export class Store {
     // Additive: older databases keep every row and the legacy thread key.
     this.db.exec(`CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, owner TEXT NOT NULL, chat_id TEXT NOT NULL, message_thread_id INTEGER, kind TEXT NOT NULL, title TEXT, state TEXT NOT NULL DEFAULT 'active', settings TEXT NOT NULL DEFAULT '{}', session_id TEXT NOT NULL, UNIQUE(chat_id,message_thread_id));
       CREATE UNIQUE INDEX IF NOT EXISTS conversations_transport ON conversations(chat_id,coalesce(message_thread_id,0));
+      CREATE TABLE IF NOT EXISTS history_origins (history_id INTEGER PRIMARY KEY, owner TEXT NOT NULL, origin TEXT NOT NULL CHECK(origin IN ('direct_owner','owner_group','forwarded','bot','attachment','event','other')));
       CREATE TABLE IF NOT EXISTS main_sessions (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, thread TEXT, created INTEGER NOT NULL);`);
     // No resource foreign key/cascade: retain admission audit through cleanup.
     this.db.exec(`CREATE TABLE IF NOT EXISTS admissions (
@@ -78,7 +80,13 @@ export class Store {
   get(key) {if(key==='conversation-id'&&this.conversationId)return this.conversationId;if(key==='main-session'&&this.conversationId)return this.db.prepare('SELECT session_id FROM conversations WHERE id=?').get(this.conversationId)?.session_id;return this.db.prepare('SELECT value FROM meta WHERE key=?').get(this.metaKey(key))?.value; }
   set(key,value) { this.db.prepare('INSERT INTO meta VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').run(this.metaKey(key),String(value));if(key.startsWith('thread:')&&this.get('main-session'))this.db.prepare('UPDATE main_sessions SET thread=? WHERE id=?').run(String(value),this.get('main-session')); }
   ingest(id,user,payload) { return this.db.prepare('INSERT OR IGNORE INTO inputs(id,user,payload,created,conversation_id,session_id) VALUES (?,?,?,?,?,?)').run(id,user,JSON.stringify(payload),Date.now(),this.conversationId||null,this.get('main-session')||null).changes > 0; }
-  history(user,role,text,actorId=user) { this.db.prepare('INSERT INTO history(user,role,text,created,actor_id,conversation_id,session_id) VALUES (?,?,?,?,?,?,?)').run(user,role,text,Date.now(),actorId,this.conversationId||null,this.get('main-session')||null); }
+  history(user,role,text,actorId=user) { this.db.prepare('INSERT INTO history(user,role,text,created,actor_id,conversation_id,session_id) VALUES (?,?,?,?,?,?,?)').run(user,role,text,Date.now(),actorId,this.conversationId||null,this.get('main-session')||null); return Number(this.db.prepare('SELECT last_insert_rowid() AS id').get().id); }
+  // Only host intake uses this path; ordinary history inserts grant no authority.
+  ownerHistory(cfg,message,text) {
+    const id=Store.prototype.history.call(this,cfg.owner,message.event?'event':'user',text,String(message.from?.id||cfg.owner));
+    this.db.prepare('INSERT INTO history_origins VALUES (?,?,?)').run(id,cfg.owner,historyOrigin(message,cfg));
+    return id;
+  }
   search(user,query='',since=0,{all=false}={}) { return this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND created>=? AND instr(lower(text),lower(?))>0 ORDER BY id DESC LIMIT 100`).all(user,since,query).reverse(); }
   historyPage(user,{after=0,since=0,until=Date.now(),limit=50,all=false}={}) {
     if(!Number.isSafeInteger(after)||after<0||!Number.isInteger(limit)||limit<1||limit>50||!Number.isFinite(since)||!Number.isFinite(until)) throw new Error('Invalid history page');
