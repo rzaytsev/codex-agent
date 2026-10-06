@@ -140,3 +140,37 @@ test('actual disposable probe emits no canary content and removes temporary file
  for(const key of Object.keys(receipt))assert.ok(['schema','version','mode','outcome','reason','exitCode','credentialReadable','foreignTaskReadable','taskWritable','credentialIsolationProved','liveAuthCompatibility'].includes(key));
  assert.equal((await fs.readdir(os.tmpdir())).filter(name=>name.startsWith('assistant-isolation-probe-')&&!before.has(name)).length,0);
 });
+
+test('approval transport preserves literal canonical payload and hash across multiple chunks',async t=>{
+ const {service,store,cap}=await fixture(t);const {Telegram}=await import('../src/telegram.js');const {createHash}=await import('node:crypto');
+ const requests=[];service.telegram=new Telegram('synthetic-token',async(_url,options)=>{requests.push(JSON.parse(options.body));return {json:async()=>({ok:true,result:{message_id:requests.length}})};});
+ const text=('Run echo `touch marker` and preserve **literal stars**, <tag> & "quotes" 😀.\n').repeat(80).trim();
+ const args={...payload,text,context:'Literal `context` **stars** <>&'};
+ const prepared=await service.tool(cap,'mail_send',args),row=store.db.prepare('SELECT * FROM action_approvals WHERE id=?').get(prepared.approval_id);
+ const queued=store.db.prepare('SELECT payload FROM outbox ORDER BY id').all().map(record=>JSON.parse(record.payload));assert.ok(queued.length>1);
+ await service.deliver();assert.equal(requests.length,queued.length);
+ const visible=requests.map(request=>request.text).join('');
+ assert.ok(visible.includes(row.payload),'Approval transport must preserve the literal canonical JSON, including backticks, asterisks and HTML-significant characters');
+ assert.equal(visible,queued.map(part=>part.text).join(''));assert.ok(requests.every(request=>!Object.hasOwn(request,'parse_mode')&&request.chat_id==='123'));
+ assert.equal(JSON.parse(row.payload).text,text);assert.equal(prepared.hash,createHash('sha256').update(row.payload).digest('hex'));
+ service.ingest(update(`/approve ${prepared.approval_id} ${prepared.hash}`));await service.tool(cap,'mail_commit',{...args,approval_id:prepared.approval_id});
+ const committed=store.db.prepare('SELECT * FROM action_approvals WHERE id=?').get(prepared.approval_id);assert.equal(committed.payload_hash,prepared.hash);assert.equal(committed.payload,row.payload);assert.equal(committed.state,'committed');
+});
+test('model result and service-tool arguments cannot select literal delivery for normal replies',async t=>{
+ const {service,store,cap}=await fixture(t);const {Telegram}=await import('../src/telegram.js');const requests=[];
+ service.telegram=new Telegram('synthetic-token',async(_url,options)=>{requests.push(JSON.parse(options.body));return {json:async()=>({ok:true,result:{message_id:requests.length}})};});
+ await assert.rejects(service.tool(cap,'mail_send',{...payload,plainText:true}));
+ await service.output('123',{text:'**Normal bold** and `normal code` <>&',voice:false,files:[],plainText:true});
+ assert.ok(store.db.prepare('SELECT payload FROM outbox').all().every(record=>JSON.parse(record.payload).plainText===undefined));
+ await service.deliver();assert.equal(requests.length,1);assert.equal(requests[0].parse_mode,'HTML');assert.equal(requests[0].text,'<b>Normal bold</b> and <code>normal code</code> &lt;&gt;&amp;');
+});
+
+test('pre-fix preview policy cannot authorize an uncommitted action after upgrade',async t=>{
+ const {service,store,cap,cfg}=await fixture(t);const {createHash}=await import('node:crypto');const prepared=await service.tool(cap,'mail_send',payload);
+ const oldVersion=createHash('sha256').update(JSON.stringify({schema:1,matrix:cfg.actionPolicy.matrix,ttl:cfg.actionPolicy.ttlMs/1000})).digest('hex');
+ store.db.prepare('UPDATE action_approvals SET policy_version=? WHERE id=?').run(oldVersion,prepared.approval_id);
+ service.ingest(update(`/approve ${prepared.approval_id} ${prepared.hash}`));
+ await assert.rejects(service.tool(cap,'mail_commit',{...payload,approval_id:prepared.approval_id}));
+ assert.equal(store.db.prepare('SELECT state FROM action_approvals WHERE id=?').get(prepared.approval_id).state,'pending_approval');
+ assert.equal(store.db.prepare('SELECT count(*) AS n FROM mail_outbox').get().n,0);
+});

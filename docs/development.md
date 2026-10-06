@@ -99,3 +99,8 @@ models or network requests. Nested sandbox unavailability is an honest gate; an
 approved disposable execution outside that wrapper can measure the installed
 sandbox. The observed read-only macOS profile blocks writes and allows canary
 credential/foreign-task reads. See [action policy](action-policy.md).
+
+The approval regression drives persisted multi-chunk envelopes through real
+Service.deliver and Telegram.sendPart with a fake fetcher. Verify literal
+backticks/asterisks/<>&/quotes/emoji, full canonical hash/commit identity, ordinary
+reply formatting, model flag refusal and pre-fix approval-version rejection.

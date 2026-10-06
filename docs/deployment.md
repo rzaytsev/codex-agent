@@ -372,10 +372,13 @@ integrity verification. See [artifacts](artifacts.md) and [backups](backups.md).
 
 Preserve a consistent database/workspace/auth backup before an authorized update.
 Legacy pending mail is retained behind a no-send gate until fresh exact owner approval.
-New mail_send prepares and owner DM /approve ID HASH permits exact mail_commit.
+New mail_send presents a literal payload and owner DM /approve ID HASH permits
+exact mail_commit. Contract version 2 invalidates uncommitted pre-fix markup
+approvals; retain their audit rows and reprepare with a fresh message ID for new
+exact consent. Existing committed outbox records are preserved.
 Startup adds the ledger without rewriting schedules or existing task settings;
 new research turns are read-only. Keep existing Compose projects/mounts. The
-optional empty-workspace prototype is disabled by default. Build, Linux sandbox
-canary, real ChatGPT auth compatibility, Telegram consent and backup/restore
+optional empty-workspace prototype is disabled by default. Full compatible credential/foreign-task isolation is incomplete and blocking.
+Build, Linux sandbox canary, separately authorized real ChatGPT auth compatibility, Telegram consent and backup/restore
 acceptance remain deployment gates. Stop execution/delivery and reconcile uncertain
 mail before rollback to older source. See [action policy](action-policy.md).

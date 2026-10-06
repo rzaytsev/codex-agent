@@ -287,4 +287,8 @@ replaying sends. Configuration can narrow authority only. Unbrokered code/browse
 third-party actions remain outside the policy. Research uses read-only settings;
 its disposable cwd is an opt-in prototype. Actual macOS canaries demonstrated
 readable credentials/foreign tasks with denied writes, so full isolation is an
-unmet acceptance gate. See [action policy](action-policy.md).
+incomplete and blocking requirement. Stage A registry/ledger/prototype source
+functionality can be reviewed independently, without declaring full compatible
+isolation complete. Approval previews use service-owned literal delivery; version
+2 invalidates uncommitted approvals from the earlier markup preview while
+retaining audit/outbox data. See [action policy](action-policy.md).

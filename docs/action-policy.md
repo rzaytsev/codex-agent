@@ -1,5 +1,10 @@
 # Brokered action policy and approvals
 
+Stage A registry, approval ledger and workspace prototype are implemented source
+functionality pending independent acceptance. Full compatible credential and
+foreign-task isolation is **incomplete and blocking**: the actual canary bypass
+remains unresolved. The prototype does not fulfill that isolation requirement.
+
 The reviewed registry in `src/action-registry.js` supplies one strict schema,
 roles, scopes, side-effect category, timeout, result-byte limit and retry class
 for both MCP and direct `/tool`. Unknown actions, extra envelope/argument fields
@@ -43,7 +48,10 @@ They cannot be promoted to automatic. For example,
 `ACTION_POLICY={"external_send":"deny"}` disables brokered mail commit.
 `ACTION_APPROVAL_TTL_SECONDS` defaults to 600, range 30–3600. The version digest
 binds schema version, resolved matrix and TTL; a configuration upgrade invalidates
-uncommitted approvals. This is a conservative service policy, not a universal
+uncommitted approvals. Contract version 2 also invalidates uncommitted approvals
+prepared under the earlier markup-rendered preview; reprepare deliberately with
+a fresh message ID and obtain fresh exact owner consent. Rows and already
+committed outbox/audit data remain retained. This is a conservative service policy, not a universal
 interceptor for generated code, browser actions, laptop mailbox CLI or third-party
 tools. Local structured-memory forgetting remains an existing local_modify tool;
 external deletion has no broker. No arbitrary approval token grants owner consent.
@@ -53,7 +61,11 @@ external deletion has no broker. No arbitrary approval token grants owner consen
 mail_send validates/canonicalizes the bounded payload, stores a pending approval
 and queues the exact payload, SHA-256 hash, expiry and command to the owner DM.
 Its bounded returned summary flags truncated text; the service notification
-contains the complete 12,000-character text and 200-character context. Preparation
+contains the complete 12,000-character text and 200-character context. Approval
+envelopes use a persisted service-owned plainText mode, bypassing Telegram markup
+so backticks, asterisks, HTML-significant characters and JSON escapes remain
+literal across chunks. Normal replies keep their formatting; model results and
+service-tool arguments cannot set this delivery flag. Preparation
 sends nothing to the peer. The direct authenticated owner sends
 `/approve APPROVAL_ID PAYLOAD_HASH` before expiry. Groups, forwarded envelopes
 (including legacy forwarding fields), automatic forwards, bot senders, via-bot
@@ -109,7 +121,8 @@ The built-in profile name was verified in the pinned
 On the local macOS validation host, the nested sandbox returned unavailable
 (sandbox_apply denied, exit 71). The approved disposable probe outside that
 wrapper returned bypass: credentialReadable=true, foreignTaskReadable=true,
-taskWritable=false. Credential isolation was not proved; live-auth compatibility
+taskWritable=false. Compatible credential/foreign-task isolation is incomplete
+and blocking, not an accepted isolation result; live-auth compatibility
 was unverified. This receipt covers this host/profile only, not a Linux image or
 universal sandbox behavior. No host settings, real credentials or grants changed.
 

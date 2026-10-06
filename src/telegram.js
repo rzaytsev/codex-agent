@@ -97,6 +97,8 @@ export class Telegram {
         return this.call('sendDocument',fallback);
       }
     }
+    // Literal envelopes are created by the service, never copied from model results.
+    if(payload.plainText===true)return this.call('sendMessage',{chat_id:user,text:payload.text});
     try { return await this.call('sendMessage',{chat_id:user,text:format(payload.text),parse_mode:'HTML'}); }
     catch(e) { if(e.code!==400) throw e; return this.call('sendMessage',{chat_id:user,text:payload.text}); }
   }

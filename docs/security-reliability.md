@@ -124,7 +124,10 @@ Observation payloads contain only validated schema 1 reviewed enums, bounded fin
 ## Brokered action checks
 
 Both MCP and direct tool calls use the strict reviewed action registry. Mail sends
-require exact direct-owner DM approval; uncertain remote effects are reconciled
+require exact direct-owner DM approval with a literal service-owned payload
+preview; uncertain remote effects are reconciled
 without resending. Read-only research settings strengthen service/write controls
 but the actual macOS canary allowed credential and foreign-task reads. See
 [action policy](action-policy.md) for the full matrix, probe receipt and bypass limits.
+Compatible credential/foreign-task isolation remains incomplete and blocking;
+Stage A service policy and cwd prototype do not satisfy that requirement.

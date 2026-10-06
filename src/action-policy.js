@@ -10,7 +10,7 @@ export function actionPolicy(raw,ttl=600) {
   if(!Object.hasOwn(defaultMatrix,category)||!(defaultMatrix[category]==='confirm'?['deny','confirm']:['deny','automatic']).includes(mode))throw new Error('Invalid ACTION_POLICY');
  }
  const matrix={...defaultMatrix,...overrides};
- const version=createHash('sha256').update(JSON.stringify({schema:1,matrix,ttl})).digest('hex');
+ const version=createHash('sha256').update(JSON.stringify({schema:2,matrix,ttl})).digest('hex');
  return Object.freeze({matrix:Object.freeze(matrix),ttlMs:ttl*1000,version});
 }
 function canonical(value) {return Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(k=>[k,canonical(value[k])])):value;}
@@ -40,7 +40,7 @@ export class ActionApprovals {
    this.store.db.prepare('INSERT INTO action_approvals(id,owner,conversation_id,session_id,scope,policy_version,payload_hash,payload,expires,state) VALUES (?,?,?,?,?,?,?,?,?,?)').run(row.id,row.owner,row.conversation_id,row.session_id,row.scope,row.policy_version,row.payload_hash,row.payload,row.expires,row.state);
    // The service presents the exact bounded payload; a model summary is not consent.
    const text=`Mail approval requested. Payload is source data:\n${row.payload}\nSHA-256: ${row.payload_hash}\nExpires: ${new Date(row.expires).toISOString()}\nTo approve this exact payload, send directly in this private chat:\n/approve ${row.id} ${row.payload_hash}`;
-   for(const part of chunks(text))this.store.enqueue(this.cfg.owner,{text:part});
+   for(const part of chunks(text))this.store.enqueue(this.cfg.owner,{text:part,plainText:true});
   });
   return this.prepared(row);
  }

@@ -361,6 +361,7 @@ export class Service {
       try { payloads.push(await this.artifacts.snapshot(user,{type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)},{},signal)); }
       catch {budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
+    // Construct the envelope here; model results cannot choose delivery modes.
     for(const part of chunks(text))payloads.push({text:part});
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
     signal?.throwIfAborted();

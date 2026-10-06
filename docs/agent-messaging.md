@@ -51,6 +51,8 @@ message bodies and credentials. Full SSH administrators and the broker operator
 remain trusted. Application tool restrictions do not sandbox arbitrary generated
 code already granted broad container access.
 
+The service presents the exact canonical payload as literal Telegram text,
+preserving markup characters; model output cannot select that delivery mode.
 New model sends prepare first; direct owner /approve ID HASH permits exact mail_commit. See [action policy](action-policy.md) for expiry/version/session binding and configuration. Local committed sends persist before network calls. Recipient persistence, notification
 queueing and acknowledgment queueing commit together. Same-ID committed retries return the original receipt; changed content conflicts.
 Unknown remote sends become uncertain and reconcile exact broker status only;
