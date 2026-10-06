@@ -67,7 +67,7 @@ for(const profile of ['worker','research','review'])test(`${profile} uses servic
   await agent.run('123','Assigned task with context and output path',profile);
   const {options,input}=calls[0],instructions=options.config.developer_instructions;
   assert.match(instructions,/You are a worker/);
-  assert.equal(options.config.project_doc_max_bytes,undefined);
+  assert.equal(options.config.project_doc_max_bytes,profile==='research'?0:undefined);
   assert.match(instructions,/send_voice is unavailable/);
   assert.match(instructions,/final voice=true/);
   assert.doesNotMatch(instructions,/use assistant MCP send_voice|Delegate long research/);
@@ -121,4 +121,15 @@ test('existing custom workspace instructions remain intact while current core is
   assert.ok(instructions.includes(custom));
   assert.match(instructions,/## Memory discipline/);
   assert.match(instructions,/a blocked route does not authorize forwarding/);
+});
+
+test('disposable read workspace excludes service/auth files and is removed after the turn',async t=>{
+ const {workspace,agent,calls,service}=await fixture(t,{READ_ONLY_WORKSPACE_PROTOTYPE:'true',BROWSER_ENABLED:'true'});
+ await agent.run('123','Read supplied research evidence','research');
+ const {threadOptions,options}=calls[0];
+ assert.notEqual(threadOptions.workingDirectory,workspace);assert.equal(threadOptions.sandboxMode,'read-only');
+ assert.ok(options.configOverrides.includes('features.plugins=false'));assert.ok(options.configOverrides.includes('features.hooks=false'));assert.ok(options.configOverrides.includes('mcp_servers={}'));
+ assert.ok(options.configOverrides.some(s=>s.includes('ASSISTANT_TOOL_SCOPE="read"')));
+ assert.equal(options.env.GOOGLE_MAPS_API_KEY,undefined);
+ await assert.rejects(fs.stat(threadOptions.workingDirectory),{code:'ENOENT'});assert.equal(service.capabilities.size,0);
 });

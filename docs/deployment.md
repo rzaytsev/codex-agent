@@ -367,3 +367,15 @@ mount or host permission grant is required. Verify legacy reconciliation, pendin
 snapshot restart and hashes before an authorized real upload. Rollback needs a
 stopped sender and consistent pre-upgrade state because older code lacks snapshot
 integrity verification. See [artifacts](artifacts.md) and [backups](backups.md).
+
+## Action policy upgrade
+
+Preserve a consistent database/workspace/auth backup before an authorized update.
+Legacy pending mail is retained behind a no-send gate until fresh exact owner approval.
+New mail_send prepares and owner DM /approve ID HASH permits exact mail_commit.
+Startup adds the ledger without rewriting schedules or existing task settings;
+new research turns are read-only. Keep existing Compose projects/mounts. The
+optional empty-workspace prototype is disabled by default. Build, Linux sandbox
+canary, real ChatGPT auth compatibility, Telegram consent and backup/restore
+acceptance remain deployment gates. Stop execution/delivery and reconcile uncertain
+mail before rollback to older source. See [action policy](action-policy.md).

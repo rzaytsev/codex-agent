@@ -98,3 +98,14 @@ separate acceptance stages. Useful cases include a worker voice request, a sourc
 memory correction from a group, an ambiguous external result and a long task whose
 worker needs context from the main. Do not deploy or consume model quota merely to
 claim a prompt wording change has been accepted by the owner.
+
+## Brokered mail and research instructions
+
+Application-owned main instructions explain that mail_send prepares only and that
+mail_commit requires identical arguments after direct owner /approve ID HASH.
+These instructions reach existing custom profiles on the next image update;
+existing messaging sections are preserved. Research/read scopes omit browser,
+apps/plugins/hooks and Maps key, narrow advertised service tools, disable native
+project-document reload and use the pinned SDK read-only sandbox. Empty task cwd
+is an optional prototype; readable CODEX_HOME remains a credential-isolation gate.
+See [action policy](action-policy.md).

@@ -51,9 +51,10 @@ message bodies and credentials. Full SSH administrators and the broker operator
 remain trusted. Application tool restrictions do not sandbox arbitrary generated
 code already granted broad container access.
 
-Local sends persist before network calls. Recipient persistence, notification
-queueing and acknowledgment queueing commit together. Same-ID retries return
-the existing message; changed content conflicts. Acceptance creates its worker
+New model sends prepare first; direct owner /approve ID HASH permits exact mail_commit. See [action policy](action-policy.md) for expiry/version/session binding and configuration. Local committed sends persist before network calls. Recipient persistence, notification
+queueing and acknowledgment queueing commit together. Same-ID committed retries return the original receipt; changed content conflicts.
+Unknown remote sends become uncertain and reconcile exact broker status only;
+missing remote state never authorizes resending. Acceptance creates its worker
 atomically. Interrupted jobs are reported and never blindly restarted. This is
 idempotent request handling, not exactly-once external actions or Telegram sends.
 

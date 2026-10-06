@@ -119,16 +119,16 @@ test('workers and curators cannot access messaging tools',async t=>{
   const {service}=await fixture(t);
   for(const role of [{worker:true},{memoryReview:true}])for(const name of ['mail_agents','mail_send','mail_read','mail_inbox','mail_status'])await assert.rejects(service.tool({user:'123',...role},name,{}));
 });
-test('lost send acknowledgement retries same ID after client restart',async t=>{
+test('lost send acknowledgement reconciles exact broker status after client restart without resending',async t=>{
   const {mailbox,store,service,cfg}=await fixture(t);
   const args={id:randomUUID(),to:'alpha',text:'Hello',kind:'message'};
-  service.mail.send(args);const real=service.mail.request;let failed=false;
-  service.mail.request=async(...arguments_)=>{const value=await real(...arguments_);if(arguments_[2]==='send'&&!failed){failed=true;throw new Error('lost response');}return value;};
+  const cap={user:'123'};const prepared=await service.tool(cap,'mail_send',args);service.ingest(update(`/approve ${prepared.approval_id} ${prepared.hash}`));await service.tool(cap,'mail_commit',{...args,approval_id:prepared.approval_id});const real=service.mail.request;let failed=false;
+  let sendCalls=0;service.mail.request=async(...arguments_)=>{if(arguments_[2]==='send')sendCalls++;const value=await real(...arguments_);if(arguments_[2]==='send'&&!failed){failed=true;throw new Error('lost response');}return value;};
   await service.mail.tick(true);
   assert.equal(mailbox.request('alpha','inbox').messages.length,1);
   const restarted=new AgentMail(cfg,store,real);await restarted.tick(true);
   assert.equal(mailbox.request('alpha','inbox').messages.length,1);
-  assert.equal((await restarted.status(args.id)).state,'queued');
+  assert.equal((await restarted.status(args.id)).state,'queued');assert.equal(sendCalls,1);
   assert.throws(()=>new AgentMail({...cfg,mail:{...cfg.mail,id:'alpha'}},store));
 });
 test('lost ack causes redelivery without duplicate notifications or tasks',async t=>{

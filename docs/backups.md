@@ -118,3 +118,12 @@ database together; no additional mount or collector is introduced. Restored or
 restarted processes invalidate retained token baselines and close open receipts
 as recovered interruption with unknown usage/timing. See
 [observations](observations.md) for additive migration and rollback.
+
+## Action approval snapshots
+
+The canonical SQLite snapshot includes private action_approvals payloads, consent
+bindings and mail_outbox linkage. Retain/restore them together; do not prune audit
+rows. Existing workspace/auth coverage is unchanged. Source rollback requires
+stopped delivery and pending/uncertain reconciliation because older source lacks
+exact confirmation and conservative remote recovery. See
+[action-policy migration](action-policy.md#migration-backup-and-rollback).

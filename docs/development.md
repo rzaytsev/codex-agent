@@ -87,3 +87,15 @@ explicit opt-in in a disposable runtime. Existing smoke helpers remain separate.
 ## Observations verification
 
 Run `node --test test/observations.test.js test/agent-lifecycle.test.js test/integration.test.js test/artifacts.test.js test/reliability.test.js`, then the normal check, full Node suite, Python tests and publication check. Fixtures invoke the actual pinned SDK parser against disposable synthetic subprocesses, never model/account endpoints. Verify local CLI version with `node node_modules/@openai/codex/bin/codex.js --version`; this does not request a model. Test raw SDK/error canaries only against observation rows/logs: authoritative user history legitimately contains source content. See [observations](observations.md).
+
+## Action-policy verification
+
+Run test/action-policy.test.js, test/profile.test.js, test/prompts.test.js,
+test/admission.test.js, then the real synthetic MCP/mailbox tests and normal full
+checks. The policy suite exercises exact consent, payload/authority drift, ledger
+faults, abrupt process exit, restart replay and uncertain no-send recovery.
+`node scripts/isolation-probe.js` uses only disposable canaries and no real auth,
+models or network requests. Nested sandbox unavailability is an honest gate; an
+approved disposable execution outside that wrapper can measure the installed
+sandbox. The observed read-only macOS profile blocks writes and allows canary
+credential/foreign-task reads. See [action policy](action-policy.md).

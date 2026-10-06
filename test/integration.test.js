@@ -27,7 +27,7 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
   const client=new Client({name:'integration-test',version:'1.0.0'});
   await client.connect(transport);
   try {
-   const tools=await client.listTools();assert.equal(tools.tools.length,review?11:worker?12:29);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='memory_explain'));assert(tools.tools.some(tool=>tool.name==='memory_forget_preview'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
+   const tools=await client.listTools();assert.equal(tools.tools.length,review?11:worker?12:30);assert.equal(tools.tools.some(tool=>tool.name==='mail_send'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='send_voice'),!worker);assert(tools.tools.some(tool=>tool.name==='memory_search'));assert(tools.tools.some(tool=>tool.name==='memory_explain'));assert(tools.tools.some(tool=>tool.name==='memory_forget_preview'));assert(tools.tools.some(tool=>tool.name==='learning_read'));assert.equal(tools.tools.some(tool=>tool.name==='learning_feedback'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='memory_save'),!review);assert.equal(tools.tools.some(tool=>tool.name==='memory_forget'),!worker);
    assert(tools.tools.some(tool=>tool.name==='profile_read'));assert.equal(tools.tools.some(tool=>tool.name==='profile_patch'),!worker);assert.equal(tools.tools.some(tool=>tool.name==='profile_write'),!worker);
    const profileResult=await client.callTool({name:'profile_read',arguments:{file:'USER.md'}});assert.equal(profileResult.isError,false);
    const snapshot=JSON.parse(profileResult.content[0].text);assert.match(snapshot.hash,/^[a-f0-9]{64}$/);
@@ -54,6 +54,9 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
    assert.equal(excluded.isError,false);assert.equal(JSON.parse(excluded.content[0].text),null);
    const invalid=await client.callTool({name:'memory_search',arguments:{as_of:'2026-06-01T00:00:00'}});assert.equal(invalid.isError,true);
    const result=await client.callTool({name:'task_status',arguments:{}});assert.equal(result.isError,false);
+   assert.equal((await client.callTool({name:'history_search',arguments:{query:'',extra:'malicious'}})).isError,true);
+   const rejected=await fetch('http://127.0.0.1:8765/tool',{method:'POST',headers:{authorization:`Bearer ${cap}`,'content-type':'application/json'},body:JSON.stringify({name:'history_search',args:{query:'',extra:'malicious'}})});assert.equal(rejected.status,400);
+   const extraEnvelope=await fetch('http://127.0.0.1:8765/tool',{method:'POST',headers:{authorization:`Bearer ${cap}`,'content-type':'application/json'},body:JSON.stringify({name:'task_status',args:{},owner:'456'})});assert.equal(extraEnvelope.status,400);
    if(!worker) {
     const memoryArgs={key:'forgotten-test',category:'facts',title:'Test',content:'Synthetic evidence',certainty:'confirmed',sources:['https://example.com/evidence'],expected_revision:0};
     assert.equal((await client.callTool({name:'memory_save',arguments:memoryArgs})).isError,false);
@@ -72,7 +75,9 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
     assert.deepEqual(await client.callTool({name:'schedule',arguments:scheduleArgs}),scheduled);
     assert.equal((await client.callTool({name:'schedule',arguments:{...scheduleArgs,prompt:'Different reminder'}})).isError,true);
     const sent=await client.callTool({name:'mail_send',arguments:{id:'mcp-message-test',to:'beta',kind:'message',text:'Hello from the tool'}});
-    assert.equal(sent.isError,false);await service.mail.tick(true);
+    assert.equal(sent.isError,false);const prepared=JSON.parse(sent.content[0].text);
+    service.ingest({update_id:9876,message:{text:`/approve ${prepared.approval_id} ${prepared.hash}`,from:{id:123},chat:{id:123,type:'private'}}});
+    const committed=await client.callTool({name:'mail_commit',arguments:{id:'mcp-message-test',to:'beta',kind:'message',text:'Hello from the tool',approval_id:prepared.approval_id}});assert.equal(committed.isError,false);await service.mail.tick(true);
     assert.equal(broker.request('beta','inbox').messages[0].text,'Hello from the tool');
    }
   } finally {await client.close();}

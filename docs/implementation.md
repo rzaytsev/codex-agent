@@ -150,3 +150,15 @@ See [workflow](workflow.md#schedule-admission-and-changes) and
 ## Private run observations
 
 The service records logical runs through final response preparation, with one terminal outcome distinct from SDK attempt completion. Internal memory/learning batches share their job run and cumulative budgets. Schema 1 stores fresh reviewed fields, effective effort/scope/timeout and a model digest, application release, numeric actual Node version, pinned SDK/CLI versions and developer-instruction/tool-bundle SHA-256 hashes. Failed observations increment only a bounded content-free process counter. The pinned SDK parser is tested through synthetic JSONL subprocesses, including its cache-write zero default and malformed lines. See [observations](observations.md) for attribution, migration and runtime limits. No real model/account/Telegram acceptance is claimed.
+
+## Typed action policy and isolation status
+
+Implemented one strict MCP/direct registry, conservative configurable categories,
+exact direct-owner DM mail preparation/approval/commit, transactional one-shot
+outbox linkage, restart/crash replay handling and status-only uncertain recovery.
+Research/read-only scopes disable integration mutation surfaces and use pinned SDK
+read-only options. Disposable task cwd is optional and excludes copied DB/auth.
+Synthetic tests pass these source contracts. The actual local macOS sandbox
+blocked writes but allowed disposable credential and foreign-task reads; full
+credential isolation and live-auth compatibility remain unproved. No model,
+Telegram or deployed image acceptance is claimed. See [action policy](action-policy.md).

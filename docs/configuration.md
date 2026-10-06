@@ -159,3 +159,11 @@ The observed-token gate has no hard in-flight guarantee. Cache input is already 
 component of input usage and is never added again; subscription tokens are not
 API dollars. Unknown usage disables a claim of attributable totals and cannot
 claim no quota spend. See [observations](observations.md).
+
+## Action policy and research prototype
+
+ACTION_POLICY accepts only narrowing category overrides; ACTION_APPROVAL_TTL_SECONDS
+defaults to 600 (30–3600). READ_ONLY_WORKSPACE_PROTOTYPE defaults to false and is
+an opt-in empty task cwd, not credential isolation. New research uses read scope
+and cannot request conversation scope. Existing persisted schedules/settings are
+not rewritten. See [action policy](action-policy.md) for all categories and gates.
