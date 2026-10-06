@@ -76,3 +76,22 @@ The local tests cover snapshot consistency, config selection and mount checks.
 References: [Restic releases](https://github.com/restic/restic/releases),
 [retention](https://restic.readthedocs.io/en/stable/060_forget.html),
 [restore](https://restic.readthedocs.io/en/stable/050_restore.html).
+
+## Task and schedule admission migration
+
+Startup creates the additive `admissions` table and its composite primary key;
+existing jobs, metadata, schedules, state and IDs are preserved. There is no
+backfill of old keyless jobs because their request identity was never captured.
+An existing keyed user schedule is adopted only on a matching retry. Ledger rows
+are durable audit data: do not prune them or cascade-delete them during task,
+schedule or workspace cleanup. They store fingerprints and original responses,
+not a second copy of task prompts. Back up this table with the authoritative
+SQLite database; online snapshots retain both resource and admission records.
+
+Back up before upgrading. A source rollback can leave the additive table in place;
+older code ignores it and loses conflict/idempotent-retry enforcement for new
+calls, while existing jobs/schedules still work. Do not keep admitting requests
+with an older version and then assume the ledger covers those writes. For full
+state rollback, stop the instance and restore the consistent pre-upgrade database
+using the procedure above, accepting that later admissions and delivery state
+will also revert. Never combine a ledger from one snapshot with jobs from another.

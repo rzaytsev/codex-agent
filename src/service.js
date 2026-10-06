@@ -15,6 +15,11 @@ import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
 import { AgentMail } from './agent-mail.js';
 import { Learning, LEARNING_HEADING } from './learning.js';
 import { Profiles } from './profiles.js';
+import { AdmissionConflict } from './store.js';
+function requestKey(key,normalize=true) {
+  if(typeof key!=='string'||!key.trim()||key.length>200)throw new Error('Invalid request key');
+  return normalize?key.trim():key;
+}
 export function nextCron(cron,timezone,from=Date.now()) { return CronExpressionParser.parse(cron,{tz:timezone,currentDate:new Date(from),strict:false}).next().getTime(); }
 export function dueTime(args,timezone) {
   if(Boolean(args.cron)===Boolean(args.due)) throw new Error('Supply exactly one of due or cron');
@@ -131,7 +136,7 @@ export class Service {
         }
         const {name,args}=parsed;const result=await target.tool(cap,name,args);
         res.end(JSON.stringify(result));
-      } catch {res.writeHead(400);res.end(JSON.stringify({error:'Invalid tool request or unavailable resource'}));}
+      } catch(e) {res.writeHead(e instanceof AdmissionConflict?409:400);res.end(JSON.stringify({error:e instanceof AdmissionConflict?'admission_conflict':'Invalid tool request or unavailable resource'}));}
     });
     await new Promise((resolve,reject)=>{this.server.once('error',reject);this.server.listen(port,'127.0.0.1',resolve);});
   }
@@ -189,12 +194,16 @@ export class Service {
         if(args.title!==undefined&&(typeof args.title!=='string'||!args.title.trim()||args.title.length>160)) throw new Error('Invalid title');
         if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
         const settings=this.effectiveSettings(args.profile||'worker',args.settings,cap.toolScope);
-        const id=this.store.job(user,args.prompt,args.profile || 'worker');
-        this.store.set(`task-settings:${id}`,JSON.stringify(settings));
-        this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(cap.actorId||user,id);
-        if(args.title) this.store.set(`task-title:${id}`,args.title.trim());
-        if(args.acknowledgment) this.store.set(`task-acknowledgment:${id}`,args.acknowledgment.trim());
-        return {id};
+        if(settings.model)settings.model=settings.model.trim();
+        const payload={user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',prompt:args.prompt.trim(),profile:args.profile||'worker',settings,title:args.title?.trim(),acknowledgment:args.acknowledgment?.trim()};
+        return this.store.admit(this.cfg.owner||user,'task',args.request_key===undefined?undefined:requestKey(args.request_key),payload,()=>{
+          const id=this.store.job(user,payload.prompt,payload.profile);
+          this.store.set(`task-settings:${id}`,JSON.stringify(settings));
+          this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
+          if(payload.title)this.store.set(`task-title:${id}`,payload.title);
+          if(payload.acknowledgment)this.store.set(`task-acknowledgment:${id}`,payload.acknowledgment);
+          return {id};
+        });
       }
       case 'cancel_task': return this.cancelTask(user,args.id,cap.actorId);
       case 'profile_patch':
@@ -205,11 +214,24 @@ export class Service {
         return {...result,hash:this.profiles.snapshot(args.file).hash,learning_projection_synced:this.learning.store.get('learning-export-dirty')!=='1'};
       }
       case 'schedule': {
-        if(!['reminder','task'].includes(args.kind)||typeof args.prompt!=='string'||!args.prompt||args.prompt.length>30000||typeof args.key!=='string'||!args.key||args.key.length>200) throw new Error('Invalid schedule');
-        const due=dueTime(args,this.cfg.timezone);const key=`${this.store.get('conversation-id')}:${user}:${args.key}`;const id=randomUUID();
-        this.store.schedule(id,user,args.kind,args.prompt,args.cron || null,args.timezone || this.cfg.timezone,due,key);
-        this.store.prepare('UPDATE schedules SET actor_id=? WHERE $scope AND id=?').run(cap.actorId||user,id);
-        return this.store.prepare('SELECT id,due,timezone,enabled FROM schedules WHERE $scope AND unique_key=?').get(key);
+        if(!['reminder','task'].includes(args.kind)||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid schedule');
+        // Existing schedule keys are opaque; preserve their bytes on upgrade.
+        const request=requestKey(args.key,false),key=`${this.store.get('conversation-id')}:${user}:${request}`;
+        if(Boolean(args.cron)===Boolean(args.due)||args.cron&&typeof args.cron!=='string'||args.due&&(typeof args.due!=='string'||!/(Z|[+-]\d\d:\d\d)$/.test(args.due)||!Number.isFinite(Date.parse(args.due)))||args.timezone!==undefined&&(typeof args.timezone!=='string'||!args.timezone.trim()))throw new Error('Invalid schedule timing');
+        const payload={user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',kind:args.kind,prompt:args.prompt.trim(),cron:args.cron?.trim().replace(/\s+/g,' ')||null,timezone:args.timezone?.trim()||this.cfg.timezone,due:args.due?Date.parse(args.due):null};
+        return this.store.admit(this.cfg.owner||user,'schedule',request,payload,()=>{
+          // Older rows have no fingerprint. Adopt only an exact matching intent;
+          // recurring due advances at runtime and is not its creation intent.
+          const old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=? AND user=?').get(key,user);
+          if(old) {
+            if(old.kind!==payload.kind||old.prompt.trim()!==payload.prompt||(old.cron?.trim().replace(/\s+/g,' ')||null)!==payload.cron||old.timezone!==payload.timezone||!payload.cron&&old.due!==payload.due||(old.actor_id||user)!==payload.actor||payload.parentScope!=='conversation')throw new AdmissionConflict();
+            return {id:old.id,due:old.due,timezone:old.timezone,enabled:old.enabled};
+          }
+          const due=dueTime({...args,cron:payload.cron,due:args.due,timezone:payload.timezone},this.cfg.timezone),id=randomUUID();
+          this.store.schedule(id,user,payload.kind,payload.prompt,payload.cron,payload.timezone,due,key);
+          this.store.prepare('UPDATE schedules SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
+          return {id,due,timezone:payload.timezone,enabled:1};
+        });
       }
       case 'list_schedules': return this.store.prepare('SELECT id,kind,prompt,cron,timezone,due FROM schedules WHERE $scope AND user=? AND enabled=1').all(user);
       case 'cancel_schedule': return {cancelled:this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').run(args.id,user,Number(!this.cfg.group||cap.actorId===this.cfg.owner),cap.actorId||user).changes>0};

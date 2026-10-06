@@ -4,6 +4,8 @@ First run `uv cache prune` using the configured cache directory; it can safely r
 
 Preserve conversations/ in its entirety and state/conversations/: they contain retained group files and legacy recovery data.
 
+Preserve the SQLite admission audit (`admissions`) with all task/schedule records; do not prune keys or fingerprints when cleaning old task directories.
+
 Always preserve state/python (the default environment), other state data, profiles, SOUL.md, USER.md, AGENTS.md, memory, history, databases/WALs, credentials, inbox/user attachments, backups, source files, project directories and their environments, final artifacts/outputs, dependency declarations/lockfiles, and anything referenced by queued/running tasks or pending/uncertain deliveries. Do not infer that an old or large file is unwanted. Leave uncertain candidates in place and mention them as suggestions. Do not clear the entire uv cache or delete downloaded Python versions/tools without proving they are unused by every retained environment.
 
 Save a dated cleanup record in memory/cleanup/ with deleted paths, why they were disposable, measured bytes reclaimed, retained candidates and any errors. Report a short useful summary in Telegram; return empty text when there was nothing to delete or suggest. Report measured results only. Do not install new recurring schedules or rerun interrupted external actions.

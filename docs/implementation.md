@@ -118,3 +118,25 @@ assume access to real credentials or private instance directories.
 Image builds, host permissions, deployed health, actual Telegram interaction,
 account connections and a full backup/restore drill must be checked on the chosen
 runtime. Passing local tests does not establish those deployment gates.
+
+## Atomic task and schedule admission
+
+Implemented: additive SQLite `admissions` ledger and synchronous transaction for
+`create_task` job/settings/actor/title/acknowledgment plus fingerprint/response.
+Optional `request_key` is discoverable through MCP and main role instructions.
+Legacy keyless callers create a distinct job per call, with atomic metadata but
+weaker retry guarantees. Schedule keys identify immutable creation requests;
+changed payloads conflict and matching legacy rows are adopted without mutation.
+Fingerprints cover normalized execution intent and authorization-related fields;
+default changes that alter effective settings conflict. Owner/conversation/intent
+form separate key namespaces. New sessions do not forget admitted requests.
+
+Synthetic `test/admission.test.js` covers intermediate-write, abrupt process exit and ledger rollback,
+lost responses, separate-process reopening, matching/default normalization,
+changed settings/scope/actor/title/acknowledgment, owner/conversation separation,
+cron advancement, cancellation, past-due retry and legacy startup/adoption.
+`test/integration.test.js` verifies actual MCP schema/retry/conflict responses and
+SQLite snapshot retention. No actual model, Telegram, deployed-image or host
+restore acceptance is claimed. Delivery still has uncertain-send semantics.
+See [workflow](workflow.md#schedule-admission-and-changes) and
+[backups](backups.md#task-and-schedule-admission-migration).

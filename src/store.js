@@ -1,5 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+export class AdmissionConflict extends Error {
+  constructor() {super('Admission conflict: request key already identifies different intent');this.name='AdmissionConflict';}
+}
+// Fixed JSON ordering also normalizes omitted optional fields. Store hashes,
+// rather than a second copy of private task/schedule instructions.
+const canonical=value=>Array.isArray(value)?value.map(canonical):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().filter(key=>value[key]!==undefined).map(key=>[key,canonical(value[key])])):value;
 export class Store {
   constructor(file) {
     this.file=file;
@@ -22,6 +28,12 @@ export class Store {
     this.db.exec(`CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, owner TEXT NOT NULL, chat_id TEXT NOT NULL, message_thread_id INTEGER, kind TEXT NOT NULL, title TEXT, state TEXT NOT NULL DEFAULT 'active', settings TEXT NOT NULL DEFAULT '{}', session_id TEXT NOT NULL, UNIQUE(chat_id,message_thread_id));
       CREATE UNIQUE INDEX IF NOT EXISTS conversations_transport ON conversations(chat_id,coalesce(message_thread_id,0));
       CREATE TABLE IF NOT EXISTS main_sessions (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, thread TEXT, created INTEGER NOT NULL);`);
+    // No resource foreign key/cascade: retain admission audit through cleanup.
+    this.db.exec(`CREATE TABLE IF NOT EXISTS admissions (
+      owner TEXT NOT NULL, conversation_id TEXT NOT NULL, intent TEXT NOT NULL,
+      request_key TEXT NOT NULL, fingerprint TEXT NOT NULL, resource_id TEXT NOT NULL,
+      response TEXT NOT NULL, created INTEGER NOT NULL,
+      PRIMARY KEY(owner,conversation_id,intent,request_key));`);
     for(const table of ['inputs','history','jobs','schedules','outbox']) {
       const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(c=>c.name);
       for(const [column,type] of [['conversation_id','TEXT'],['session_id','TEXT'],['actor_id','TEXT']])if(!columns.includes(column))this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
@@ -69,6 +81,18 @@ export class Store {
   job(user,prompt,profile='worker') { const id = randomUUID(); this.db.prepare('INSERT INTO jobs(id,user,prompt,profile,state,created,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?)').run(id,user,prompt,profile,'queued',Date.now(),this.conversationId||null,this.get('main-session')||null); return id; }
   schedule(id,user,kind,prompt,cron,timezone,due,key) {this.db.prepare('INSERT OR IGNORE INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,user,kind,prompt,cron,timezone,due,key,this.conversationId||null,this.get('main-session')||null);}
   jobs(user) { return this.prepare('SELECT id,profile,state,created,result FROM jobs WHERE $scope AND user=? ORDER BY created DESC LIMIT 30').all(user); }
+  admit(owner,intent,key,payload,create) {
+    const conversation=this.conversationId||'',fingerprint=createHash('sha256').update(JSON.stringify(canonical({version:1,owner,conversation,intent,...payload}))).digest('hex');
+    return this.transaction(()=>{
+      if(key!==undefined) {
+        const previous=this.db.prepare('SELECT fingerprint,response FROM admissions WHERE owner=? AND conversation_id=? AND intent=? AND request_key=?').get(owner,conversation,intent,key);
+        if(previous) {if(previous.fingerprint!==fingerprint)throw new AdmissionConflict();return JSON.parse(previous.response);}
+      }
+      const response=create();
+      if(key!==undefined)this.db.prepare('INSERT INTO admissions VALUES (?,?,?,?,?,?,?,?)').run(owner,conversation,intent,key,fingerprint,response.id,JSON.stringify(response),Date.now());
+      return response;
+    });
+  }
   transaction(fn) { this.db.exec('BEGIN IMMEDIATE'); try { const result = fn(); this.db.exec('COMMIT'); return result; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }
   recover() {
     return this.transaction(() => {

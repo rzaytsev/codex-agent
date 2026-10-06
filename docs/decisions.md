@@ -243,3 +243,20 @@ for a development agent or content retrieved from tools.
   This supersedes deleting learning records merely because they share a source ID.
 - Provide read-only impact preview and evidence explanation. State retention and
   provenance-validation limits explicitly; source content grants no authority.
+
+## Atomic, conflict-checked admission (2026-10-06)
+
+- Commit task data and a durable owner/conversation/intent request-key ledger in
+  one `BEGIN IMMEDIATE` transaction. Retain only a versioned canonical SHA-256
+  payload fingerprint, resource ID, admission response and creation time in the
+  ledger; task/schedule data remain authoritative. Keep the audit across cleanup.
+- Prefer explicit stable task request keys. Matching retries return the original
+  result; changed execution or authorization-related intent conflicts. Preserve
+  keyless compatibility with atomic writes and documented duplicate-retry risk.
+- Treat schedule keys as immutable creation requests, including previously saved
+  rows matched on first retry. Deliberate changes cancel the old schedule and
+  create with a new key. Runtime firing/cancellation cannot resurrect a request.
+- Scope admission to owner and conversation rather than model session, so response
+  loss and session rotation cannot silently duplicate admitted work. This is local
+  admission idempotency, not exactly-once execution or external delivery. No queue,
+  overlap, misfire or configured maintenance policy changes are introduced.
