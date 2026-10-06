@@ -109,3 +109,12 @@ hash before restart; missing/tampered files fail locally. Source rollback to old
 code requires stopping delivery and reconciling queued snapshots because it cannot
 verify hashes. Legacy path-only rows remain an explicit operator gate; never invent
 old hashes from current source files. See [artifacts](artifacts.md).
+
+## Private observations
+
+The existing online SQLite snapshot includes observation receipts, tenant-local
+run relationships and usage baseline state. Back up the existing workspace and
+database together; no additional mount or collector is introduced. Restored or
+restarted processes invalidate retained token baselines and close open receipts
+as recovered interruption with unknown usage/timing. See
+[observations](observations.md) for additive migration and rollback.

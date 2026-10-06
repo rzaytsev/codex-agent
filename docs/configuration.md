@@ -141,3 +141,21 @@ of memory consolidation and proactive notifications. PROACTIVE_ENABLED controls 
 question offers. Recreate existing instances to inherit defaults while preserving
 profiles, state and account grants. See [learning](learning.md) for trial, rollback,
 coverage and verification boundaries.
+
+## Optional logical-run budgets
+
+All four settings default to `0` (disabled) and leave schedules and normal queue
+policy unchanged. Recreate the selected container after changing its private env.
+
+| Setting | Range and measurement |
+| --- | --- |
+| RUN_MAX_WALL_SECONDS | 0–86400; elapsed logical-run wall time across attempts and response preparation |
+| RUN_MAX_SERVICE_TOOLS | 0–100000; received authorized host-service-tool calls across attempts; rejected budget call retains its count |
+| RUN_MAX_ARTIFACT_BYTES | 0–1000000000000; bytes admitted for service snapshots, cumulatively across attempts and final files/voice |
+| RUN_OBSERVED_TOKEN_ADMISSION | 0–1000000000000; block only the next attempt once known attributable input + output reaches this value |
+
+Budget failure propagates the run abort to SDK, host tools and output preparation.
+The observed-token gate has no hard in-flight guarantee. Cache input is already a
+component of input usage and is never added again; subscription tokens are not
+API dollars. Unknown usage disables a claim of attributable totals and cannot
+claim no quota spend. See [observations](observations.md).

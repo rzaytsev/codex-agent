@@ -83,3 +83,7 @@ Use [memory quality evaluations](memory-quality-evals.md) for the synthetic
 multi-turn suite, per-case scoring and paired memory-on/off observations.
 Deterministic harness tests run with npm test; subscription inference requires
 explicit opt-in in a disposable runtime. Existing smoke helpers remain separate.
+
+## Observations verification
+
+Run `node --test test/observations.test.js test/agent-lifecycle.test.js test/integration.test.js test/artifacts.test.js test/reliability.test.js`, then the normal check, full Node suite, Python tests and publication check. Fixtures invoke the actual pinned SDK parser against disposable synthetic subprocesses, never model/account endpoints. Verify local CLI version with `node node_modules/@openai/codex/bin/codex.js --version`; this does not request a model. Test raw SDK/error canaries only against observation rows/logs: authoritative user history legitimately contains source content. See [observations](observations.md).
