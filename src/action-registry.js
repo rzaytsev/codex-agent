@@ -1,3 +1,4 @@
+import {ContractDenial} from './contract-denial.js';
 import { z } from 'zod';
 // One reviewed registry is the schema and authority source for MCP and /tool.
 const reads=new Set(['history_search','history_read','task_status','location_get','memory_search','memory_read','memory_explain','memory_forget_preview','learning_read','learning_evidence','profile_read']);
@@ -49,7 +50,7 @@ tool('list_schedules','List enabled schedules belonging to user.',{});
 tool('cancel_schedule','Disable a user schedule.',{id:z.string()});
 export function validateAction(cap,name,args) {
  const action=actionRegistry.get(name),role=cap.memoryReview?'curator':cap.worker?'worker':'main';
- if(!action||!action.roles.includes(role))throw new Error('Action denied');
+ if(!action||!action.roles.includes(role))throw new ContractDenial('action_denied');
  if(!action.scopes.includes(cap.toolScope||'conversation'))throw new Error('Read-only task');
  const parsed=action.schema.safeParse(args);if(!parsed.success)throw new Error(name.startsWith('profile_')?'Invalid profile hash or patch arguments':`Invalid ${name} arguments`);
  return {action,args:parsed.data};

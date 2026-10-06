@@ -192,3 +192,12 @@ and retained `on/off` aliases. Missing fresh-thread usage components remain null
 reported separately. No competing manual model loop is added. Live quota commands
 remain opt-in and were not run for this implementation. Synthetic reports contain
 fixture data only; run the publication checker before sharing a saved report.
+
+Expected production refusals carry fixed application-owned `ContractDenial` codes.
+The adapter accepts only codes appropriate to the called operation and exposes
+that bounded code to the held-out scorer. Catching an arbitrary Error, TypeError,
+SQLite error, spoofed `code` property or a typed code belonging to another operation
+never establishes enforcement: the exception reaches the harness, which records
+an unscored error and omits its raw message/stack. Real-adapter fault injection tests
+cover both service-tool and learning-application boundaries; legitimate refusals
+still require final-state and forbidden-effect checks.

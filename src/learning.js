@@ -1,3 +1,4 @@
+import {ContractDenial} from './contract-denial.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -121,14 +122,14 @@ export class Learning {
         if(!current||current.content!==change.content||current.scope!==change.scope||current.check!==change.check||current.expected_benefit!==change.expected_benefit)throw new Error('Promotion needs an unchanged trial');
         if(current.status==='trial') {
           const receipts=this.outcomes(current.key).filter(r=>r.candidate_revision===current.revision&&r.candidate_hash===current.candidate_hash&&r.check_hash===current.check_hash);
-          if(receipts.some(r=>r.outcome==='regressed'))throw new Error('Regression blocks promotion');
+          if(receipts.some(r=>r.outcome==='regressed'))throw new ContractDenial('learning_regression');
           const improved=receipts.find(r=>r.outcome==='improved'&&r.evidence_ids.every(s=>this.usable({sources:[s]})&&change.sources.includes(s)));
-          if(!improved)throw new Error('Promotion needs a host outcome receipt');
+          if(!improved)throw new ContractDenial('learning_outcome_required');
         }
       }
     } else if(change.kind==='question') {
       if(!['pending','resolved','retired'].includes(change.status)||change.status!=='pending'&&!current)throw new Error('Invalid question state');
-    } else if(!['active','retired'].includes(change.status)||!evidence.some(e=>e.original_owner_statement===true))throw new Error('Profile learning needs explicit owner evidence');
+    } else if(!['active','retired'].includes(change.status)||!evidence.some(e=>e.original_owner_statement===true))throw new ContractDenial('learning_owner_evidence_required');
     if(!current&&change.status==='retired')throw new Error('Cannot retire missing learning');
     const wasCurrent=current&&['trial','active','pending'].includes(current.status)&&this.usable(current);
     if(!wasCurrent&&['trial','active','pending'].includes(change.status)&&this.current({limit:40}).length>=40)throw new Error('Learning context capacity reached');
@@ -187,7 +188,7 @@ export class Learning {
   }
   feedback({key,expected_revision,action,sources}) {
     const current=this.get(key);
-    if(!current||current.revision!==expected_revision||!['rollback','dismiss','resolve'].includes(action)||!Array.isArray(sources)||!sources.length||sources.length>10||!sources.every(s=>this.evidence(s).original_owner_statement===true))throw new Error('Feedback needs current revision and explicit owner evidence');
+    if(!current||current.revision!==expected_revision||!['rollback','dismiss','resolve'].includes(action)||!Array.isArray(sources)||!sources.length||sources.length>10||!sources.every(s=>this.evidence(s).original_owner_statement===true))throw new ContractDenial('learning_feedback_invalid');
     if(action==='resolve'&&current.kind!=='question')throw new Error('Only questions can be resolved');
     const change=Object.fromEntries(Object.keys(fields).map(k=>[k,current[k]]));
     change.expected_revision=current.revision;change.status=action==='resolve'?'resolved':'retired';change.sources=[...new Set([...current.sources,...sources])].slice(-10);

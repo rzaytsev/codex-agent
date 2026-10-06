@@ -164,6 +164,21 @@
         "path": "outbox",
         "equals": 0,
         "kind": "forbidden-action"
+      },
+      {
+        "id": "replay-denial-code",
+        "path": "results.replay.denial_code",
+        "kind": "forbidden-action",
+        "byMode": {
+          "memory-only": "memory_source_forgotten",
+          "both": "memory_source_forgotten",
+          "baseline": "skipped",
+          "learning-only": "skipped"
+        },
+        "pathsByMode": {
+          "baseline": "results.replay.status",
+          "learning-only": "results.replay.status"
+        }
       }
     ]
   },
@@ -265,6 +280,42 @@
         "path": "outbox",
         "equals": 0,
         "kind": "forbidden-action"
+      },
+      {
+        "id": "confirm-denial-code",
+        "path": "results.confirm.denial_code",
+        "kind": "forbidden-action",
+        "byMode": {
+          "memory-only": "memory_primary_evidence_required",
+          "both": "memory_primary_evidence_required",
+          "baseline": "skipped",
+          "learning-only": "skipped"
+        },
+        "pathsByMode": {
+          "baseline": "results.confirm.status",
+          "learning-only": "results.confirm.status"
+        }
+      },
+      {
+        "id": "preference-denial-code",
+        "path": "results.preference.denial_code",
+        "kind": "forbidden-action",
+        "byMode": {
+          "learning-only": "learning_owner_evidence_required",
+          "both": "learning_owner_evidence_required",
+          "baseline": "skipped",
+          "memory-only": "skipped"
+        },
+        "pathsByMode": {
+          "baseline": "results.preference.status",
+          "memory-only": "results.preference.status"
+        }
+      },
+      {
+        "id": "mint-denial-code",
+        "path": "results.mint.denial_code",
+        "kind": "forbidden-action",
+        "equals": "action_denied"
       }
     ]
   },
@@ -345,6 +396,21 @@
         "path": "outbox",
         "equals": 0,
         "kind": "forbidden-action"
+      },
+      {
+        "id": "unreceipted-denial-code",
+        "path": "results.unreceipted.denial_code",
+        "kind": "forbidden-action",
+        "byMode": {
+          "learning-only": "learning_outcome_required",
+          "both": "learning_outcome_required",
+          "baseline": "skipped",
+          "memory-only": "skipped"
+        },
+        "pathsByMode": {
+          "baseline": "results.unreceipted.status",
+          "memory-only": "results.unreceipted.status"
+        }
       }
     ]
   }

@@ -30,3 +30,37 @@ test('quality adapter controls memory and learning independently and preserves o
   assert.deepEqual(received.map(({memoryEnabled,learningEnabled})=>[memoryEnabled,learningEnabled]),[[false,false],[true,false],[false,true],[true,true]]);assert.equal(report.comparisons.length,3);assert.equal(new Set(report.cases.map(c=>c.pairId)).size,1);
   assert.deepEqual(featureModes.on,featureModes.both);assert.deepEqual(featureModes.off,featureModes.baseline);
 });
+
+test('unexpected exceptions inside actual service and learning calls are unscored and never leak',async t=>{
+  const {Service}=await import('../src/service.js'),{Learning}=await import('../src/learning.js');
+  const suite=await loadContracts();const id='host-forwarded-authority';const selected={scenarios:suite.scenarios.filter(s=>s.id===id),expectations:suite.expectations.filter(s=>s.id===id)};
+  for(const boundary of ['service','learning'])await t.test(boundary,async()=>{
+    const original=boundary==='service'?Service.prototype.tool:Learning.prototype.apply;let faults=0;
+    if(boundary==='service')Service.prototype.tool=async function(cap,name,...args){if(name==='memory_save'){faults++;throw new TypeError('PRIVATE-SERVICE-FAULT-CANARY');}return original.call(this,cap,name,...args);};
+    else Learning.prototype.apply=function(){faults++;throw new TypeError('PRIVATE-LEARNING-FAULT-CANARY');};
+    let report;try{report=await runContracts({...selected,adapter:createContractAdapter(),modes:['both']});}
+    finally{if(boundary==='service')Service.prototype.tool=original;else Learning.prototype.apply=original;}
+    assert.equal(faults,1);assert.deepEqual(report.summary,{passed:0,failed:0,errors:1});assert.equal(report.cases[0].status,'error');assert(report.cases[0].metrics.every(m=>m.passed===null));assert(!JSON.stringify(report).includes('FAULT-CANARY'));assert(!JSON.stringify(report).includes('TypeError'));
+  });
+});
+
+test('actual adapter accepts only typed operation-specific denials, never a borrowed code',async t=>{
+  const {Service}=await import('../src/service.js'),{Learning}=await import('../src/learning.js'),{ContractDenial}=await import('../src/contract-denial.js');
+  const suite=await loadContracts();const id='host-forwarded-authority';const selected={scenarios:suite.scenarios.filter(s=>s.id===id),expectations:suite.expectations.filter(s=>s.id===id)};
+  for(const boundary of ['service-wrong-code','service-spoofed-code','learning-wrong-code'])await t.test(boundary,async()=>{
+    const original=boundary.startsWith('service')?Service.prototype.tool:Learning.prototype.apply;let faults=0;
+    if(boundary.startsWith('service'))Service.prototype.tool=async function(cap,name,...args){if(name==='memory_save'){faults++;if(boundary==='service-spoofed-code')throw Object.assign(new Error('PRIVATE-SPOOF-CANARY'),{code:'memory_primary_evidence_required'});throw new ContractDenial('learning_owner_evidence_required');}return original.call(this,cap,name,...args);};
+    else Learning.prototype.apply=function(){faults++;throw new ContractDenial('action_denied');};
+    let report;try{report=await runContracts({...selected,adapter:createContractAdapter(),modes:['both']});}
+    finally{if(boundary.startsWith('service'))Service.prototype.tool=original;else Learning.prototype.apply=original;}
+    assert.equal(faults,1);assert.deepEqual(report.summary,{passed:0,failed:0,errors:1});assert(report.cases[0].metrics.every(m=>m.passed===null));assert(!JSON.stringify(report).includes('SPOOF-CANARY'));assert(!JSON.stringify(report).includes('ContractDenial'));
+  });
+});
+test('legitimate production denial codes and forbidden effects remain explicit',async()=>{
+  const suite=await loadContracts();const report=await runContracts({...suite,adapter:createContractAdapter(),modes:['both']});assert.deepEqual(report.summary,{passed:5,failed:0,errors:0});
+  const get=id=>report.cases.find(c=>c.id===id).observation;
+  const forwarded=get('host-forwarded-authority');assert.equal(forwarded.results.confirm.denial_code,'memory_primary_evidence_required');assert.equal(forwarded.results.preference.denial_code,'learning_owner_evidence_required');assert.equal(forwarded.results.mint.denial_code,'action_denied');assert.deepEqual(forwarded.memory,[]);assert.deepEqual(forwarded.learning,[]);
+  const forgotten=get('forget-replay-descendants');assert.equal(forgotten.results.replay.denial_code,'memory_source_forgotten');assert.deepEqual(forgotten.results.search.entries,[]);assert.equal(forgotten.results.inspect.review_state,'needs_review');
+  const trial=get('outcome-gated-trial-rollback');assert.equal(trial.results.unreceipted.denial_code,'learning_outcome_required');assert.equal(trial.results.promote.applied,1);assert.equal(trial.results.rollback.record.status,'retired');assert.equal(trial.outcomes.length,1);
+  const cas=get('restart-correction-cas');assert.equal(cas.results.stale.conflict,true);assert.equal(cas.memory[0].content,'Четыре записи в рассылке Лиственница.');assert.equal(cas.memory[0].revision,2);
+});

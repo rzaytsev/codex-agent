@@ -117,3 +117,11 @@ Receipt migration is additive; preserve SQLite/workspace backups and retain outc
 receipts when retiring a rule. New learning authority needs host-attributed direct
 owner input; adapt synthetic fixtures through host intake instead of merely marking
 history as user. See [learning migration/rollback](learning.md#host-outcome-receipts-and-authority).
+
+When extending production contract fixtures, mint expected denial codes at the
+application validation point rather than inferring them from error text in the
+adapter. Add the operation-specific adapter mapping and held-out code check. Inject
+unexpected service and learning exceptions against the actual adapter to verify
+null metrics and suppressed raw errors; a mock adapter exception alone misses
+inner catch-all bugs. Codes are in-memory validation metadata, with no DB migration
+or HTTP error-envelope change.

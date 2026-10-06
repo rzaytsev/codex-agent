@@ -5,6 +5,8 @@ import path from 'node:path';
 import {config} from '../src/config.js';
 import {Store} from '../src/store.js';
 import {Service} from '../src/service.js';
+import {actionRegistry} from '../src/action-registry.js';
+import {ContractDenial} from '../src/contract-denial.js';
 const owner='999';
 export function createContractAdapter() {
   return {name:'deterministic-production-service',qualityEvidence:false,model:'none',effort:'none',async run(input,features) {
@@ -16,7 +18,11 @@ export function createContractAdapter() {
     const cap=()=>({user:owner,actorId:owner,owner,conversationId:store.get('conversation-id'),sessionId:store.get('main-session')});
     const call=async(name,args)=>{
       try {const result=await service.tool(cap(),name,resolve(args));return Array.isArray(result)?result:{status:'allowed',...result};}
-      catch {return {status:'denied'};}
+      catch(error) {
+        const expected=name==='memory_save'?['memory_primary_evidence_required','memory_source_forgotten','memory_tombstoned']:name==='learning_feedback'?['learning_feedback_invalid']:!actionRegistry.has(name)?['action_denied']:[];
+        if(!(error instanceof ContractDenial)||!expected.includes(error.code))throw error;
+        return {status:'denied',denial_code:error.code};
+      }
     };
     try {
       await open();
@@ -42,7 +48,11 @@ export function createContractAdapter() {
           if(!features.learningEnabled){results[step.id]={status:'skipped'};continue;}
           const change=resolve(step.change),batch=service.learning.batch(service.learning.target());
           try {const result=service.learning.apply(batch,{summary:'',changes:[change]},{decisions:[{key:change.key,accept:true,reason:'Synthetic proposal validator.'}]},step.id);results[step.id]={status:'allowed',applied:result.applied};}
-          catch {results[step.id]={status:'denied'};}
+          catch(error) {
+            const expected=['preference','style'].includes(change.kind)?['learning_owner_evidence_required']:change.kind==='rule'&&change.status==='active'?['learning_outcome_required','learning_regression']:[];
+            if(!(error instanceof ContractDenial)||!expected.includes(error.code))throw error;
+            results[step.id]={status:'denied',denial_code:error.code};
+          }
         } else if(step.op==='check') {
           if(!features.learningEnabled){results[step.id]={status:'skipped'};continue;}
           const record=service.learning.get(step.key);
