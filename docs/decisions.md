@@ -328,3 +328,14 @@ joins the registry hash, excluding paths/config/env/selection IDs. Local macOS
 fixture protection cannot establish Linux/auth/runtime compatibility or mutual
 ordinary worker isolation. Full isolation remains **INCOMPLETE AND BLOCKING**.
 See [action policy](action-policy.md#disabled-restricted-read-profile-prototype).
+
+Lower configuration layers recursively merge shell set and MCP tables. A selected
+restricted attempt therefore verifies effective configuration through bounded
+pinned stdio app-server config/read before SDK construction, rather than trusting
+empty-table syntax. Reject extra shell keys, foreign servers and inherited assistant
+settings; never rewrite owner configuration. Stable metadata describes the checked
+contract without hashing raw config/secrets. Disable startup telemetry/integrations
+first, discard diagnostics and await owned child cleanup. This runtime startup can
+load auth/cloud/model configuration and create state: anonymous fixtures cannot
+approve authenticated compatibility. Configuration races, target Linux acceptance
+and full ordinary-worker isolation remain blocking; keep the option disabled.

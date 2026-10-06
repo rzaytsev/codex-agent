@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 // Fixed reviewed metadata only: runtime paths, random selection IDs and SDK
 // credentials/config are deliberately excluded from observation bundle hashes.
-export const restrictedReadDefinition=Object.freeze({version:1,mode:'restricted_read_prototype',filesystem:'minimal_and_exact_runtime',applicationInputs:false,network:false,shellEnvironment:'none_with_fixed_path_lang',thread:'fresh_every_attempt'});
+export const restrictedReadDefinition=Object.freeze({version:2,mode:'restricted_read_prototype',filesystem:'minimal_and_exact_runtime',applicationInputs:false,network:false,shellEnvironment:'verified_fixed_path_lang_plus_runtime_thread_id',mcp:'verified_assistant_only',configuration:'bounded_pinned_effective_config_preflight',thread:'fresh_every_attempt'});
 export const restrictedShellEnvironment=Object.freeze({PATH:'/usr/bin:/bin',LANG:'C.UTF-8'});
 
 export async function restrictedReadOverrides() {
@@ -17,7 +17,7 @@ export async function restrictedReadOverrides() {
  return [
   `default_permissions=${JSON.stringify(name)}`,
   `permissions={${name}={filesystem={${Object.entries(filesystem).map(([key,value])=>`${JSON.stringify(key)}=${JSON.stringify(value)}`).join(',')}},network={enabled=false}}}`,
-  `shell_environment_policy={inherit="none",set={PATH=${JSON.stringify(restrictedShellEnvironment.PATH)},LANG=${JSON.stringify(restrictedShellEnvironment.LANG)}}}`
+  `shell_environment_policy={inherit="none",ignore_default_excludes=true,exclude=[],include_only=["PATH","LANG"],experimental_use_profile=false,set={PATH=${JSON.stringify(restrictedShellEnvironment.PATH)},LANG=${JSON.stringify(restrictedShellEnvironment.LANG)}}}`
  ];
 }
 

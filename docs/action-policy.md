@@ -129,12 +129,51 @@ The selected profile grants `:minimal` plus the canonical exact Node executable
 (`realpath(process.execPath)`), and on macOS the exact public runtime dependency
 `/System/Library/OpenSSL/openssl.cnf`. It sets network.enabled=false for raw shell
 execution, disables web search/browser/apps/plugins/hooks/subagents, and keeps only
-the read-scoped assistant MCP bridge. Shell environment policy inherits none and
-sets only PATH=/usr/bin:/bin and LANG=C.UTF-8. The privileged SDK/model parent still
+the read-scoped assistant MCP bridge after a bounded effective-config preflight.
+Shell environment policy inherits none, disables profile/login-shell loading,
+sets only PATH=/usr/bin:/bin and LANG=C.UTF-8 and includes only those two keys.
+The pinned runtime adds CODEX_THREAD_ID after filtering; this is a reviewed runtime
+addition, not inherited account data. Extra lower-layer `set` keys are rejected
+even if filtering would remove them. The privileged SDK/model parent still
 uses the existing ChatGPT HOME/CODEX_HOME and auth; Python environment overrides
 and Maps credentials are omitted for restricted attempts. Parent/auth/MCP bridge
 compatibility has not been tested with an account. This is not a network boundary
 around that privileged parent or its authorized broker.
+
+Before SDK construction, the selected attempt runs the pinned CLI 0.159.2 stdio
+app-server with the same application config, overrides, environment and empty cwd.
+Only initialize/initialized and config/read are sent. It checks the effective shell
+policy, exactly one assistant MCP entry, exact command/args/capability environment,
+timeouts and source-reviewed normalized defaults. Foreign servers (even disabled),
+extra assistant environment such as NODE_OPTIONS, changed settings and unknown
+contract fields fail closed. Empty TOML tables are merge operations, not removal.
+No rejected attempt constructs an SDK/thread or launches an MCP helper. No owner
+configuration is edited, removed or copied and no broader retry occurs.
+
+The preflight has one five-second deadline and a combined 1 MiB stdout/stderr
+budget, discards notifications and diagnostics, rejects malformed/unknown response
+schemas, RPC errors, runtime mismatch, early exit and timeout, and kills/awaits its
+owned process group on every exit. Errors are fixed content-free text. Analytics,
+all three native OTEL exporters, apps/plugins/hooks/native agents and remote control
+are disabled through reviewed scalar overrides before startup; RUST_LOG=off and
+the reviewed internal remote-control-disable environment flag are supplied. Those
+restrictions also apply to the selected SDK child. Permission metadata version 2
+and the stable reviewed bundle hash describe this checked contract; raw effective
+config, paths, profile IDs, capability tokens and environment values never enter it.
+
+App-server startup is **not a side-effect-free parser**. Pinned startup code creates
+AuthManagers, installs cloud config loaders, initializes SQLite/log state and starts
+a model refresh worker. Plugin warmups are gated by the disabled plugins feature;
+cloud startup returns immediately with no auth, and an anonymous default provider
+without command/API credentials does not refresh remote models. Regression tests
+use fresh anonymous HOME/CODEX_HOME, omit API/account variables and run with
+restricted networking. An owned fixture marker proves no foreign helper starts.
+This does not establish authenticated behavior: existing ChatGPT auth can cause
+cloud configuration/model catalog requests and local-state changes during startup.
+Before any future opt-in, separately authorize and verify authenticated startup,
+network effects, state compatibility and the assistant bridge on the target image.
+Configuration can change between preflight and exec; configuration races and
+same-grant outside writers remain limitations. Full isolation remains blocking.
 
 Codex SDK/CLI 0.159.2 emits a legacy `--sandbox` flag when sandboxMode is supplied;
 that override selects legacy permission syntax over custom profiles. The prototype

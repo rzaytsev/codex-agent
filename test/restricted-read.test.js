@@ -13,6 +13,9 @@ async function fixture(t,{enabled=true,failure,actualSdk=false}={}) {
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'restricted-read-test-'));
  t.after(()=>fs.rm(root,{recursive:true,force:true}));
  const workspace=path.join(root,'workspace');await fs.mkdir(workspace);
+ const home=path.join(root,'anonymous-home');await fs.mkdir(home);
+ const previous=process.env.HOME;process.env.HOME=home;t.after(()=>{if(previous===undefined)delete process.env.HOME;else process.env.HOME=previous;});
+ await fs.mkdir(path.join(root,'auth'));
  for(const file of ['AGENTS.md','SOUL.md','USER.md'])await fs.writeFile(path.join(workspace,file),'Synthetic bounded context');
  const cfg=config({TELEGRAM_ALLOWED_USER_IDS:'123',WORKSPACE_DIR:workspace,CODEX_HOME:path.join(root,'auth'),RESTRICTED_READ_PROFILE_PROTOTYPE:String(enabled),BROWSER_ENABLED:'true',LEARNING_ENABLED:'false'});
  const state=new Map([['thread:123','ordinary-privileged-thread'],['thread-history:123:ordinary-privileged-thread',12]]),reads=[],writes=[],seen=[],released=[];

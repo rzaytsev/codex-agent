@@ -137,11 +137,15 @@ test('disposable read workspace excludes service/auth files and is removed after
 test('restricted profile hashes stable reviewed policy and scoped registry without runtime selection IDs',async t=>{
  const {createHash}=await import('node:crypto');const {reviewedActionBundle}=await import('../src/action-registry.js');const {restrictedReadDefinition}=await import('../src/restricted-read.js');
  const {cfg,agent,calls,store,service}=await fixture(t,{RESTRICTED_READ_PROFILE_PROTOTYPE:'true',BROWSER_ENABLED:'true'});
+ const home=await fs.mkdtemp(path.join(os.tmpdir(),'restricted-prompt-anonymous-'));
+ cfg.codexHome=path.join(home,'codex');
+ const previous=process.env.HOME;process.env.HOME=home;t.after(async()=>{if(previous===undefined)delete process.env.HOME;else process.env.HOME=previous;await fs.rm(home,{recursive:true,force:true});});
+ await fs.mkdir(cfg.codexHome,{recursive:true});
  cfg.pythonEnv={PYTHONPATH:'SYNTHETIC_ENV_CANARY',UV_CACHE_DIR:'SYNTHETIC_ENV_CANARY'};
  for(let i=0;i<2;i++)await agent.run('123','Synthetic research','research');
  const hashes=store.db.prepare('SELECT payload FROM attempt_observations').all().map(row=>JSON.parse(row.payload).toolsHash);
  const expected=createHash('sha256').update(JSON.stringify({assistant:reviewedActionBundle({worker:true,memoryReview:false,toolScope:'read',group:false}),browser:false,policyVersion:cfg.actionPolicy.version,execution:restrictedReadDefinition})).digest('hex');
- assert.equal(expected,'94e3a5048b119ed39faf400b55742ce8dd85add2bd667695d9e7c9c2d81781e6');
+ assert.equal(expected,'6eab81124942384a22f3c346ea1a453f0f2f522d81f2e01fb4e50e47b41679c5');
  assert.deepEqual(hashes,[expected,expected]);
  for(const {options,threadOptions} of calls){
   assert.equal(options.env.CODEX_HOME,cfg.codexHome);assert.equal(options.env.PYTHONPATH,undefined);assert.equal(options.env.UV_CACHE_DIR,undefined);

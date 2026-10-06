@@ -187,8 +187,14 @@ roots, no application-input/task-directory grants, network-disabled raw shell an
 inherit-none shell environment. Conflicting legacy SDK sandboxMode is omitted;
 ordinary main thread/cursor and settings remain unchanged. No fallback or state
 migration. Actual SDK synthetic argv/parser, cleanup/cancellation, unsafe-input and
-fixed registry/permission-hash tests cover source behavior. Local actual CLI macOS
-canary protected its exact owned fixture routes while builtin allowed reads and
+fixed registry/permission-hash tests cover source behavior.
+The bounded pinned effective-config guard now rejects lower-layer extra shell set,
+foreign MCP and inherited assistant settings before SDK construction, with exact
+reviewed normalization and fixed errors. Anonymous actual-CLI merge fixtures and
+owned helper markers verify these paths; malformed/oversized/runtime/timeout/exit
+responses fail closed and owned children are awaited. Startup loads auth/cloud/
+model/state machinery, so authenticated compatibility is still unverified.
+Local actual CLI macOS canary protected its exact owned fixture routes while builtin allowed reads and
 nested execution was unavailable. Full isolation is **INCOMPLETE AND BLOCKING**:
 Linux target image, native filesystem/process/proc/IPC/tools/skills and authenticated
 parent+MCP compatibility remain unverified. No account/model/Telegram tests or

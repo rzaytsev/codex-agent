@@ -32,3 +32,11 @@ fixtures; no authenticated model execution:
 - [Native sandboxed filesystem](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/exec-server/src/sandboxed_file_system.rs) (runtime compatibility unverified).
 - [Seatbelt construction](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt.rs) and [minimal platform defaults](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt_read_only_platform_defaults.sbpl).
 - [SDK subprocess argv](https://github.com/openai/codex/blob/rust-v0.159.2/sdk/typescript/src/exec.ts).
+
+Effective-config preflight source evidence (same pinned version), validated only
+with anonymous synthetic homes and initialization/config reads:
+
+- [Shell environment construction](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/shell_environment.rs): set at step 4, include-only at step 5, runtime thread ID at step 6.
+- [Shell policy conversion](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/shell_environment_policy.rs) and [MCP normalization](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/mcp_types.rs).
+- [App-server startup](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/app-server/src/lib.rs), [effective config read](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/app-server/src/config_manager_service.rs) and [CLI startup switches](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/cli/src/main.rs): authentication/cloud loaders, native exporters and local state exist before config RPCs.
+- [Cloud startup auth short-circuit](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/cloud-config/src/service.rs), [model refresh eligibility](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/models-manager/src/manager.rs) and [plugin startup gate](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core-plugins/src/manager.rs). Authenticated startup compatibility remains unverified and blocking.

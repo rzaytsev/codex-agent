@@ -101,7 +101,14 @@ sandbox. The built-in read-only macOS profile blocks writes and allows canary
 credential/foreign-task reads; `--mode=restricted` selects the separate exact-root
 probe and tests its owned positive/denial controls. Run `node --test
 test/restricted-read.test.js test/prompts.test.js` for fresh-thread/cursor, actual-SDK
-argv, cleanup and fixed reviewed hash regressions. Outside-wrapper restricted
+argv, cleanup and fixed reviewed hash regressions. Also run
+`node --test test/restricted-config.test.js` for actual pinned anonymous config
+layering (extra shell set, foreign MCP and inherited assistant env/defaults),
+rejection before SDK construction, no-helper markers and bounded RPC failure
+cleanup. These tests use fresh anonymous HOME/CODEX_HOME and no thread/account/model
+RPC. App-server startup still creates local state and can contact cloud/model
+services with authentication; anonymous tests do not establish that compatibility.
+Outside-wrapper restricted
 macOS fixture protection does not complete Linux/auth/native/tool acceptance. See [action policy](action-policy.md).
 
 The approval regression drives persisted multi-chunk envelopes through real

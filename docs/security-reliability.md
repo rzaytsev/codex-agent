@@ -140,3 +140,12 @@ IPC; ordinary main/worker grants and same-grant outside writers remain. This is
 research/read/internal review only. Target Linux, native filesystem/process/tool/
 skill and authenticated MCP compatibility gates remain **INCOMPLETE AND BLOCKING**.
 See [restricted profile limits](action-policy.md#disabled-restricted-read-profile-prototype).
+
+The selected prototype checks effective shell/MCP configuration before constructing
+the SDK; empty-table overrides cannot clear foreign lower configuration. The bounded
+pinned config/read preflight rejects extra shell set/assistant keys and foreign MCP,
+discards diagnostics and kills/awaits its owned child. Analytics/native exporters/
+integrations/remote control are disabled before startup. Startup still loads auth,
+cloud/model machinery and local state; anonymous fixtures cannot approve existing
+ChatGPT compatibility. Configuration races and same-grant outside writers remain
+limits, and the option stays disabled with full isolation blocking.
