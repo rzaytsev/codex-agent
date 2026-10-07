@@ -1,3 +1,5 @@
+import {settleOwnedProcesses} from './owned-process.js';
+import {outcomeRecord,interruptedOutcome} from './outcomes.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
@@ -153,6 +155,7 @@ export class Service {
     const checked=validateAction(cap,name,args),action=checked.action;
     if(this.cfg.group&&action.dmOnly||this.cfg.actionPolicy?.matrix[action.category]==='deny')throw new Error('Policy denied');
     const operationSignal=cap.signal?AbortSignal.any([cap.signal,AbortSignal.timeout(action.timeoutMs)]):AbortSignal.timeout(action.timeoutMs);
+    bindBudgetSignal(operationSignal,this.store.observations,cap.observationRun);
     const result=await this.invokeTool(cap,name,checked.args,operationSignal);
     if(Buffer.byteLength(JSON.stringify(result)??'null')>action.resultLimitBytes)throw new Error('Action result too large');
     return result;
@@ -271,14 +274,30 @@ export class Service {
     return settings;
   }
   cancelTask(user,id,actor=user) {
-    const owned=this.store.prepare('SELECT id FROM jobs WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').get(id,user,Number(!this.cfg.group||actor===this.cfg.owner),actor);
-    if(!owned)return {cancelled:false};
-    if(owned) this.controllers.get(id)?.abort();
-    const result=this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=? AND user=? AND state IN ('queued','running')").run(id,user);return {cancelled:result.changes>0};
+    const owned=this.store.prepare('SELECT id,state FROM jobs WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').get(id,user,Number(!this.cfg.group||actor===this.cfg.owner),actor);
+    if(!owned||!['queued','running','cancel_requested'].includes(owned.state))return {cancelled:false,requested:false,state:owned?.state||'missing'};
+    const state=owned.state==='queued'?'cancelled':'cancel_requested';
+    this.store.prepare('UPDATE jobs SET state=?,goal_outcome=coalesce(goal_outcome,?) WHERE $scope AND id=?').run(state,JSON.stringify(interruptedOutcome()),id);
+    const controller=this.controllers.get(id);if(controller){controller.ownerCancellation=true;controller.abort();}
+    return {cancelled:state==='cancelled',requested:state==='cancel_requested',state};
   }
+  cancelText(result){return result.requested?'Cancellation requested; execution has not yet been confirmed stopped.':result.cancelled?'Cancelled the queued background task.':'No queued or running task with that ID belongs to you.';}
+  requestMainStop(){
+    if(!this.controllers.has('main'))return;
+    this.mainCancelled=true;
+    this.store.prepare("UPDATE inputs SET state='cancel_requested' WHERE $scope AND id=? AND state='processing'").run(this.mainInput);
+    this.controllers.get('main').abort();
+  }
+  async stop(){
+    this.stopping=true;this.requestMainStop();
+    for(const id of this.controllers.keys())if(id!=='main')this.cancelTask(this.cfg.owner,id,this.cfg.owner);
+    await Promise.allSettled([this.activeTurn,...(this.workerRuns?.values()||[])]);
+  }
+  get activeWorkers(){return new Set([...this.controllers.keys()].filter(k=>k!=='main').concat(this.store.prepare("SELECT id FROM jobs WHERE $scope AND state='cancel_requested'").all().map(j=>j.id))).size;}
+  get activeMain(){return this.mainBusy||Boolean(this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get());}
   statusText(user) {
     const jobs=this.store.jobs(user);
-    return jobs.length?'Recent tasks:\n'+jobs.map(j=>`${j.id}: ${j.state} (${j.profile})${this.store.get(`task-title:${j.id}`)?' — '+this.store.get(`task-title:${j.id}`):''}`).join('\n'):'No background tasks yet.';
+    return (jobs.length?'Recent tasks:\n'+jobs.map(j=>`${j.id}: ${j.state} (${j.profile}); ${j.goal_outcome.authority}: ${j.goal_outcome.goal}; host_verified: false; ${j.goal_outcome.resume}${j.state==='cancel_requested'?'; execution exit unknown or pending':''}${this.store.get(`task-title:${j.id}`)?' — '+this.store.get(`task-title:${j.id}`):''}`).join('\n'):'No background tasks yet.')+(this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get()?'\nReply cancellation requested; execution exit unknown or pending.':'');
   }
   ingest(update) {
     const message=update.message || (update.edited_message?.location?update.edited_message:null);
@@ -369,10 +388,10 @@ export class Service {
         else if(command==='/status') text=this.statusText(user);
         else if(command==='/stop') {
           const ctrl=this.mainUser===user&&(!this.cfg.group||String(message.from.id)===this.cfg.owner||String(message.from.id)===this.mainActor)?this.controllers.get('main'):undefined;
-          if(ctrl) {this.mainCancelled=true;ctrl.abort();text='Stopping the current reply.';}
+          if(ctrl) {this.requestMainStop();text='Cancellation requested for the current reply; waiting for execution to stop.';}
           else text='No active reply to stop. Use /status and /cancel <task-id> for background work.';
         } else if(command==='/cancel') text='Use /cancel <task-id>. Find task IDs with /status.';
-        else text=this.cancelTask(user,command.slice(8).trim(),String(message.from.id)).cancelled?'Cancelled the background task.':'No queued or running task with that ID belongs to you.';
+        else text=this.cancelText(this.cancelTask(user,command.slice(8).trim(),String(message.from.id)));
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         for(const part of chunks(text))this.store.enqueue(user,{text:part});
       } else if(this.auth&&!this.auth.ready&&!message.location) this.store.enqueue(user,{text:this.auth.phase!=='idle'?'Your message is queued until login finishes. /auth shows progress; /auth cancel cancels login.':'Your message is queued while ChatGPT login is unavailable. Use /auth to sign in, or /auth status.'});
@@ -406,7 +425,7 @@ export class Service {
     const payloads=[];let text=result.text || '';
     if(result.voice&&result.text) {
       try { payloads.push(await this.artifacts.snapshot(user,{type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)},{},signal)); }
-      catch {budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
+      catch(error) {if(error.executionUnknown)throw error;budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
     // Construct the envelope here; model results cannot choose delivery modes.
     for(const part of chunks(text))payloads.push({text:part});
@@ -440,7 +459,7 @@ export class Service {
     catch {return prefix+'Current limits and reset times are unavailable. Check ChatGPT/Codex usage settings or try /usage again later.';}
   }
   async conversation(modelReady=true) {
-    if(this.mainBusy||this.stopping) return;
+    if(this.mainBusy||this.stopping||this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get()) return;
     if(this.auth)modelReady=this.auth.ready;
     if(this.tdlAuth?.active)modelReady=false;
     const input=this.store.prepare("SELECT * FROM inputs WHERE $scope AND state='pending' AND (? OR trim(json_extract(payload, '$.text'))='/usage') ORDER BY created,id LIMIT 1").get(Number(modelReady));
@@ -448,9 +467,10 @@ export class Service {
     const maintenance=this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().find(job=>this.idleMaintenance(job));
     if(maintenance) {this.controllers.get(maintenance.id)?.abort();return;}
     this.mainBusy=true;
-    this.mainUser=input.user;this.mainCancelled=false;
+    this.mainUser=input.user;this.mainInput=input.id;this.mainCancelled=false;
     this.store.prepare("UPDATE inputs SET state='processing' WHERE $scope AND id=?").run(input.id);
     const controller=new AbortController();this.controllers.set('main',controller);
+    controller.signal.addEventListener('abort',()=>{this.store.prepare("UPDATE inputs SET state='cancel_requested' WHERE $scope AND id=? AND state='processing'").run(input.id);},{once:true});
     const stopTyping=this.cfg.allowed.has(input.user)?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
     controller.signal.addEventListener('abort',stopTyping,{once:true});
     const settings=this.effectiveSettings('main');
@@ -464,7 +484,7 @@ export class Service {
       if(command==='/usage') {await this.output(input.user,{text:await this.usageText(),files:[]},false,controller.signal);}
       else if(command==='/status') {await this.output(input.user,{text:this.statusText(input.user),files:[]},false,controller.signal);}
       else if(command==='/new') {this.store.rotateSession(input.user);await this.output(input.user,{text:'Started a fresh model thread. Your profile, files and history are preserved.',files:[]},false,controller.signal);}
-      else if(command?.startsWith('/cancel ')) {const result=await this.tool({user:input.user,worker:false},'cancel_task',{id:command.slice(8).trim()});await this.output(input.user,{text:result.cancelled?'Task cancelled.':'No active task with that ID.',files:[]},false,controller.signal);}
+      else if(command?.startsWith('/cancel ')) {const result=await this.tool({user:input.user,worker:false},'cancel_task',{id:command.slice(8).trim()});await this.output(input.user,{text:this.cancelText(result),files:[]},false,controller.signal);}
       else {
         const prepared=message.event?{text:message.text,images:[]}:await prepare(message,input.id,this.cfg,this.telegram,controller.signal);
         if(this.cfg.group&&!message.event)prepared.text=`Telegram participant ${input.actor_id} (source author):\n${prepared.text}`;
@@ -478,7 +498,9 @@ export class Service {
       if(controller.signal.aborted) throw new Error('Turn interrupted');
       this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(input.id);
     } catch(e) {
+      try{await settleOwnedProcesses(observationRun);}catch(unknown){e=unknown;}
       outcome=terminalReason(e,controller.signal);if(outcome==='provider_error'&&observationRun.outputStage)outcome='output_error';
+      if(e.executionUnknown){this.store.prepare("UPDATE inputs SET state='cancel_requested' WHERE $scope AND id=?").run(input.id);return;}
       if(this.mainCancelled) {this.store.prepare("UPDATE inputs SET state='cancelled' WHERE $scope AND id=?").run(input.id);return;}
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
@@ -487,8 +509,8 @@ export class Service {
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
-    if(this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().some(job=>this.idleMaintenance(job))) return;
-    const active=[...this.controllers.keys()].filter(k=>k!=='main').length;
+    if(this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state IN ('running','cancel_requested')").all().some(job=>this.idleMaintenance(job))) return;
+    const active=this.activeWorkers;
     let slots=Math.max(0,Math.min(budget,this.cfg.maxWorkers-active));
     if(!slots)return;
     const jobs=this.store.prepare("SELECT * FROM jobs WHERE $scope AND state='queued' ORDER BY created,rowid").iterate();
@@ -517,6 +539,7 @@ export class Service {
     const persistedSettings=JSON.parse(this.store.get(`task-settings:${job.id}`)||'null')||this.effectiveSettings(job.profile);
     const settings=job.profile==='research'?{...persistedSettings,toolScope:'read'}:persistedSettings;
     const observationRun=this.store.observations.run(this.cfg.runBudgets,ctrl,{jobId:job.id,parentRunId:this.store.get(`task-parent-run:${job.id}`)});let outcome='completed';
+    ctrl.signal.addEventListener('abort',()=>{this.store.prepare("UPDATE jobs SET state='cancel_requested' WHERE $scope AND id=? AND state='running'").run(job.id);},{once:true});
     const timer=setTimeout(()=>ctrl.abort(Object.assign(new Error('Execution deadline'),{code:'timeout'})),settings.timeout*1000);
     try {
       if(this.learningJob(job.id)) {await this.runLearningJob(job,ctrl);return;}
@@ -525,17 +548,18 @@ export class Service {
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
       const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
+      const goalOutcome=outcomeRecord(result);
       const scope={sessionId:job.session_id,actorId:job.actor_id};
       observationRun.outputStage=true;
       const files=await this.filePayloads(result.files,job.user,scope,ctrl.signal);
       if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
         try {files.unshift(await this.artifacts.snapshot(job.user,{type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)},scope,ctrl.signal));}
-        catch {observationRun.outputFailed=true;ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
+        catch(error) {if(error.executionUnknown)throw error;observationRun.outputFailed=true;ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
       }
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       this.store.observations.boundary(observationRun);
       this.store.transaction(()=>{
-        this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify(result),job.id);
+        this.store.prepare("UPDATE jobs SET state='completed',result=?,goal_outcome=? WHERE $scope AND id=?").run(JSON.stringify(result),JSON.stringify(goalOutcome),job.id);
         const maintenance=job.prompt.startsWith('[CLEANUP]');
         for(const payload of files) this.store.enqueue(job.user,payload,maintenance||job.prompt.startsWith('[REFLECTION]'),{sessionId:job.session_id,actorId:job.actor_id});
         if(maintenance) {
@@ -555,9 +579,13 @@ export class Service {
         }
       });
     } catch(e) {
+      try{await settleOwnedProcesses(observationRun);}catch(unknown){e=unknown;}
       outcome=terminalReason(e,ctrl.signal);if(outcome==='provider_error'&&observationRun.outputStage)outcome='output_error';
+      if(e.executionUnknown){this.store.prepare("UPDATE jobs SET state='cancel_requested',result=?,goal_outcome=coalesce(goal_outcome,?) WHERE $scope AND id=?").run('Execution exit unknown; reconcile effects and require fresh owner intent.',JSON.stringify(interruptedOutcome()),job.id);return;}
+      const requested=this.store.prepare('SELECT state FROM jobs WHERE $scope AND id=?').get(job.id).state==='cancel_requested';
+      if(requested&&outcome==='cancelled'&&(!this.idleMaintenance(job)||ctrl.ownerCancellation)){this.store.prepare("UPDATE jobs SET state='cancelled',goal_outcome=coalesce(goal_outcome,?) WHERE $scope AND id=?").run(JSON.stringify(interruptedOutcome()),job.id);return;}
       if(this.idleMaintenance(job)&&ctrl.signal.aborted) {
-        this.store.prepare("UPDATE jobs SET state='interrupted',result=? WHERE $scope AND id=? AND state='running'").run('Maintenance interrupted; completed memory batches are retained, unfinished work waits for the next schedule.',job.id);
+        this.store.prepare("UPDATE jobs SET state='interrupted',result=? WHERE $scope AND id=? AND state IN ('running','cancel_requested')").run('Maintenance interrupted; completed memory batches are retained, unfinished work waits for the next schedule.',job.id);
         return;
       }
       const state=this.store.prepare('SELECT state FROM jobs WHERE $scope AND id=?').get(job.id).state;

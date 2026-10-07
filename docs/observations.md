@@ -106,3 +106,8 @@ drop private observations automatically. Returning to this version invalidates
 retained baselines and closes unfinished receipts conservatively. No deployment,
 external exporter, live model/account/Telegram validation or container build is
 claimed by synthetic local tests.
+
+
+## Cancellation settlement
+
+Logical observations finalize after response commit or owned execution settlement. Cancellation and timeout/budget remain distinct. The reviewed fixed `execution_unknown` reason records bounded supervision failure without process identifiers, stderr, arguments or outcome text. Model-reported checkpoints/results live only in private job state, not receipt payloads. Recovered cancellation remains requested/unknown and reserves capacity; see [task outcomes](task-outcomes.md).

@@ -62,7 +62,7 @@ private until explicitly shared.
 
 A worker receives objective, relevant context, model/reasoning profile, workspace ownership, permitted resources, budget/timeout, and observable completion criteria.
 
-The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states. The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
+The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, cancel_requested, completed, failed, cancelled and interrupted states. Completed execution does not establish goal achievement; optional outcomes/checkpoints remain model-reported. See [task outcomes and cancellation settlement](task-outcomes.md). The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
 
 Task creation commits the job, effective settings, source actor, title, acknowledgment
 and admission record in one SQLite transaction. Prefer `create_task.request_key`:

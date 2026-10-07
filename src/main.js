@@ -29,9 +29,9 @@ service.auth=new Auth(cfg,store,{busy:()=>conversations.busy,invalidate:()=>conv
   }});}});
 service.tdlAuth=new TdlAuth(cfg,store,{busy:()=>conversations.busy||service.auth.phase!=='idle'});
 await service.tdlAuth.init();
+let shutdown;
 for(const signal of ['SIGINT','SIGTERM']) process.on(signal,()=>{
-  conversations.stop();service.state='stopping';
-  service.server.close();void service.auth.close();void service.tdlAuth.close();setTimeout(()=>process.exit(0),2000).unref();
+  shutdown??=(async()=>{service.state='stopping';service.server.close();await Promise.allSettled([conversations.stop(),service.auth.close(),service.tdlAuth.close()]);process.exit(0);})();
 });
 if(telegramReady)await service.auth.init();else service.state='setup:telegram';
 if(telegramReady)for(const conversation of conversations.all())conversation.startDelivery();

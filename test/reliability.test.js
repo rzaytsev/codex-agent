@@ -146,3 +146,56 @@ test('/stop aborts final voice generation and revoked capabilities cannot queue 
   assert.deepEqual(await fs.readdir(path.join(dir,'outputs')),[]);
   assert(!store.db.prepare('SELECT payload FROM outbox').all().some(row=>JSON.parse(row.payload).type==='voice'));
 });
+
+test('running cancellation is durable before abort, reserves capacity and suppresses late output',async t=>{
+  const {store,service}=await fixture(t,{MAX_WORKERS:'1'});let release;
+  service.agent.run=async(...args)=>{args[4].addEventListener('abort',()=>assert.equal(store.jobs('123').find(j=>j.id===id).state,'cancel_requested'));await new Promise(r=>{release=r;});return {text:'late result',voice:false,files:[]};};
+  const id=store.job('123','ignored signal');service.workers();await until(()=>release);
+  assert.deepEqual(service.cancelTask('123',id),{cancelled:false,requested:true,state:'cancel_requested'});
+  assert.equal(store.jobs('123')[0].state,'cancel_requested');
+  const next=store.job('123','next');service.workers();assert.equal(store.jobs('123').find(j=>j.id===next).state,'queued');
+  assert.match(service.statusText('123'),/cancel_requested/);release();await Promise.all(service.workerRuns.values());
+  assert.equal(store.jobs('123').find(j=>j.id===id).state,'cancelled');
+  assert(!store.db.prepare('SELECT payload FROM outbox').all().some(row=>JSON.parse(row.payload).text==='late result'));
+  const receipt=store.db.prepare('SELECT terminal FROM run_observations').get();assert.equal(receipt.terminal,'cancelled');
+});
+
+test('blocked goal and checkpoint survive reopen independently of completed execution',async t=>{
+  const {store,service}=await fixture(t);const result={text:'Blocked by missing input',voice:false,files:[],outcome:{status:'blocked',checks:['input checked'],evidence:[],limitations:['missing input']},checkpoint:{plan_version:2,last_verified_milestone:'read supplied material',next_safe_step:'request missing input',unresolved_effects:['remote status unknown']}};
+  service.agent.run=async()=>result;const id=store.job('123','bounded task');service.workers();await until(()=>!service.controllers.has(id));
+  assert.equal(store.jobs('123')[0].state,'completed');
+  const reopened=new Store(store.file);try{reopened.bindConversation('123');const row=reopened.jobs('123')[0];assert.equal(row.goal_outcome.goal,'blocked');assert.equal(row.goal_outcome.host_verified,false);assert.deepEqual(row.goal_outcome.checkpoint,result.checkpoint);reopened.recover();assert.equal(reopened.jobs('123')[0].state,'completed');}finally{reopened.db.close();}
+  assert.match(service.statusText('123'),/model_reported: blocked/);assert.match(service.statusText('123'),/fresh_owner_intent_required/);
+});
+
+test('restart preserves uncertain cancellation without replay',async t=>{
+  const {store,service}=await fixture(t);const id=store.job('123','uncertain external effects');store.db.prepare("UPDATE jobs SET state='cancel_requested' WHERE id=?").run(id);store.recover();
+  assert.equal(store.jobs('123')[0].state,'cancel_requested');service.workers();assert.equal(service.controllers.size,0);assert.match(service.statusText('123'),/unknown/);
+});
+
+test('worker cancellation during final snapshots commits no text, files, history or goal outcome',async t=>{
+ const {store,service}=await fixture(t);let release;
+ service.filePayloads=()=>new Promise(resolve=>{release=()=>resolve([{text:'late prepared file'}]);});
+ const id=store.job('123','prepare files');service.workers();await until(()=>release);service.cancelTask('123',id);assert.equal(store.jobs('123')[0].state,'cancel_requested');release();await Promise.all(service.workerRuns.values());
+ assert.equal(store.jobs('123')[0].state,'cancelled');assert.equal(store.db.prepare('SELECT count(*) n FROM outbox').get().n,0);assert.equal(store.search('123').length,0);assert.equal(store.jobs('123')[0].goal_outcome.goal,'unknown');
+});
+
+test('worker voice cancellation waits for ignored SIGTERM and publishes no partial response',async t=>{
+ const {dir,store,service}=await fixture(t);const original=process.env.PATH,bin=path.join(dir,'bin'),marker=path.join(dir,'pid');await fs.mkdir(bin);t.after(()=>{process.env.PATH=original;});
+ await fs.writeFile(path.join(bin,'espeak-ng'),`#!${process.execPath}\nconst fs=require('node:fs');process.on('SIGTERM',()=>{});fs.writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000);`,{mode:0o700});process.env.PATH=bin+path.delimiter+original;
+ let calls=0;service.agent.run=async()=>{calls++;return {text:'late speech',voice:true,files:[]};};const id=store.job('123','speak');service.workers();await until(()=>fs.access(marker).then(()=>true,()=>false));
+ const pid=Number(await fs.readFile(marker,'utf8'));service.cancelTask('123',id);await new Promise(r=>setTimeout(r,30));assert.equal(store.jobs('123')[0].state,'cancel_requested');assert.doesNotThrow(()=>process.kill(pid,0));
+ await Promise.all(service.workerRuns.values());assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});assert.equal(store.jobs('123')[0].state,'cancelled');assert.equal(calls,1);assert.equal(store.db.prepare('SELECT count(*) n FROM outbox').get().n,0);assert.equal(store.search('123').length,0);
+});
+
+test('shutdown awaits both worker and main promises without late publication',async t=>{
+ const {store,service}=await fixture(t);const releases=[];
+ service.agent.run=async()=>{await new Promise(r=>releases.push(r));return {text:'late',voice:false,files:[]};};
+ const id=store.job('123','work');service.workers();service.ingest(update(41,'main request'));service.activeTurn=service.conversation();await until(()=>releases.length===2);
+ let stopped=false;const stopping=service.stop().then(()=>{stopped=true;});await new Promise(r=>setTimeout(r,10));assert.equal(stopped,false);assert.equal(store.jobs('123')[0].state,'cancel_requested');assert.equal(store.db.prepare('SELECT state FROM inputs WHERE id=41').get().state,'cancel_requested');
+ for(const release of releases)release();await stopping;assert.equal(store.jobs('123')[0].state,'cancelled');assert.equal(store.db.prepare('SELECT state FROM inputs WHERE id=41').get().state,'cancelled');assert.equal(service.controllers.size,0);assert.equal(service.workerRuns.size,0);assert.equal(store.db.prepare('SELECT count(*) n FROM outbox').get().n,0);
+});
+
+test('invalid claimed outcomes fail closed and ordinary replies run one model only',async t=>{
+ const {store,service}=await fixture(t);let calls=0;service.agent.run=async()=>{calls++;return {text:'unverified',voice:false,files:[],outcome:{status:'achieved',checks:[],evidence:[],limitations:[],host_verified:true}};};const id=store.job('123','work');service.workers();await until(()=>!service.controllers.has(id));assert.equal(calls,1);assert.equal(store.jobs('123')[0].state,'failed');assert.equal(store.jobs('123')[0].goal_outcome.goal,'unknown');assert(!store.db.prepare('SELECT payload FROM outbox').all().some(r=>JSON.parse(r.payload).text==='unverified'));
+});

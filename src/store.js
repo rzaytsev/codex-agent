@@ -1,3 +1,4 @@
+import {interruptedOutcome} from './outcomes.js';
 import {historyOrigin} from './owner-evidence.js';
 import { observationsForStore } from './observations.js';
 import { DatabaseSync } from 'node:sqlite';
@@ -43,7 +44,7 @@ export class Store {
     }
     // Nullable intent fields distinguish omitted legacy behavior from explicit
     // policies. No resource cascade: occurrence and owner receipts are audit.
-    for(const [table,fields] of Object.entries({jobs:[['schedule_id','TEXT'],['scheduled_for','INTEGER']],schedules:[['overlap_policy','TEXT'],['misfire_policy','TEXT'],['catch_up_limit','INTEGER'],['misfire_grace_seconds','INTEGER'],['objective','TEXT'],['done_condition','TEXT'],['deadline','INTEGER'],['max_runs','INTEGER'],['runs','INTEGER NOT NULL DEFAULT 0'],['goal_state',"TEXT NOT NULL DEFAULT 'active'"]]})) {
+    for(const [table,fields] of Object.entries({jobs:[['goal_outcome','TEXT'],['schedule_id','TEXT'],['scheduled_for','INTEGER']],schedules:[['overlap_policy','TEXT'],['misfire_policy','TEXT'],['catch_up_limit','INTEGER'],['misfire_grace_seconds','INTEGER'],['objective','TEXT'],['done_condition','TEXT'],['deadline','INTEGER'],['max_runs','INTEGER'],['runs','INTEGER NOT NULL DEFAULT 0'],['goal_state',"TEXT NOT NULL DEFAULT 'active'"]]})) {
       const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(c=>c.name);
       for(const [column,type] of fields)if(!columns.includes(column))this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
     }
@@ -113,7 +114,7 @@ export class Store {
   }
   job(user,prompt,profile='worker') { const id = randomUUID(); this.db.prepare('INSERT INTO jobs(id,user,prompt,profile,state,created,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?)').run(id,user,prompt,profile,'queued',Date.now(),this.conversationId||null,this.get('main-session')||null); return id; }
   schedule(id,user,kind,prompt,cron,timezone,due,key) {this.db.prepare('INSERT OR IGNORE INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,user,kind,prompt,cron,timezone,due,key,this.conversationId||null,this.get('main-session')||null);}
-  jobs(user) { return this.prepare('SELECT id,profile,state,created,result FROM jobs WHERE $scope AND user=? ORDER BY created DESC LIMIT 30').all(user); }
+  jobs(user) { return this.prepare('SELECT id,profile,state,created,result,goal_outcome FROM jobs WHERE $scope AND user=? ORDER BY created DESC LIMIT 30').all(user).map(row=>({...row,goal_outcome:row.goal_outcome?JSON.parse(row.goal_outcome):interruptedOutcome()})); }
   admit(owner,intent,key,payload,create) {
     const conversation=this.conversationId||'',fingerprint=createHash('sha256').update(JSON.stringify(canonical({version:1,owner,conversation,intent,...payload}))).digest('hex');
     return this.transaction(()=>{
@@ -129,8 +130,9 @@ export class Store {
   transaction(fn) { this.db.exec('BEGIN IMMEDIATE'); try { const result = fn(); this.db.exec('COMMIT'); return result; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }
   recover() {
     return this.transaction(() => {
+      for(const j of this.prepare("SELECT id FROM jobs WHERE $scope AND state='cancel_requested'").all())this.prepare("UPDATE jobs SET result=?,goal_outcome=coalesce(goal_outcome,?) WHERE $scope AND id=?").run('Cancellation requested before restart; execution exit unknown. Reconcile effects and require fresh owner intent.',JSON.stringify(interruptedOutcome()),j.id);
       const interrupted = this.prepare("SELECT * FROM jobs WHERE $scope AND state='running'").all();
-      for (const j of interrupted) { this.db.prepare("UPDATE jobs SET state='interrupted' WHERE id=?").run(j.id); if(!this.get(`memory-job:${j.id}`)&&!this.get(`learning-job:${j.id}`))this.enqueue(j.user,{text:`Task ${j.id} was interrupted by a restart. Ask me to review/resume it; external actions will not be retried blindly.`}); }
+      for (const j of interrupted) { this.db.prepare("UPDATE jobs SET state='interrupted' WHERE id=?").run(j.id); if(!this.get(`memory-job:${j.id}`)&&!this.get(`learning-job:${j.id}`))this.enqueue(j.user,{text:`Task ${j.id} was interrupted by a restart. Reconcile effects and give fresh owner intent; external actions will not be retried blindly.`}); }
       const inputs = this.prepare("SELECT * FROM inputs WHERE $scope AND state='processing'").all();
       for (const i of inputs) this.enqueue(i.user,{text:`Message ${i.id} was interrupted by a restart. Please ask me to review it before retrying actions.`});
       this.prepare("UPDATE inputs SET state='interrupted' WHERE $scope AND state='processing'").run();this.prepare("UPDATE outbox SET state='uncertain' WHERE $scope AND state='sending'").run();

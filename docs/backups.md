@@ -143,3 +143,8 @@ rows. Existing workspace/auth coverage is unchanged. Source rollback requires
 stopped delivery and pending/uncertain reconciliation because older source lacks
 exact confirmation and conservative remote recovery. See
 [action-policy migration](action-policy.md#migration-backup-and-rollback).
+
+
+## Task outcome migration and rollback
+
+Task 7 adds nullable jobs.goal_outcome JSON and durable cancel_requested inputs/jobs. Existing admissions, receipts and content remain. Back up matched SQLite/workspace/artifacts/profiles/Codex home with the exact revision before upgrading. Stop and reconcile processes/effects before rollback; restore the matched pre-upgrade backup and source/image together, retain audit evidence, and never replay uncertain work. Source-only downgrade can misinterpret requested cancellation. See [migration and rollback](task-outcomes.md#migration-and-rollback).

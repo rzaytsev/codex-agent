@@ -78,6 +78,8 @@ Settings resolve instance defaults, conversation settings, then task overrides.
 return to their original chat without entering a newly reset session's context.
 Disconnecting blocks execution and delivery, with no redirect to another chat.
 
+Cancellation requested by `/stop` or `/cancel` remains active until owned-process settlement. Recovered unknown cancellations reserve shared capacity; a missing in-memory controller is not exit proof. No late final response is queued. See [task outcomes](task-outcomes.md).
+
 ## Acceptance
 
 Save a fact/preference in the DM and recall it in two groups. Change a rule in one

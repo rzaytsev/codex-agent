@@ -46,6 +46,8 @@ receipts are excluded. Consult [implementation](implementation.md) for limits.
 | Cancellation and queue reliability | Abort media/voice work, revoke turn tools on all exits, atomically queue final responses, avoid quiet-hour and maintenance backlog starvation | [Security and reliability](security-reliability.md); media/lifecycle/reliability tests |
 | Host backups | Separate encrypted repositories, hourly timers, month retention, real mount coverage and online SQLite snapshot | [Backups](backups.md); `test/backups.py`, host backup/restore drill |
 
+| Task goal outcomes and cancellation settlement | Bounded optional model-reported outcomes/checkpoints persisted separately from execution; requested cancellation reserves capacity until owned child exit, unknown recovery never replays; no automatic reviewer/resume | [Task outcomes](task-outcomes.md); actual pinned SDK and owned media process regressions |
+
 ## Deliberate limits and superseded proposals
 
 - Exactly one owner per container. Earlier multiple-owner allowlists and nested
