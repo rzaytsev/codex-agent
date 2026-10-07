@@ -169,18 +169,25 @@ Explicit misfire policies apply when lateness exceeds `misfire_grace_seconds`
 requires its limit and other modes reject that limit. Overlap is about worker
 jobs, so it has no active worker to suppress for plain no-model reminders.
 Misfire and overlap compose: catch-up admissions still respect skip/coalesce.
+Coalesce bounds queued backlog; it does not serialize already active occurrences.
+With free worker slots, more than one occurrence can be running concurrently.
+Use overlap=skip when another active occurrence must prevent admission.
 One tick handles at most 20 due schedules and 100 candidate occurrences each;
 skipped downtime uses one retained half-open range (`scheduled_for` through
 `skipped_before`) rather than enumerating years of missed cron times. Omitted
 misfire remains unchanged even when overlap is explicit. Cron uses pinned
 cron-parser 5.5.0/IANA rules: spring gaps shift the missing local time forward;
 daily repeated-hour expressions fire once at the first matching local hour.
-These cases are tested in America/New_York. Near an offset change, misfire
-coalescing normalizes the latest occurrence through a fixed 48-hour forward
-window (at most 2881 minute candidates for accepted five-field cron), because
-the parser's backward search differs at DST. Ordinary dates use direct lookup;
-neither path iterates the whole downtime. The unique identity always uses the
-resulting UTC instant. Other timezone/historical transitions need acceptance.
+These cases are tested in America/New_York, including weekly/monthly misfires
+long after the transition and two ticks inside a repeated hour. Explicit misfire
+selection and advancement use the same forward boundary, including within grace
+and for skip/catch-up. Reverse lookup seeds a fixed 48-hour window before its
+candidate, rather than before the current tick; forward steps through that
+candidate and its successor repair the parser's reverse DST asymmetry. The work
+is capped at 2881 candidate minutes plus one stopping probe for accepted five-field
+cron, even after years down; the window never grows with downtime. Latest occurrence
+and first future due come from that one forward sequence. The unique identity uses
+the resulting UTC instant. Other timezone/historical transitions need acceptance.
 
 ### Requested goals and bounds
 

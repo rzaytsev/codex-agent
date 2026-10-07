@@ -10,7 +10,9 @@ and operational history are private and are not public runtime evidence.
   Nullable intent columns preserve legacy policies and exact Task1 admission
   fingerprints. Synthetic tests cover slow workers/latest pending promotion,
   cancellation-requested activity, bounded downtime, abrupt process exit/reopen,
-  snapshot audit retention, DST and owner/source/session integrity. Bounds are
+  snapshot audit retention, sparse weekly/monthly DST selection, repeated-hour
+  advancement inside/outside grace, and owner/source/session integrity. Coalesce
+  bounds queued backlog; it does not serialize active workers. Bounds are
   not goal achievement; owner confirmation is an attributed assertion, not
   independently verified semantics. No live model/Telegram/image acceptance.
   See [scheduler contracts](workflow.md#occurrences-overlap-and-downtime).

@@ -10,6 +10,7 @@ import {config} from '../src/config.js';
 import {Store} from '../src/store.js';
 import {Service,nextCron} from '../src/service.js';
 import {validateAction} from '../src/action-registry.js';
+import {occurrencePlan} from '../src/scheduler.js';
 
 async function fixture(t) {
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'schedule-policy-')),file=path.join(dir,'db');
@@ -200,4 +201,52 @@ test('configured maintenance reenable preserves its behavior and exposes an acti
  for(const s of selected)await service.tool({user:'123'},'cancel_schedule',{id:s.id});
  cfg.cleanupCron='0 4 * * *';cfg.reviews.daily='0 20 * * *';cfg.memoryCrons.daily='0 5 * * *';cfg.learningCron='0 6 * * *';await service.init();
  for(const s of selected){const current=store.db.prepare('SELECT * FROM schedules WHERE id=?').get(s.id);assert.equal(current.enabled,1);assert.equal(current.goal_state,'active');}
+});
+
+for(const [label,cron,from,tick,expected] of [
+ ['weekly fall','30 1 * * 0','2026-10-25T08:00:00Z','2026-11-04T12:00:00Z','2026-11-01T05:30:00.000Z'],
+ ['monthly fall','30 1 1 * *','2026-10-01T08:00:00Z','2026-11-10T12:00:00Z','2026-11-01T05:30:00.000Z'],
+ ['weekly spring','30 2 * * 0','2026-02-22T08:00:00Z','2026-03-11T12:00:00Z','2026-03-08T07:30:00.000Z'],
+ ['monthly spring','30 2 8 * *','2026-02-01T08:00:00Z','2026-03-12T12:00:00Z','2026-03-08T07:30:00.000Z']
+])test(`sparse ${label} coalesces the latest forward occurrence outside the tick window`,async t=>{
+ const {store,service}=await fixture(t),timezone='America/New_York',now=Date.parse(tick),due=nextCron(cron,timezone,Date.parse(from));
+ const s=await service.tool({user:'123'},'schedule',request({cron,timezone,misfire:'coalesce',misfire_grace_seconds:0}));store.db.prepare('UPDATE schedules SET due=? WHERE id=?').run(due,s.id);
+ service.schedules(now);assert.equal(new Date(active(store)[0].scheduled_for).toISOString(),expected);
+ assert.equal(store.db.prepare('SELECT due FROM schedules').get().due,nextCron(cron,timezone,Date.parse(expected)));
+ const missed=occurrences(store).find(r=>r.disposition==='skipped_misfire');if(due<Date.parse(expected))assert.equal(missed.skipped_before,Date.parse(expected));
+});
+
+for(const misfire of ['coalesce','skip','catch_up'])for(const grace of [0,86400])test(`explicit ${misfire} grace ${grace} advances past the repeated hour across two service ticks`,async t=>{
+ const {store,service}=await fixture(t),due=Date.parse('2026-11-01T05:30:00Z'),next=Date.parse('2026-11-02T06:30:00Z');
+ const s=await service.tool({user:'123'},'schedule',request({cron:'30 1 * * *',timezone:'America/New_York',misfire,misfire_grace_seconds:grace,...(misfire==='catch_up'?{catch_up_limit:1}:{})}));
+ store.db.prepare('UPDATE schedules SET due=? WHERE id=?').run(due,s.id);
+ for(const tick of ['2026-11-01T06:15:00Z','2026-11-01T06:30:00Z']) {
+  service.schedules(Date.parse(tick));assert.equal(store.db.prepare('SELECT due FROM schedules').get().due,next);
+  const jobs=active(store);assert.equal(jobs.length,misfire==='skip'&&grace===0?0:1);if(jobs.length)assert.equal(jobs[0].scheduled_for,due);
+ }
+ const missed=occurrences(store).find(r=>r.disposition==='skipped_misfire');if(misfire==='skip'&&grace===0)assert.equal(missed.skipped_before,next);
+});
+
+test('omitted misfire retains legacy next-from-now repeated-hour behavior',async t=>{
+ const {store,service}=await fixture(t),s=await service.tool({user:'123'},'schedule',request({cron:'30 1 * * *',timezone:'America/New_York'}));
+ store.db.prepare('UPDATE schedules SET due=? WHERE id=?').run(Date.parse('2026-11-01T05:30:00Z'),s.id);
+ service.schedules(Date.parse('2026-11-01T06:15:00Z'));assert.equal(store.db.prepare('SELECT due FROM schedules').get().due,Date.parse('2026-11-01T06:30:00Z'));
+ service.schedules(Date.parse('2026-11-01T06:30:00Z'));assert.equal(active(store).length,2);
+});
+
+test('explicit DST boundary work stays bounded across years of dense and sparse downtime',()=>{
+ const now=Date.parse('2026-11-01T06:45:00Z'),timezone='America/New_York';
+ for(const cron of ['* * * * *','30 1 * * 0','30 1 1 * *'])for(const misfire_policy of ['skip','coalesce','catch_up']) {
+  const due=nextCron(cron,timezone,Date.parse('2000-01-01T00:00:00Z'));let calls=0;
+  const bounded=(...args)=>{assert.ok(++calls<=2983,'forward cron work must not traverse the outage');return nextCron(...args);};
+  const plan=occurrencePlan({cron,timezone,due,misfire_policy,misfire_grace_seconds:0,catch_up_limit:100},now,bounded);
+  assert.ok(plan.next>now);assert.ok(plan.times.length<=100);
+ }
+});
+
+for(const misfire of ['coalesce','skip','catch_up'])test(`explicit ${misfire} preserves the upcoming shifted spring occurrence across two service ticks`,async t=>{
+ const {store,service}=await fixture(t),due=Date.parse('2026-03-07T07:30:00Z'),shifted=Date.parse('2026-03-08T07:30:00Z'),next=Date.parse('2026-03-09T06:30:00Z');
+ const s=await service.tool({user:'123'},'schedule',request({cron:'30 2 * * *',timezone:'America/New_York',misfire,misfire_grace_seconds:0,...(misfire==='catch_up'?{catch_up_limit:1}:{})}));store.db.prepare('UPDATE schedules SET due=? WHERE id=?').run(due,s.id);
+ service.schedules(Date.parse('2026-03-08T07:15:00Z'));assert.equal(store.db.prepare('SELECT due FROM schedules').get().due,shifted);assert.equal(active(store).length,misfire==='skip'?0:1);
+ service.schedules(shifted);assert.equal(store.db.prepare('SELECT due FROM schedules').get().due,next);assert.equal(active(store).length,misfire==='skip'?1:2);assert.equal(active(store).at(-1).scheduled_for,shifted);
 });

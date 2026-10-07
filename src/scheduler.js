@@ -14,31 +14,32 @@ export function savedScheduleIntent(s) {
 export function goalHash(s) {
  return s.objective&&s.done_condition?createHash('sha256').update(JSON.stringify({version:1,id:s.id,user:s.user,conversation:s.conversation_id,objective:s.objective,done_condition:s.done_condition})).digest('hex'):null;
 }
-function latestOccurrence(s,now,nextCron) {
- const windowStart=now-48*3600000;
- const zone=new Intl.DateTimeFormat('en',{timeZone:s.timezone,timeZoneName:'longOffset'});
- const offset=time=>zone.formatToParts(new Date(time)).find(p=>p.type==='timeZoneName').value;
+function forwardBoundary(s,now,nextCron) {
  const previous=from=>CronExpressionParser.parse(s.cron,{tz:s.timezone,currentDate:new Date(from),strict:false}).prev().getTime();
- if(offset(windowStart)===offset(now))return Math.max(s.due,previous(now+1));
- // cron-parser's reverse DST search differs from forward next(): it can
- // duplicate a daily repeated hour or omit a spring-gap shifted occurrence.
- // Reconstruct only a fixed 48h window using the scheduler's actual forward
- // semantics. Accepted five-field cron has at most one instant per minute.
- let latest=Math.max(s.due,previous(windowStart));
+ const candidate=previous(now+1);
+ // Reverse search can return a repeated-hour instant absent from the forward
+ // sequence, or omit the latest spring-gap occurrence. Anchor before the
+ // candidate, not before now: sparse candidates can be weeks/months old.
+ // Follow actual nextCron semantics through the candidate and its successor;
+ // that successor also repairs a shifted spring occurrence missed by prev().
+ // The 48h candidate window is fixed, never enlarged to cover the outage.
+ let latest=Math.max(s.due,previous(candidate-48*3600000));
  // Include one terminating probe after the 2881 possible minute candidates.
  for(let n=0;n<=2881;n++) {
-  const next=nextCron(s.cron,s.timezone,latest);if(next>now)return latest;
+  const next=nextCron(s.cron,s.timezone,latest);if(next>now)return {latest,next};
   latest=next;
  }
  throw new Error('Schedule DST normalization limit exceeded');
 }
 export function occurrencePlan(s,now,nextCron) {
- const next=s.cron?nextCron(s.cron,s.timezone,now):s.due;
+ // Preserve omitted-policy advancement exactly. Explicit policies select and
+ // advance from one forward boundary, including inside the misfire grace.
+ if(!s.misfire_policy)return {times:[s.due],next:s.cron?nextCron(s.cron,s.timezone,now):s.due};
+ const {latest,next}=s.cron?forwardBoundary(s,now,nextCron):{latest:s.due,next:s.due};
  const late=now-s.due>(s.misfire_grace_seconds??60)*1000;
- if(!s.misfire_policy||!late)return {times:[s.due],next};
+ if(!late)return {times:[s.due],next};
  if(s.misfire_policy==='skip')return {times:[],skipped:s.due,skippedBefore:s.cron?next:s.due+1,next};
  if(s.misfire_policy==='coalesce') {
-  const latest=s.cron?latestOccurrence(s,now,nextCron):s.due;
   return {times:[Math.max(s.due,latest)],...(latest>s.due?{skipped:s.due,skippedBefore:latest}:{}),next};
  }
  const times=[];let cursor=s.due;
