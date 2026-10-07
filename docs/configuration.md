@@ -164,6 +164,19 @@ claim no quota spend. See [observations](observations.md).
 
 ACTION_POLICY accepts only narrowing category overrides; ACTION_APPROVAL_TTL_SECONDS
 defaults to 600 (30–3600). READ_ONLY_WORKSPACE_PROTOTYPE defaults to false and is
-an opt-in empty task cwd, not credential isolation. New research uses read scope
+an opt-in empty task cwd, not credential isolation.
+RESTRICTED_READ_PROFILE_PROTOTYPE defaults to false; literal `true` selects the
+separate restricted read prototype for research, read scope and internal review
+only. It takes precedence over the cwd-only option for those attempts. It grants
+no application inputs, rejects local images and contexts above 100,000 characters
+(per assembled request/developer instructions), and uses a fresh empty cwd and
+thread every attempt. It preserves ordinary main thread/cursor continuity and
+never falls back after failure. No operator read-root setting exists.
+Selected attempts first verify the effective layered shell environment and exact
+assistant-only MCP configuration with a bounded pinned-runtime preflight. Extra
+lower-layer shell set keys or foreign/inherited MCP settings cause a fixed rejection
+before SDK construction; owner config is never edited. Startup is not a pure parser
+and authenticated cloud/model/state behavior requires separate opt-in validation.
+Full isolation is **INCOMPLETE AND BLOCKING**, pending target-image and authenticated compatibility. New research uses read scope
 and cannot request conversation scope. Existing persisted schedules/settings are
 not rewritten. See [action policy](action-policy.md) for all categories and gates.

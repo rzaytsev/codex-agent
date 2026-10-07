@@ -130,14 +130,17 @@ test('legacy research settings narrow at execution without rewriting stored jobs
  assert.equal(scope.toolScope,'read');assert.equal(scope.settings.toolScope,'read');assert.equal(store.get(`task-settings:${id}`),JSON.stringify(legacy));assert.equal(store.jobs('123')[0].state,'completed');
 });
 
-test('actual disposable probe emits no canary content and removes temporary files',async()=>{
+for(const mode of ['builtin','restricted'])test(`actual ${mode} disposable probe emits fixed receipt and removes temporary files`,async()=>{
  const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
  const before=new Set((await fs.readdir(os.tmpdir())).filter(name=>name.startsWith('assistant-isolation-probe-')));
- const {stdout}=await promisify(execFile)(process.execPath,[path.resolve('scripts/isolation-probe.js')]);
+ const {stdout}=await promisify(execFile)(process.execPath,[path.resolve('scripts/isolation-probe.js'),`--mode=${mode}`]);
  const receipt=JSON.parse(stdout);assert.ok(['protected','bypass','unavailable'].includes(receipt.outcome));
  assert.ok(['codex-cli 0.159.2','unavailable'].includes(receipt.version));assert.equal(receipt.liveAuthCompatibility,'unverified');
- assert.doesNotMatch(stdout,/DISPOSABLE_CREDENTIAL_CANARY|DISPOSABLE_FOREIGN_CANARY|synthetic-credential|synthetic-task|assistant-isolation-probe-|auth\.json|state\.sqlite/);
- for(const key of Object.keys(receipt))assert.ok(['schema','version','mode','outcome','reason','exitCode','credentialReadable','foreignTaskReadable','taskWritable','credentialIsolationProved','liveAuthCompatibility'].includes(key));
+ assert.equal(receipt.schema,2);assert.equal(receipt.fullIsolation,'incomplete_blocking');assert.equal(receipt.proofScope,'owned_disposable_fixtures');assert.equal(receipt.mode,mode);
+ assert.doesNotMatch(stdout,/DISPOSABLE|DISPOSABLE_CREDENTIAL_CANARY|DISPOSABLE_FOREIGN_CANARY|synthetic-credential|synthetic-task|assistant-isolation-probe-|auth\.json|state\.sqlite/);
+ for(const key of Object.keys(receipt))assert.ok(['schema','version','mode','outcome','reason','exitCode','credentialReadable','foreignTaskReadable','taskWritable','symlinkWritable','hardlinkWritable','lateForeignWritable','credentialIsolationProved','liveAuthCompatibility','targetLinuxCompatibility','fullIsolation','proofScope','allowedInputReadable','symlinkReadable','hardlinkReadable','lateForeignReadable','serviceReadable','approvalReadable','foreignWritable','credentialWritable','serviceWritable','approvalWritable','childEnvSanitized','foreignArgReadable','processPositiveControl','lateFilePositiveControl'].includes(key));
+ if(receipt.outcome==='protected'){assert.equal(receipt.credentialIsolationProved,true);for(const key of ['allowedInputReadable','childEnvSanitized','processPositiveControl','lateFilePositiveControl'])assert.equal(receipt[key],true);for(const key of ['credentialReadable','foreignTaskReadable','symlinkReadable','hardlinkReadable','lateForeignReadable','serviceReadable','approvalReadable','taskWritable','symlinkWritable','hardlinkWritable','lateForeignWritable','foreignWritable','credentialWritable','serviceWritable','approvalWritable','foreignArgReadable'])assert.equal(receipt[key],false);}
+ if(receipt.outcome==='unavailable')assert.equal(receipt.credentialIsolationProved,false);
  assert.equal((await fs.readdir(os.tmpdir())).filter(name=>name.startsWith('assistant-isolation-probe-')&&!before.has(name)).length,0);
 });
 

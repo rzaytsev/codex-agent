@@ -20,3 +20,23 @@ Implementation references:
 - [faster-whisper](https://github.com/SYSTRAN/faster-whisper): installed 1.2.1, verified by synthetic-audio transcription in the Linux container.
 
 The earlier optional OpenAI speech API research was not adopted: this implementation uses local speech without API-key billing.
+
+
+Restricted-profile prototype source verified against rust-v0.159.2 and installed
+SDK/CLI 0.159.2 (2026-10-06), with synthetic actual-SDK argv and actual-CLI sandbox
+fixtures; no authenticated model execution:
+
+- [Permission profile TOML](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/permissions_toml.rs).
+- [Profile compilation](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/config/permissions.rs).
+- [Legacy syntax and persisted selection precedence](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/config/mod.rs).
+- [Native sandboxed filesystem](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/exec-server/src/sandboxed_file_system.rs) (runtime compatibility unverified).
+- [Seatbelt construction](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt.rs) and [minimal platform defaults](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/sandboxing/src/seatbelt_read_only_platform_defaults.sbpl).
+- [SDK subprocess argv](https://github.com/openai/codex/blob/rust-v0.159.2/sdk/typescript/src/exec.ts).
+
+Effective-config preflight source evidence (same pinned version), validated only
+with anonymous synthetic homes and initialization/config reads:
+
+- [Shell environment construction](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core/src/shell_environment.rs): set at step 4, include-only at step 5, runtime thread ID at step 6.
+- [Shell policy conversion](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/shell_environment_policy.rs) and [MCP normalization](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/config/src/mcp_types.rs).
+- [App-server startup](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/app-server/src/lib.rs), [effective config read](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/app-server/src/config_manager_service.rs) and [CLI startup switches](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/cli/src/main.rs): authentication/cloud loaders, native exporters and local state exist before config RPCs.
+- [Cloud startup auth short-circuit](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/cloud-config/src/service.rs), [model refresh eligibility](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/models-manager/src/manager.rs) and [plugin startup gate](https://github.com/openai/codex/blob/rust-v0.159.2/codex-rs/core-plugins/src/manager.rs). Authenticated startup compatibility remains unverified and blocking.

@@ -56,6 +56,12 @@ They use danger-full-access/never approvals within granted container access.
 Recent history and orchestration queries stay scoped to the source conversation.
 An isolated browser process and output directory belong to each turn.
 
+Selected disabled restricted-read attempts first run a bounded pinned stdio
+app-server effective-config check of the shell environment and exact assistant MCP
+bridge before constructing the SDK. Extra merged configuration fails closed.
+This startup loads authentication/cloud/model machinery and local state; anonymous
+fixtures do not establish authenticated compatibility. See [action policy](action-policy.md).
+
 The model's MCP stdio bridge calls loopback service HTTP with a fresh capability.
 Service-side authorization distinguishes main, worker and curator operations;
 tokens are released after a turn. Returned files are validated against workspace

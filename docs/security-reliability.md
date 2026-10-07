@@ -131,3 +131,21 @@ but the actual macOS canary allowed credential and foreign-task reads. See
 [action policy](action-policy.md) for the full matrix, probe receipt and bypass limits.
 Compatible credential/foreign-task isolation remains incomplete and blocking;
 Stage A service policy and cwd prototype do not satisfy that requirement.
+
+
+The separate disabled restricted-read profile narrows the local disposable fixture
+paths with no runtime application-input grant, but keeps a privileged authenticated
+model parent and scoped service broker. macOS :minimal permits system content and
+IPC; ordinary main/worker grants and same-grant outside writers remain. This is
+research/read/internal review only. Target Linux, native filesystem/process/tool/
+skill and authenticated MCP compatibility gates remain **INCOMPLETE AND BLOCKING**.
+See [restricted profile limits](action-policy.md#disabled-restricted-read-profile-prototype).
+
+The selected prototype checks effective shell/MCP configuration before constructing
+the SDK; empty-table overrides cannot clear foreign lower configuration. The bounded
+pinned config/read preflight rejects extra shell set/assistant keys and foreign MCP,
+discards diagnostics and kills/awaits its owned child. Analytics/native exporters/
+integrations/remote control are disabled before startup. Startup still loads auth,
+cloud/model machinery and local state; anonymous fixtures cannot approve existing
+ChatGPT compatibility. Configuration races and same-grant outside writers remain
+limits, and the option stays disabled with full isolation blocking.

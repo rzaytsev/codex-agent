@@ -311,3 +311,31 @@ raw user-role history, model origin, hidden forwards, bots and groups are insuff
 Preserve existing active data and retain receipts/revisions after rollback. Host APIs
 are not a same-grant arbitrary-code isolation boundary; credential isolation remains
 incomplete and blocking.
+
+
+## Restricted-read research only (2026-10-06)
+
+Use a separate disabled option for research/read/internal review, with fresh threads
+and empty per-attempt cwd. Pinned SDK sandboxMode emits a legacy override, and
+persisted profile IDs precede the configured default: omit that flag and never
+resume selected attempts or change ordinary main thread/cursor. Generate a fresh
+application-owned profile name to avoid merging lower same-name config entries.
+Grant minimal runtime roots and exact Node/platform dependencies only; application
+file input stays with bounded host context and read broker. Exact synthetic input
+grants exist only in the disposable actual-CLI positive control. Reject unsafe
+links; no operator root list or automatic broad fallback. Fixed reviewed metadata
+joins the registry hash, excluding paths/config/env/selection IDs. Local macOS
+fixture protection cannot establish Linux/auth/runtime compatibility or mutual
+ordinary worker isolation. Full isolation remains **INCOMPLETE AND BLOCKING**.
+See [action policy](action-policy.md#disabled-restricted-read-profile-prototype).
+
+Lower configuration layers recursively merge shell set and MCP tables. A selected
+restricted attempt therefore verifies effective configuration through bounded
+pinned stdio app-server config/read before SDK construction, rather than trusting
+empty-table syntax. Reject extra shell keys, foreign servers and inherited assistant
+settings; never rewrite owner configuration. Stable metadata describes the checked
+contract without hashing raw config/secrets. Disable startup telemetry/integrations
+first, discard diagnostics and await owned child cleanup. This runtime startup can
+load auth/cloud/model configuration and create state: anonymous fixtures cannot
+approve authenticated compatibility. Configuration races, target Linux acceptance
+and full ordinary-worker isolation remain blocking; keep the option disabled.
