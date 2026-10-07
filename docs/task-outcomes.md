@@ -7,7 +7,11 @@ execution and committed its response, but its goal can be `achieved`, `partial`,
 `last_verified_milestone`, `next_safe_step` and `unresolved_effects`. Each list is
 bounded to 16 strings of at most 2,000 characters; checkpoint version is an integer
 from 1 through 1,000,000. Unknown fields and invalid types fail closed. Null/absent
-fields support legacy replies. These records contain private task content, never
+fields support legacy replies. The provider response schema requires both nullable
+fields; new model replies use `null` when no metadata is reported. This satisfies
+the [Structured Outputs requirement](https://platform.openai.com/docs/guides/structured-outputs#all-fields-must-be-required)
+that every property be required, while retained legacy results may omit them.
+These records contain private task content, never
 telemetry payloads.
 
 The service validates shape, then atomically stores the model-reported outcome and
