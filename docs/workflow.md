@@ -64,6 +64,19 @@ A worker receives objective, relevant context, model/reasoning profile, workspac
 
 The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, completed, failed, cancelled and interrupted states. The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
 
+Task creation commits the job, effective settings, source actor, title, acknowledgment
+and admission record in one SQLite transaction. Prefer `create_task.request_key`:
+generate a stable UUID for one intended task and reuse it with the same payload
+when a response is lost. Keys are scoped to owner, conversation and task intent,
+not the current model session. A matching retry returns the original job ID without
+requeueing execution or another start acknowledgment. Changed prompt, profile,
+effective settings, permission scope, actor, title or acknowledgment returns an
+admission conflict; reconcile the original before deliberately starting new work.
+Whitespace at string edges and settings field order are normalized. Requests
+without a key remain compatible and atomic, but each call creates a new job;
+response-loss retries cannot be deduplicated. Do not retry uncertain external
+worker actions merely because task admission is idempotent.
+
 Use independent workers for independently executable work. Avoid concurrent writes to the same files. Shared directories need ownership or serialized updates. Workers cannot recursively create jobs through service tools.
 
 Workers write concise, self-contained answers in the request language. The
@@ -109,6 +122,24 @@ user-facing reflections. See [memory.md](memory.md) for routing and schedules.
 Keep original inputs under inbox/ with stable references. Organize related work under projects/ and task directories. Index origin, received time, user message ID, extracted content, and associated project so later references can be resolved.
 
 The assistant can create scripts to fulfill a task. Validate scripts before recurring use. Create skills when a successful procedure is reusable; retain the procedure, dependencies, examples, and validation notes. Generated skills become usable only after explicit runtime discovery/reload or a fresh session as required by that runtime.
+
+## Schedule admission and changes
+
+The `schedule.key` is an immutable creation-request key, scoped to owner and
+conversation separately from task keys. Same key and normalized kind, prompt,
+time, timezone, actor and parent permission scope return the original admission
+response. Changed payloads return an admission conflict instead of silently
+returning a different existing schedule. A deliberate change uses
+`cancel_schedule` on the old ID, then `schedule` with a new key; these are separate
+operations, so verify cancellation before replacement. Cancellation and runtime
+cron advancement are never undone by an admission retry. The saved response's
+`due` and `enabled` describe original admission; use `list_schedules` for current
+enabled schedules. One-shot retries remain valid after their original due time.
+Cron whitespace and equivalent offset timestamps are normalized; timezone names
+remain explicit strings and schedule keys retain their opaque bytes for legacy
+compatibility. Previously saved schedules acquire an admission record
+only on a matching retry. A changed legacy payload conflicts, preserving its row.
+Configured maintenance schedules retain their existing reconciliation behavior.
 
 ## Scheduling and delivery
 

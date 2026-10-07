@@ -65,6 +65,14 @@ does not block requested replies. Ineligible maintenance jobs do not consume wor
 slots. Eligible jobs retain creation order; maintenance remains idle-only and yields
 to intake. Long command responses use the same Telegram text chunking as other output.
 
+Task and schedule admission use one transaction with a durable request-key ledger.
+Matching retries return original admission results; changed normalized execution
+or authorization-related fields conflict. Keyless task callers remain compatible
+with weaker retry guarantees. Worker execution and Telegram sends retain their
+existing interruption/uncertainty contracts. See [workflow](workflow.md) for key
+semantics and [backups](backups.md#task-and-schedule-admission-migration) for
+additive migration, audit retention and rollback.
+
 ## Scheduling and storage
 
 All configured cron expressions are validated at startup as five-field expressions

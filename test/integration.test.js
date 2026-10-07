@@ -60,9 +60,17 @@ test('real MCP stdio handshake routes tools with user capability and worker rest
     assert.equal((await client.callTool({name:'memory_forget',arguments:{key:memoryArgs.key}})).isError,false);
     assert.equal((await client.callTool({name:'memory_save',arguments:{...memoryArgs,restore:true}})).isError,true);
     assert.equal(service.memory.get(memoryArgs.key),null);
-    const created=await client.callTool({name:'create_task',arguments:{prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.'}});
+    assert.ok(tools.tools.find(tool=>tool.name==='create_task').inputSchema.properties.request_key);
+    const taskArgs={prompt:'test objective',profile:'research',acknowledgment:'Хорошо, ищу рестораны.',request_key:'synthetic-mcp-admission'};
+    const created=await client.callTool({name:'create_task',arguments:taskArgs});
     assert.equal(created.isError,false);assert.equal(store.jobs('123')[0].profile,'research');
     assert.equal(store.get(`task-acknowledgment:${store.jobs('123')[0].id}`),'Хорошо, ищу рестораны.');
+    const retried=await client.callTool({name:'create_task',arguments:taskArgs});assert.deepEqual(retried,created);assert.equal(store.jobs('123').length,1);
+    const conflict=await client.callTool({name:'create_task',arguments:{...taskArgs,prompt:'Different objective'}});assert.equal(conflict.isError,true);assert.match(conflict.content[0].text,/Admission conflict/);
+    const scheduleArgs={kind:'reminder',prompt:'Synthetic scheduled reminder',due:new Date(Date.now()+60000).toISOString(),key:'synthetic-mcp-admission'};
+    const scheduled=await client.callTool({name:'schedule',arguments:scheduleArgs});assert.equal(scheduled.isError,false);
+    assert.deepEqual(await client.callTool({name:'schedule',arguments:scheduleArgs}),scheduled);
+    assert.equal((await client.callTool({name:'schedule',arguments:{...scheduleArgs,prompt:'Different reminder'}})).isError,true);
     const sent=await client.callTool({name:'mail_send',arguments:{id:'mcp-message-test',to:'beta',kind:'message',text:'Hello from the tool'}});
     assert.equal(sent.isError,false);await service.mail.tick(true);
     assert.equal(broker.request('beta','inbox').messages[0].text,'Hello from the tool');
@@ -87,9 +95,9 @@ test('actual Codex SDK subprocess accepts structured events, persists thread ID 
 test('SQLite backup restores history, jobs and pending reminders',async t=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-backup-'));t.after(()=>fs.rm(dir,{recursive:true,force:true}));
  const source=path.join(dir,'state.sqlite');const target=path.join(dir,'snapshot.sqlite');const store=new Store(source);
- store.history('123','user','remember me');const job=store.job('123','unfinished');store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,timezone,due) VALUES (?,?,?,?,?,?)').run('r','123','reminder','hello','Europe/Madrid',Date.now()+60000);
+ store.history('123','user','remember me');const job=store.admit('123','task','synthetic-backup-key',{prompt:'unfinished'},()=>({id:store.job('123','unfinished')})).id;store.db.prepare('INSERT INTO schedules(id,user,kind,prompt,timezone,due) VALUES (?,?,?,?,?,?)').run('r','123','reminder','hello','Europe/Madrid',Date.now()+60000);
  await exec('node',[path.resolve('scripts/backup.js'),source,target]);store.db.close();
- const restored=new Store(target);assert.equal(restored.search('123')[0].text,'remember me');assert.equal(restored.jobs('123')[0].id,job);assert.equal(restored.db.prepare('SELECT count(*) AS n FROM schedules').get().n,1);restored.db.close();
+ const restored=new Store(target);assert.equal(restored.search('123')[0].text,'remember me');assert.equal(restored.jobs('123')[0].id,job);assert.equal(restored.db.prepare('SELECT count(*) AS n FROM schedules').get().n,1);assert.deepEqual(restored.admit('123','task','synthetic-backup-key',{prompt:'unfinished'},()=>{throw new Error('Must retain admission');}),{id:job});restored.db.close();
 });
 test('unconfigured main process starts in setup mode with an empty database',async t=>{
  const {spawn}=await import('node:child_process');

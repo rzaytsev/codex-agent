@@ -48,6 +48,11 @@ owned outputs and observable success criteria. For example: summarize a supplied
 document, cite its pages, save the requested output under the assigned task directory,
 and report any unreadable pages. Avoid passing the entire unrelated conversation.
 
+Main role instructions and the MCP schema prefer a stable `request_key` for each
+intended task, reused unchanged after a lost response. Key conflicts require
+reconciliation; keyless legacy calls can duplicate work on retry. See
+[workflow](workflow.md) for atomic admission and schedule change semantics.
+
 The service owns the start acknowledgment and final worker delivery. The main
 returns promptly, without polling or repeating either message. Workers finish
 their assigned work through verification, preserve other tasks' files, and return
