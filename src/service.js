@@ -21,6 +21,7 @@ import { Profiles } from './profiles.js';
 import {budgetForSignal,bindBudgetSignal,terminalReason,BudgetError} from './observations.js';
 import { Artifacts } from './artifacts.js';
 import { AdmissionConflict } from './store.js';
+import {scheduleIntent,savedScheduleIntent,goalHash,occurrencePlan,listSchedule} from './scheduler.js';
 function requestKey(key,normalize=true) {
   if(typeof key!=='string'||!key.trim()||key.length>200)throw new Error('Invalid request key');
   return normalize?key.trim():key;
@@ -90,7 +91,7 @@ export class Service {
     } else if(!cleanup) {
       this.store.schedule(randomUUID(),owner,'cleanup','workspace cleanup',this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),'maintenance:cleanup');
     } else if(cleanup.user!==owner||cleanup.cron!==this.cfg.cleanupCron||cleanup.timezone!==this.cfg.timezone||this.store.get('cleanup-enabled')==='false') {
-      this.store.prepare('UPDATE schedules SET user=?,cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(owner,this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),cleanup.id);
+      this.store.prepare("UPDATE schedules SET user=?,cron=?,timezone=?,due=?,enabled=1,goal_state='active' WHERE $scope AND id=?").run(owner,this.cfg.cleanupCron,this.cfg.timezone,nextCron(this.cfg.cleanupCron,this.cfg.timezone),cleanup.id);
     }
     this.store.set('cleanup-enabled',this.cfg.cleanupEnabled);
     if(owner)this.learningSchedules(owner);
@@ -102,7 +103,7 @@ export class Service {
       const key=`review:${user}:${period}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
       if(!this.cfg.proactive) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);continue;}
       if(!old)this.store.schedule(randomUUID(),user,'review',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
-      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||reenabled)this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
+      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||reenabled)this.store.prepare("UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1,goal_state='active' WHERE $scope AND id=?").run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
     }
     this.store.set(`proactive-enabled:${user}`,this.cfg.proactive);
   }
@@ -111,7 +112,7 @@ export class Service {
       const key=`memory:${user}:${period}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
       if(!this.cfg.memoryEnabled) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);continue;}
       if(!old)this.store.schedule(randomUUID(),user,'memory',period,cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),key);
-      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||this.store.get(`memory-enabled:${user}`)==='false')this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
+      else if(old.cron!==cron||old.timezone!==this.cfg.timezone||this.store.get(`memory-enabled:${user}`)==='false')this.store.prepare("UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1,goal_state='active' WHERE $scope AND id=?").run(cron,this.cfg.timezone,nextCron(cron,this.cfg.timezone),old.id);
     }
     this.store.set(`memory-enabled:${user}`,this.cfg.memoryEnabled);
   }
@@ -119,7 +120,7 @@ export class Service {
     const key=`learning:${user}`,old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=?').get(key);
     if(!this.cfg.learningEnabled) {if(old)this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(old.id);}
     else if(!old)this.store.schedule(randomUUID(),user,'learning','session and outcome learning',this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),key);
-    else if(old.cron!==this.cfg.learningCron||old.timezone!==this.cfg.timezone||this.store.get(`learning-enabled:${user}`)==='false')this.store.prepare('UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1 WHERE $scope AND id=?').run(this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),old.id);
+    else if(old.cron!==this.cfg.learningCron||old.timezone!==this.cfg.timezone||this.store.get(`learning-enabled:${user}`)==='false')this.store.prepare("UPDATE schedules SET cron=?,timezone=?,due=?,enabled=1,goal_state='active' WHERE $scope AND id=?").run(this.cfg.learningCron,this.cfg.timezone,nextCron(this.cfg.learningCron,this.cfg.timezone),old.id);
     this.store.set(`learning-enabled:${user}`,this.cfg.learningEnabled);
   }
   learningJob(id) {return JSON.parse(this.store.get(`learning-job:${id}`)||'null');}
@@ -237,22 +238,28 @@ export class Service {
         const request=requestKey(args.key,false),key=`${this.store.get('conversation-id')}:${user}:${request}`;
         if(Boolean(args.cron)===Boolean(args.due)||args.cron&&typeof args.cron!=='string'||args.due&&(typeof args.due!=='string'||!/(Z|[+-]\d\d:\d\d)$/.test(args.due)||!Number.isFinite(Date.parse(args.due)))||args.timezone!==undefined&&(typeof args.timezone!=='string'||!args.timezone.trim()))throw new Error('Invalid schedule timing');
         const payload={user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',kind:args.kind,prompt:args.prompt.trim(),cron:args.cron?.trim().replace(/\s+/g,' ')||null,timezone:args.timezone?.trim()||this.cfg.timezone,due:args.due?Date.parse(args.due):null};
+        // Keep Task1 version1 hashes byte compatible for omitted intent. Zod
+        // must not inject policy defaults before this canonical payload.
+        const intent=scheduleIntent(args);Object.assign(payload,intent);
         return this.store.admit(this.cfg.owner||user,'schedule',request,payload,()=>{
           // Older rows have no fingerprint. Adopt only an exact matching intent;
           // recurring due advances at runtime and is not its creation intent.
           const old=this.store.prepare('SELECT * FROM schedules WHERE $scope AND unique_key=? AND user=?').get(key,user);
           if(old) {
             if(old.kind!==payload.kind||old.prompt.trim()!==payload.prompt||(old.cron?.trim().replace(/\s+/g,' ')||null)!==payload.cron||old.timezone!==payload.timezone||!payload.cron&&old.due!==payload.due||(old.actor_id||user)!==payload.actor||payload.parentScope!=='conversation')throw new AdmissionConflict();
+            if(JSON.stringify(savedScheduleIntent(old))!==JSON.stringify(intent))throw new AdmissionConflict();
             return {id:old.id,due:old.due,timezone:old.timezone,enabled:old.enabled};
           }
           const due=dueTime({...args,cron:payload.cron,due:args.due,timezone:payload.timezone},this.cfg.timezone),id=randomUUID();
+          if(intent.deadline!==undefined&&intent.deadline<=Date.now())throw new Error('Deadline must be in the future');
           this.store.schedule(id,user,payload.kind,payload.prompt,payload.cron,payload.timezone,due,key);
           this.store.prepare('UPDATE schedules SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
+          this.store.prepare('UPDATE schedules SET overlap_policy=?,misfire_policy=?,catch_up_limit=?,misfire_grace_seconds=?,objective=?,done_condition=?,deadline=?,max_runs=? WHERE $scope AND id=?').run(intent.overlap??null,intent.misfire??null,intent.catch_up_limit??null,intent.misfire_grace_seconds??null,intent.objective??null,intent.done_condition??null,intent.deadline??null,intent.max_runs??null,id);
           return {id,due,timezone:payload.timezone,enabled:1};
         });
       }
-      case 'list_schedules': return this.store.prepare('SELECT id,kind,prompt,cron,timezone,due FROM schedules WHERE $scope AND user=? AND enabled=1').all(user);
-      case 'cancel_schedule': return {cancelled:this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)').run(args.id,user,Number(!this.cfg.group||cap.actorId===this.cfg.owner),cap.actorId||user).changes>0};
+      case 'list_schedules': return this.store.prepare('SELECT * FROM schedules WHERE $scope AND user=? ORDER BY due,id').all(user).map(s=>listSchedule(s,this.store));
+      case 'cancel_schedule': return {cancelled:this.store.prepare("UPDATE schedules SET enabled=0,goal_state=CASE WHEN goal_state='completed' THEN goal_state ELSE 'cancelled' END WHERE $scope AND id=? AND user=? AND (? OR actor_id=?)").run(args.id,user,Number(!this.cfg.group||cap.actorId===this.cfg.owner),cap.actorId||user).changes>0};
       default: throw new Error('Unknown tool');
     }
   }
@@ -284,7 +291,7 @@ export class Service {
       if(!added) return false;
       this.store.prepare('UPDATE inputs SET actor_id=? WHERE $scope AND id=?').run(String(message.from.id),update.update_id);
       const command=message.text?.trim();
-      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve|learning_outcome)(?:\s|$)/.test(command||'')) {
+      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve|learning_outcome|schedule_done)(?:\s|$)/.test(command||'')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);this.store.enqueue(user,{text:'This command is available only to the owner in the private chat.'});return true;
       }
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
@@ -296,6 +303,33 @@ export class Service {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         let text='Approval denied. Send the exact /approve ID HASH directly in the owner private chat before expiry.';
         try {const parts=command.split(/\s+/);if(parts.length!==3||!this.approvals)throw new Error('Invalid approval');const result=this.approvals.approve(message,parts[1],parts[2]);text=`Mail action ${result.id}: ${result.state}. Approval permits only the prepared payload; commit still queues delivery.`;}catch {}
+        this.store.enqueue(user,{text});
+      } else if(command==='/schedule_done'||command?.startsWith('/schedule_done ')) {
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
+        let text='Goal confirmation denied. Send /schedule_done SCHEDULE_ID COMPLETED_JOB_ID GOAL_HASH directly in the owner private chat.';
+        // ingest already owns the transaction; keep the caught denial from
+        // committing a partial receipt/history or schedule settlement.
+        this.store.db.exec('SAVEPOINT schedule_goal_confirmation');
+        try {
+          if(!directOwner(message,this.cfg)||!message.text||message.caption)throw new Error('Direct owner required');
+          const parts=command.split(/\s+/);if(parts.length!==4)throw new Error('Invalid goal confirmation');
+          // DM owner may confirm a goal originating in a linked group. Route,
+          // actor and session integrity come from persisted admission, never text.
+          const s=this.store.db.prepare('SELECT * FROM schedules WHERE id=? AND user=? AND actor_id=?').get(parts[1],this.cfg.owner,this.cfg.owner);
+          const job=this.store.db.prepare("SELECT * FROM jobs WHERE id=? AND schedule_id=? AND user=? AND actor_id=? AND state='completed'").get(parts[2],s?.id||'',this.cfg.owner,this.cfg.owner);
+          const occurrence=job&&this.store.db.prepare('SELECT * FROM schedule_occurrences WHERE schedule_id=? AND scheduled_for=? AND job_id=?').get(s.id,job.scheduled_for,job.id);
+          if(!s||!job||!occurrence||occurrence.disposition!=='admitted'||!goalHash(s)||goalHash(s)!==parts[3]||job.conversation_id!==s.conversation_id||occurrence.conversation_id!==job.conversation_id||occurrence.session_id!==job.session_id||occurrence.actor_id!==job.actor_id)throw new Error('Goal binding invalid');
+          const prior=this.store.db.prepare('SELECT * FROM schedule_goal_receipts WHERE schedule_id=?').get(s.id);
+          if(prior&&(prior.job_id!==job.id||prior.goal_hash!==parts[3]))throw new Error('Goal receipt conflict');
+          if(!prior) {
+            const evidence=this.store.ownerHistory(this.cfg,message,command);
+            this.store.db.prepare("INSERT INTO schedule_goal_receipts VALUES (?,?,?,?,?,?,?,?)").run(s.id,job.id,parts[3],this.cfg.owner,this.store.get('conversation-id'),evidence,'explicit_owner',Date.now());
+          }
+          this.store.db.prepare("UPDATE schedules SET enabled=0,goal_state='completed' WHERE id=?").run(s.id);
+          this.store.db.prepare("UPDATE jobs SET state='cancelled' WHERE schedule_id=? AND state='queued'").run(s.id);
+          text='Schedule goal confirmed by the owner; further occurrences stopped.';
+          this.store.db.exec('RELEASE schedule_goal_confirmation');
+        } catch {this.store.db.exec('ROLLBACK TO schedule_goal_confirmation; RELEASE schedule_goal_confirmation');}
         this.store.enqueue(user,{text});
       } else if(command==='/learning_outcome'||command?.startsWith('/learning_outcome ')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
@@ -459,6 +493,15 @@ export class Service {
     if(!slots)return;
     const jobs=this.store.prepare("SELECT * FROM jobs WHERE $scope AND state='queued' ORDER BY created,rowid").iterate();
     for(const job of jobs) {
+      if(job.schedule_id) {
+        const schedule=this.store.prepare('SELECT deadline,goal_state FROM schedules WHERE $scope AND id=?').get(job.schedule_id);
+        if(schedule&&(schedule.goal_state==='completed'||schedule.deadline!==null&&Date.now()>=schedule.deadline)) {
+          this.store.transaction(()=>{
+            this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND schedule_id=? AND state='queued'").run(job.schedule_id);
+            this.store.prepare("UPDATE schedules SET enabled=0,goal_state=? WHERE $scope AND id=?").run(schedule.goal_state==='completed'?'completed':'deadline_reached',job.schedule_id);
+          });continue;
+        }
+      }
       if(this.idleMaintenance(job)&&!allowMaintenance)continue;
       if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='pending' LIMIT 1").get())) continue;
       if(!this.cfg.allowed.has(job.user)||this.cfg.group&&job.actor_id!==this.cfg.owner||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=?").run(job.id);continue;}
@@ -559,23 +602,66 @@ export class Service {
     this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify({processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('learning-export-dirty')!=='1'}),job.id);
   }
   schedules(now=Date.now()) {
-    const due=this.store.prepare('SELECT * FROM schedules WHERE $scope AND enabled=1 AND due<=? ORDER BY due LIMIT 20').all(now);
-    for(const s of due) this.store.transaction(()=>{
+    if(this.cfg.group?.state!=='active'&&this.cfg.group)return;
+    const eligible="(enabled=1 AND due<=? OR deadline<=? AND goal_state NOT IN ('completed','cancelled','deadline_reached'))";
+    const due=this.store.prepare(`SELECT * FROM schedules WHERE $scope AND ${eligible} ORDER BY due LIMIT 20`).all(now,now);
+    for(const row of due) this.store.transaction(()=>{
+      // Re-read after acquiring the writer lock; another scheduler may have
+      // committed the selected occurrence before this transaction started.
+      const s=this.store.prepare(`SELECT * FROM schedules WHERE $scope AND id=? AND ${eligible}`).get(row.id,now,now);if(!s)return;
       if(!this.cfg.allowed.has(s.user)||(s.kind==='review'&&!this.cfg.proactive)||(s.kind==='cleanup'&&!this.cfg.cleanupEnabled)||(s.kind==='memory'&&!this.cfg.memoryEnabled)||(s.kind==='learning'&&!this.cfg.learningEnabled)) {this.store.prepare('UPDATE schedules SET enabled=0 WHERE $scope AND id=?').run(s.id);return;}
-      if(s.kind==='reminder') for(const part of chunks(s.prompt)) this.store.enqueue(s.user,{text:part});
-      else if(s.kind==='task') {const id=this.store.job(s.user,s.prompt,'worker');this.store.set(`task-settings:${id}`,JSON.stringify(this.effectiveSettings('worker')));this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(s.actor_id||s.user,id);}
+      if(s.goal_state==='completed'||s.deadline!==null&&now>=s.deadline||s.max_runs!==null&&s.runs>=s.max_runs) {
+        const state=s.goal_state==='completed'?'completed':s.deadline!==null&&now>=s.deadline?'deadline_reached':'max_runs_reached';
+        this.store.prepare('UPDATE schedules SET enabled=0,goal_state=? WHERE $scope AND id=?').run(state,s.id);
+        if(state!=='max_runs_reached')this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND schedule_id=? AND state='queued'").run(s.id);
+        return;
+      }
+      const plan=occurrencePlan(s,now,nextCron);
+      if(plan.skipped!==undefined)this.recordOccurrence(s,plan.skipped,'skipped_misfire',null,now,plan.skippedBefore);
+      for(const scheduledFor of plan.times) {
+        if(s.max_runs!==null&&s.runs>=s.max_runs)break;
+        if(this.store.db.prepare('SELECT 1 FROM schedule_occurrences WHERE schedule_id=? AND scheduled_for=?').get(s.id,scheduledFor))continue;
+        if(this.scheduleOccurrence(s,scheduledFor,now))s.runs++;
+      }
+      const exhausted=s.max_runs!==null&&s.runs>=s.max_runs;
+      this.store.prepare('UPDATE schedules SET enabled=?,due=?,runs=?,goal_state=? WHERE $scope AND id=?').run(Number(Boolean(s.cron)&&!exhausted),plan.next,s.runs,exhausted?'max_runs_reached':!s.cron?'finished':'active',s.id);
+    });
+  }
+  recordOccurrence(s,scheduledFor,disposition,jobId,now,skippedBefore=null) {
+    const job=jobId?this.store.prepare('SELECT * FROM jobs WHERE $scope AND id=?').get(jobId):null;
+    this.store.db.prepare('INSERT OR IGNORE INTO schedule_occurrences VALUES (?,?,?,?,?,?,?,?,?)').run(s.id,scheduledFor,disposition,jobId,now,s.conversation_id,job?.session_id??this.store.get('main-session'),s.actor_id||s.user,skippedBefore);
+  }
+  scheduleOccurrence(s,scheduledFor,now) {
+      if(s.overlap_policy==='skip'&&this.store.prepare("SELECT id FROM jobs WHERE $scope AND schedule_id=? AND state IN ('queued','running','cancel_requested') LIMIT 1").get(s.id)) {
+        this.recordOccurrence(s,scheduledFor,'skipped_overlap',null,now);return false;
+      }
+      if(s.overlap_policy==='coalesce') {
+        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND schedule_id=? AND state='queued'").all(s.id);
+        for(const previous of pending) {
+          this.store.prepare("UPDATE jobs SET state='superseded' WHERE $scope AND id=? AND state='queued'").run(previous.id);
+          this.store.db.prepare("UPDATE schedule_occurrences SET disposition='coalesced' WHERE schedule_id=? AND job_id=?").run(s.id,previous.id);
+        }
+      }
+      let jobId=null;
+      const job=(prompt,profile)=>{
+        jobId=this.store.job(s.user,prompt,profile);
+        this.store.prepare('UPDATE jobs SET actor_id=?,schedule_id=?,scheduled_for=? WHERE $scope AND id=?').run(s.actor_id||s.user,s.id,scheduledFor,jobId);
+        return jobId;
+      };
+      if(s.kind==='reminder') for(const part of chunks(s.prompt)) this.store.enqueue(s.user,{text:part},false,{actorId:s.actor_id||s.user});
+      else if(s.kind==='task') {const prompt=s.prompt+(s.objective?`\nRequested objective: ${s.objective}`:'')+(s.done_condition?`\nRequested done condition: ${s.done_condition}. Report evidence; only the authenticated owner can confirm schedule goal completion.`:'');const id=job(prompt,'worker');this.store.set(`task-settings:${id}`,JSON.stringify(this.effectiveSettings('worker')));}
       else if(s.kind==='cleanup') {
-        if(!this.store.prepare("SELECT id FROM jobs WHERE $scope AND state IN ('queued','running') AND prompt LIKE '[CLEANUP]%' LIMIT 1").get()) this.store.job(s.user,this.cleanupPrompt,'worker');
+        if(!this.store.prepare("SELECT id FROM jobs WHERE $scope AND state IN ('queued','running','cancel_requested') AND prompt LIKE '[CLEANUP]%' LIMIT 1").get()) job(this.cleanupPrompt,'worker');
       }
       else if(s.kind==='learning') {
-        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running')").all(s.user).some(job=>this.learningJob(job.id));
+        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running','cancel_requested')").all(s.user).some(job=>this.learningJob(job.id));
         const target=this.learning.target(),after=Number(this.store.get(`learning-cursor:${s.user}`)||0);
-        if(!pending&&target>after){const id=this.store.job(s.user,'[LEARNING] Review new sessions and outcomes','research');this.store.set(`learning-job:${id}`,JSON.stringify({target}));}
+        if(!pending&&target>after){const id=job('[LEARNING] Review new sessions and outcomes','research');this.store.set(`learning-job:${id}`,JSON.stringify({target}));}
       }
       else if(s.kind==='memory') {
-        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running')").all(s.user).some(job=>this.memoryJob(job.id)?.period===s.prompt);
+        const pending=this.store.prepare("SELECT id FROM jobs WHERE $scope AND user=? AND state IN ('queued','running','cancel_requested')").all(s.user).some(job=>this.memoryJob(job.id)?.period===s.prompt);
         const target=this.memory.target(s.prompt),after=Number(this.store.get(`memory-cursor:${s.user}:${s.prompt}`)||0);
-        if(!pending&&target>after) {const id=this.store.job(s.user,`[MEMORY] ${s.prompt} consolidation`,s.prompt==='daily'?'research':'review');this.store.set(`memory-job:${id}`,JSON.stringify({period:s.prompt,target}));}
+        if(!pending&&target>after) {const id=job(`[MEMORY] ${s.prompt} consolidation`,s.prompt==='daily'?'research':'review');this.store.set(`memory-job:${id}`,JSON.stringify({period:s.prompt,target}));}
       }
       else {
         if(this.cfg.learningEnabled&&s.prompt==='daily')this.learning.offer(this.cfg.timezone,now,true);
@@ -583,10 +669,11 @@ export class Service {
         const since=Number(this.store.get(`coverage:${s.user}:${s.prompt}`)||now-days*86400000);
         const history=this.store.search(s.user,'',since,{all:true});
         const prompt=`[REFLECTION] ${s.prompt} review. Coverage ${new Date(since).toISOString()} to ${new Date(now).toISOString()}. Review all available connected sources, saved memory and this history: ${JSON.stringify(history)}. Use history_search for more targeted evidence. Record coverage limitations. Review relevant learning trials and unanswered/dismissed questions using learning_read. Do not repeat learning questions already offered; the service queues one separately. Suggest concrete preparation and practical help tied to the owner’s goals, and grounded motivation; avoid repeating earlier advice. Return empty text if nothing useful. Save findings in memory. Do not execute unrequested destructive external changes or spend money.`;
-        const jobId=this.store.job(s.user,prompt,'review');this.store.set(`review-coverage:${jobId}`,JSON.stringify({period:s.prompt,until:now}));
+        const id=job(prompt,'review');this.store.set(`review-coverage:${id}`,JSON.stringify({period:s.prompt,until:now}));
       }
-      this.store.prepare('UPDATE schedules SET enabled=?,due=? WHERE $scope AND id=?').run(s.cron?1:0,s.cron?nextCron(s.cron,s.timezone,now):s.due,s.id);
-    });
+      const admitted=s.kind==='reminder'||Boolean(jobId);
+      this.recordOccurrence(s,scheduledFor,admitted?'admitted':'suppressed_maintenance',jobId,now);
+      return admitted;
   }
   startDelivery() {
     this.store.onEnqueue=()=>{

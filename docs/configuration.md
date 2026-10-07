@@ -48,6 +48,18 @@ literal string false. Cron expressions use five fields and the instance timezone
 all six configured expressions must have a valid next occurrence at startup.
 One-shot schedule tools require an ISO timestamp with an explicit offset.
 
+User schedule policies are per-request optional fields, not instance-wide defaults.
+`overlap` accepts skip/coalesce/queue; `misfire` accepts skip/coalesce/catch_up,
+with catch_up_limit 1–100 required only for catch_up. Explicit misfire grace is
+0–86400 seconds (otherwise 60). Optional task objective/done_condition, future
+offset deadline and max_runs 1–10000 are request-only. The strict shared registry
+validates combinations; it never injects omitted defaults into fingerprints.
+Existing missing-policy rows keep queue and one overdue occurrence then advance.
+For changes cancel the old schedule and use a new request key. See
+[workflow](workflow.md#occurrences-overlap-and-downtime) for combination, audit,
+owner completion and truthful bound semantics. Maintenance env reconciliation
+and infinite reminders keep their previous behavior.
+
 Reflection schedules reconcile changed cron/timezone settings after recreation.
 Disabling proactivity disables these schedules and blocks queued reviews from
 starting; running reviews and already queued notifications are not undone. An

@@ -80,6 +80,19 @@ additive migration, audit retention and rollback.
 
 ## Scheduling and storage
 
+Scheduler occurrence identity and advancement commit with job/reminder admission
+under one writer transaction. Durable unique UTC occurrence pairs and retained
+audit rows prevent restart duplication, without replaying interrupted external
+actions. Explicit skip/coalesce limit worker backlog; legacy/default queue can
+grow. Deadline/max-runs exhaustion never asserts the requested objective succeeded.
+Goal achievement requires exact authenticated owner-DM confirmation after a
+settled worker occurrence, with source/actor/session/goal-hash checks and a retained
+`explicit_owner` receipt. Forwarded, bot, event, group and model claims cannot
+mint that authority. Confirmation/deadline cancel queued continuations without
+rewriting running payloads or erasing audit. Same-grant arbitrary code retains
+its existing database/container access; these host checks are not filesystem
+isolation. See [workflow](workflow.md#requested-goals-and-bounds).
+
 All configured cron expressions are validated at startup as five-field expressions
 with a next occurrence in the instance timezone. Reflection schedules reconcile
 changed cron/timezone settings on startup and owner intake. Disabling proactivity

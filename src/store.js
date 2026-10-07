@@ -41,6 +41,15 @@ export class Store {
       const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(c=>c.name);
       for(const [column,type] of [['conversation_id','TEXT'],['session_id','TEXT'],['actor_id','TEXT']])if(!columns.includes(column))this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
     }
+    // Nullable intent fields distinguish omitted legacy behavior from explicit
+    // policies. No resource cascade: occurrence and owner receipts are audit.
+    for(const [table,fields] of Object.entries({jobs:[['schedule_id','TEXT'],['scheduled_for','INTEGER']],schedules:[['overlap_policy','TEXT'],['misfire_policy','TEXT'],['catch_up_limit','INTEGER'],['misfire_grace_seconds','INTEGER'],['objective','TEXT'],['done_condition','TEXT'],['deadline','INTEGER'],['max_runs','INTEGER'],['runs','INTEGER NOT NULL DEFAULT 0'],['goal_state',"TEXT NOT NULL DEFAULT 'active'"]]})) {
+      const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(c=>c.name);
+      for(const [column,type] of fields)if(!columns.includes(column))this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
+    this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS jobs_schedule_occurrence ON jobs(schedule_id,scheduled_for) WHERE schedule_id IS NOT NULL;
+      CREATE TABLE IF NOT EXISTS schedule_occurrences (schedule_id TEXT NOT NULL, scheduled_for INTEGER NOT NULL, disposition TEXT NOT NULL, job_id TEXT, recorded_at INTEGER NOT NULL, conversation_id TEXT, session_id TEXT, actor_id TEXT, skipped_before INTEGER, PRIMARY KEY(schedule_id,scheduled_for));
+      CREATE TABLE IF NOT EXISTS schedule_goal_receipts (schedule_id TEXT PRIMARY KEY, job_id TEXT NOT NULL, goal_hash TEXT NOT NULL, owner TEXT NOT NULL, conversation_id TEXT NOT NULL, evidence_id INTEGER NOT NULL, authority TEXT NOT NULL CHECK(authority='explicit_owner'), recorded_at INTEGER NOT NULL);`);
     this.db.exec(`CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, sha256 TEXT NOT NULL, size INTEGER NOT NULL, mime TEXT NOT NULL, filename TEXT NOT NULL, owner TEXT NOT NULL, conversation_id TEXT, session_id TEXT, actor_id TEXT NOT NULL, created INTEGER NOT NULL);`);
     const outboxColumns=this.db.prepare('PRAGMA table_info(outbox)').all().map(c=>c.name);
     if(!outboxColumns.includes('artifact_id'))this.db.exec('ALTER TABLE outbox ADD COLUMN artifact_id TEXT REFERENCES artifacts(id)');
