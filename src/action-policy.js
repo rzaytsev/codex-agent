@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { authorized } from './config.js';
+import { directOwner } from './owner-evidence.js';
 import { mailSend } from './mailbox.js';
 import { chunks } from './telegram.js';
 export const defaultMatrix=Object.freeze({read:'automatic',prepare:'automatic',local_modify:'automatic',delivery:'automatic',external_send:'confirm',publication:'confirm',purchase:'confirm',delete:'confirm',external_modify:'confirm'});
@@ -49,7 +49,7 @@ export class ActionApprovals {
   if(!row||Object.entries(binding).some(([key,value])=>row[key]!==value)||row.payload_hash!==payloadHash||row.state!=='committed'&&row.expires<=Date.now())throw new Error('Approval invalid or expired');
  }
  approve(message,id,payloadHash) {
-  if(!authorized(message,this.cfg)||['forward_origin','forward_from','forward_from_chat','forward_date','forward_sender_name'].some(field=>message[field]!==undefined)||message.is_automatic_forward||message.via_bot||this.cfg.group)throw new Error('Direct owner approval required');
+  if(!directOwner(message,this.cfg))throw new Error('Direct owner approval required');
   const binding=this.binding({user:String(message.from.id)}),row=this.store.db.prepare('SELECT * FROM action_approvals WHERE id=?').get(id);
   this.check(row,binding,payloadHash);
   if(row.state==='pending_approval')this.store.db.prepare("UPDATE action_approvals SET state='approved' WHERE id=? AND state='pending_approval'").run(id);

@@ -25,7 +25,7 @@ separately, avoiding loading the whole playbook on every task.
 
 | Kind | Destination | State and authority |
 | --- | --- | --- |
-| Scoped operating lesson | PLAYBOOK.md or managed AGENTS.md section | New/changed rules start as trial. Active requires later supporting evidence and validation. |
+| Scoped operating lesson | PLAYBOOK.md or managed AGENTS.md section | New/changed rules start as trial. Active requires a later host outcome receipt for the unchanged trial. |
 | Explicit preference | Managed USER.md section | Original owner statements, active; inferred preferences are rejected. |
 | Explicit interaction style | Managed SOUL.md section | Original owner preference/correction, active; major role changes need conversation. |
 | Useful missing constraint | PLAYBOOK.md | Pending, offered once, then resolved or retired from original evidence. |
@@ -63,7 +63,7 @@ batches survive restart. Rejected candidates are audited but never installed.
 
 New or revised rules are explicitly unproven trials. Later reviews can promote an
 unchanged rule when new evidence supports its check, or retire it when harmful.
-A model validation pass is not measured improvement. The evaluator's semantic
+A model validation pass is not measured improvement and cannot mint an outcome receipt. The evaluator's semantic
 judgment remains fallible, even though service checks reject malformed references,
 foreign owners, forwarded profile authority, obvious secrets and policy-expansion
 phrases. Installed third-party MCP servers retain their own grants; disabling apps
@@ -147,3 +147,46 @@ profile/playbook projection, pending question offers and automatic learning-revi
 prompts. Historical retention does not consume the 40-current-record allowance or
 crowd independent current lessons out of the first 100 candidates. Explicit
 `learning_read` by key or revision remains available for inspection.
+
+
+## Host outcome receipts and authority
+
+New trial-to-active promotions require a host-owned `improved` receipt tied to the
+trial revision, SHA-256 candidate hash and hash of its preselected `check`.
+`learning_read` returns these hashes, the check and revision-specific
+`outcome_receipts`. The check and trial evidence cursor are stored before any
+outcome. Receipts carry observation time, genuinely later owner-bound history/job
+evidence IDs, authority, and optional verified terminal run/attempt IDs. Original
+trial sources, stale revisions/hashes, changed checks, blocked evidence and
+unknown/foreign/mismatched observation IDs are rejected. `inconclusive` leaves a
+trial unproven; any `regressed` receipt blocks promotion of that revision even if
+another receipt says improved. Proposals still need independent validation.
+
+The host records explicit owner outcomes through the exact command:
+`/learning_outcome KEY REVISION CANDIDATE_HASH improved|inconclusive|regressed`.
+Inspect the trial/check through `learning_read` first. Only authenticated direct
+owner DM text can supply this authority. Hidden/legacy forwarding fields, automatic
+forwarding, via-bot content, attachments, groups, assistant/peer/event/job sources
+and model-supplied origin never grant direct owner preference or outcome authority.
+A trusted deterministic host check may use `Learning.recordOutcome` after checking
+the result; this interface is absent from both MCP and direct action registries.
+A successful job or `accept=true` is insufficient. This does not stop arbitrary
+code with the process's same filesystem grants from bypassing service APIs.
+Full credential/foreign-task isolation remains **incomplete and blocking**.
+
+Host intake adds bounded `history_origins` metadata. `role=user` alone, including
+legacy/imported rows without attribution, is `legacy_unknown` for new learning
+authority. Genuine new owner preferences/styles can be adopted directly without an
+experiment. Authenticated group facts remain usable memory evidence, but do not
+supply direct-DM preference or outcome authority. Arbitrary pasted quote semantics
+are not inferred by regex; semantic support is still a review judgment.
+
+Startup adds `history_origins`, `learning_trial_bindings` and `learning_outcomes`
+without changing existing active rules/preferences, profile text or revisions.
+Legacy trials have no preselected binding receipt: reaffirm/revise them as a new
+trial before an outcome can promote them. Back up the consistent SQLite snapshot
+and workspace with the existing [backup process](backups.md). Rollback retires the
+application while retaining receipts, previous revisions and review audit. Source
+rollback to an older image leaves additive tables intact but removes the new gates;
+use a pre-upgrade backup only for deliberate whole-state restoration, which loses
+subsequent writes. No migration deletes records or authentication.

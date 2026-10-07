@@ -89,7 +89,7 @@ test('exact profile patches preserve untouched content and reject stale, absent 
 });
 
 function learnPreference(service,store) {
-  store.history('123','user','Please use concise planning replies.');
+  store.ownerHistory(service.cfg,{from:{id:123},chat:{id:123,type:'private'},text:'Please use concise planning replies.'},'Please use concise planning replies.');
   const change={key:'concise',kind:'preference',target:'USER.md',content:'Prefers concise planning replies.',scope:'planning',expected_benefit:'Reduce excess detail.',check:'Owner finds the next reply useful.',sources:['history:1'],expected_revision:0,status:'active'};
   const batch=service.learning.batch(service.learning.target());
   service.learning.apply(batch,{summary:'',changes:[change]},{decisions:[{key:'concise',accept:true,reason:'Explicit owner preference.'}]},'profile-test');

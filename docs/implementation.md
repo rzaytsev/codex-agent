@@ -165,3 +165,15 @@ Stage A registry/ledger/prototype source functionality is implemented; the
 prototype does not complete isolation acceptance. Live-auth compatibility remains
 unverified and requires separate explicit opt-in. No model,
 Telegram or deployed image acceptance is claimed. See [action policy](action-policy.md).
+
+
+## Production memory contracts and learning outcomes
+
+Source implements separate deterministic real-service contracts (`npm run eval:contracts`), four independent quality-ablation modes (baseline, memory-only,
+learning-only, both; on/off aliases), and host revision/hash/preselected-check
+outcome receipts for new trial promotion. New preferences/styles require bounded
+host direct-owner evidence; legacy active data is preserved. Receipt regressions
+block promotion and rollback retains audit. Local synthetic checks establish
+service contracts only. No live subscription/Telegram or deployed acceptance was
+performed; full credential/foreign-task isolation remains incomplete and blocking.
+See [learning](learning.md) and [evaluation limits](memory-quality-evals.md).

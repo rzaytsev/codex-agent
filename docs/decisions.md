@@ -292,3 +292,22 @@ functionality can be reviewed independently, without declaring full compatible
 isolation complete. Approval previews use service-owned literal delivery; version
 2 invalidates uncommitted approvals from the earlier markup preview while
 retaining audit/outbox data. See [action policy](action-policy.md).
+
+
+## Production contracts and outcome-gated learning (2026-10-06)
+
+Keep deterministic real-service/store contract checks separate from opt-in model
+quality evaluations. Pair the same fixtures/model/effort/repeats across baseline,
+memory-only, learning-only and both; scorer-only final-state/forbidden-action
+expectations never enter adapter inputs. Errors stay unscored.
+
+Model validation may accept a reversible trial but cannot prove improvement.
+Choose and persist the trial check before observing results; promotion requires
+an improved host receipt for the unchanged revision/candidate/check hashes and
+new after-trial evidence. Inconclusive stays trial; regression blocks that revision.
+Authenticated exact owner-DM outcome commands or verified deterministic host checks
+create receipts. New owner preference authority requires transport attribution;
+raw user-role history, model origin, hidden forwards, bots and groups are insufficient.
+Preserve existing active data and retain receipts/revisions after rollback. Host APIs
+are not a same-grant arbitrary-code isolation boundary; credential isolation remains
+incomplete and blocking.

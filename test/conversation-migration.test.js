@@ -42,7 +42,7 @@ test('legacy migration preserves evidence, revisions, tombstones, tasks, routing
   const imported=root.search('123','Group evidence',0,{all:true})[0];assert.notEqual(imported.id,hid);assert.equal(imported.conversation_id,row.id);
   assert.equal(memory.get('legacy').content,'Version two');assert.deepEqual(memory.get('legacy').sources,[`history:${imported.id}`]);assert.equal(memory.get('legacy',1).content,'Version one');
   assert.equal(memory.get('forgotten'),null);assert.deepEqual(JSON.parse(root.db.prepare("SELECT blocked_history FROM memory_tombstones WHERE key='forgotten'").get().blocked_history),[root.search('123','Forgotten source',0,{all:true})[0].id]);
-  assert.equal(learning.evidence(`history:${imported.id}`).original_owner_statement,true);
+  assert.equal(learning.evidence(`history:${imported.id}`).original_owner_statement,false);
   assert.equal(root.db.prepare('SELECT conversation_id FROM jobs WHERE id=?').get(task).conversation_id,row.id);assert.equal(root.db.prepare('SELECT state FROM jobs WHERE id=?').get(global).state,'cancelled');
   assert.equal(root.db.prepare("SELECT enabled FROM schedules WHERE kind='memory'").get().enabled,0);
   assert.equal(JSON.parse(root.db.prepare('SELECT payload FROM outbox').get().payload).path,`conversations/${row.id}/outputs/file.txt`);

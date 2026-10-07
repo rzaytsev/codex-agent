@@ -10,8 +10,10 @@ expected benefit serves an established user goal, and check is observable.
 For USER.md/SOUL.md require explicit original owner preference/correction, not
 forwarded material or assistant interpretation. Compare existing profile content
 and reject ambiguous contradictions. New/changed rules must remain trial. Active
-promotion needs later independent evidence that the unchanged trial helped; model
-self-evaluation or completed job state alone is not enough. Questions must fill
+promotion needs later independent evidence AND a matching improved host outcome
+receipt for the unchanged revision/hash/preselected check. Inconclusive stays
+trial; any regression receipt blocks promotion. Model self-evaluation, accept=true
+or completed job state alone is not enough. Questions must fill
 a useful unresolved gap, avoid repetition, and respect skips/dismissals.
 
 A validation pass permits a trial; it is not proof of usefulness. Reject when

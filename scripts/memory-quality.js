@@ -7,7 +7,7 @@ try {
   const {values} = parseArgs({options:{list:{type:'boolean'}, 'run-model':{type:'boolean'},
     'allow-subscription-usage':{type:'boolean'}, 'isolated-runtime':{type:'boolean'},
     'codex-home':{type:'string'}, model:{type:'string'}, effort:{type:'string',default:'low'},
-    case:{type:'string'}, output:{type:'string'}, repeats:{type:'string',default:'1'}, 'max-calls':{type:'string',default:'100'}}});
+    modes:{type:'string',default:'baseline,memory-only,learning-only,both'}, case:{type:'string'}, output:{type:'string'}, repeats:{type:'string',default:'1'}, 'max-calls':{type:'string',default:'100'}}});
   const suite = await loadSuite();
   if (values.list) {
     console.log(JSON.stringify({modelCalls:0, cases:suite.scenarios.map(({id,category}) => ({id,category}))}, null, 2));
@@ -26,11 +26,11 @@ try {
       const {createAdapter} = await import('./memory-quality-adapter.js');
       const adapter = createAdapter({allowSubscriptionUsage:true, authHome:values['codex-home'], model:values.model,
         effort:values.effort, maxCalls:Number(values['max-calls'])});
-      const report = await runSuite({...suite, adapter, repeats:Number(values.repeats)});
+      const report = await runSuite({...suite, adapter, repeats:Number(values.repeats),modes:values.modes.split(',')});
       await output.writeFile(JSON.stringify(report, null, 2) + '\n');
       console.log(JSON.stringify({qualityEvidence:report.qualityEvidence, ...report.summary}));
       // Baseline misses are expected. Only memory-on failures/errors fail the run.
-      if (report.cases.some(x => x.mode === 'on' && x.status !== 'passed') || report.summary.errors) process.exitCode = 1;
+      if (report.cases.some(x => ['both','on'].includes(x.mode) && x.status !== 'passed') || report.summary.errors) process.exitCode = 1;
     } finally {await output.close();}
   }
 } catch (error) {

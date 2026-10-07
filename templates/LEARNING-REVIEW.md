@@ -15,7 +15,10 @@ Never revive retired/dismissed records automatically or use forgotten sources.
 
 Rules go to PLAYBOOK.md or a managed AGENTS.md section. New or changed rules start
 as trial. Promote an unchanged trial to active only with new observed evidence
-that its check passed; a successful turn or your own judgment is insufficient.
+that its preselected check passed AND a matching improved host outcome_receipt
+bound to candidate revision/hash/check. Inconclusive stays trial; any regression
+receipt blocks promotion. Models cannot mint receipts; a successful turn,
+accept=true validation or your own judgment is insufficient.
 Retire harmful rules with evidence. Existing custom instructions remain intact.
 Preferences go to USER.md and styles to SOUL.md, active only from explicit original
 owner statements. Preserve scope and contradictions; ask rather than guess.

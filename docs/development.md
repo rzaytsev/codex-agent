@@ -104,3 +104,24 @@ The approval regression drives persisted multi-chunk envelopes through real
 Service.deliver and Telegram.sendPart with a fake fetcher. Verify literal
 backticks/asterisks/<>&/quotes/emoji, full canonical hash/commit identity, ordinary
 reply formatting, model flag refusal and pre-fix approval-version rejection.
+
+
+## Production contract and outcome verification
+
+Run `node --test test/learning-outcomes.test.js test/production-contract.test.js test/learning.test.js test/memory-quality.test.js`, then the standard full checks.
+`npm run eval:contracts -- --output /tmp/production-contract.json` produces a
+synthetic publication-reviewable manifest without credentials/models/sockets.
+Meaningful BAD final-state/forbidden-action observations must fail; adapter errors
+must remain unscored. Do not infer model usefulness or live rollout from contracts.
+Receipt migration is additive; preserve SQLite/workspace backups and retain outcome
+receipts when retiring a rule. New learning authority needs host-attributed direct
+owner input; adapt synthetic fixtures through host intake instead of merely marking
+history as user. See [learning migration/rollback](learning.md#host-outcome-receipts-and-authority).
+
+When extending production contract fixtures, mint expected denial codes at the
+application validation point rather than inferring them from error text in the
+adapter. Add the operation-specific adapter mapping and held-out code check. Inject
+unexpected service and learning exceptions against the actual adapter to verify
+null metrics and suppressed raw errors; a mock adapter exception alone misses
+inner catch-all bugs. Codes are in-memory validation metadata, with no DB migration
+or HTTP error-envelope change.

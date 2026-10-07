@@ -1,3 +1,4 @@
+import {ContractDenial} from './contract-denial.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -133,9 +134,10 @@ export class Memory {
     const match=source.match(/^history:([1-9]\d*)$/);if(!match)return null;
     const row=this.db.prepare('SELECT id,role,actor_id,conversation_id,created,text FROM history WHERE user=? AND id=?').get(this.owner,Number(match[1]));
     if(!row)return null;
-    const knownForward=/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text);
+    const origin=this.db.prepare('SELECT origin FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id)?.origin;
+    const knownForward=origin==='forwarded'||/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text);
     const {text,...metadata}=row;
-    return {...metadata,known_forward:knownForward,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward};
+    return {...metadata,origin:origin||'legacy_unknown',known_forward:knownForward,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward&&(!origin||['direct_owner','owner_group'].includes(origin))};
   }
   explain(key,revision) {
     const entry=this.get(key,revision);if(!entry)return null;
@@ -201,7 +203,7 @@ export class Memory {
     const user=this.owner;
     if(typeof source!=='string'||source.length>500||secretPattern.test(source))throw new Error('Invalid memory source');
     const history=source.match(/^history:([1-9]\d*)$/);
-    if(history) {if(this.blockedHistory().has(Number(history[1])))throw new Error('Forgotten source cannot be reused');if(!this.db.prepare('SELECT id FROM history WHERE id=? AND user=?').get(Number(history[1]),user))throw new Error('Unavailable history source');return;}
+    if(history) {if(this.blockedHistory().has(Number(history[1])))throw new ContractDenial('memory_source_forgotten');if(!this.db.prepare('SELECT id FROM history WHERE id=? AND user=?').get(Number(history[1]),user))throw new Error('Unavailable history source');return;}
     const memory=source.match(memoryReference);
     if(memory) {const entry=this.get(memory[1],Number(memory[2])),current=this.get(memory[1]);if(!entry||entry.review_state!=='ready'||current?.revision!==Number(memory[2]))throw new Error('Unavailable or non-current memory source; review primary evidence');return;}
     if(/^https?:\/\//.test(source)) {const url=new URL(source);if(url.username||url.password||[...url.searchParams.keys()].some(k=>/token|key|secret|signature|password/i.test(k)))throw new Error('Sensitive source URL');return;}
@@ -220,7 +222,7 @@ export class Memory {
     if(value.certainty==='confirmed'&&!value.sources.some(source=>{
       if(source.startsWith('history:'))return this.historyEvidence(source)?.original_owner_statement;
       const memory=source.match(/^memory:([a-z0-9-]+)@(\d+)$/);return memory?this.get(memory[1],Number(memory[2]))?.certainty==='confirmed':true;
-    }))throw new Error('Confirmed memory needs primary or confirmed evidence');
+    }))throw new ContractDenial('memory_primary_evidence_required');
   }
   put(value,origin='conversation',restore=false) {
     // Retain the legacy argument only to refuse old callers safely. Source text
@@ -228,7 +230,7 @@ export class Memory {
     if(restore||value.restore)throw new Error('Memory restoration is disabled; forgotten keys remain tombstoned');
     const user=this.owner;this.validate(value);
     const tombstone=this.db.prepare('SELECT key FROM memory_tombstones WHERE user=? AND key=?').get(user,value.key);
-    if(tombstone)throw new Error('Forgotten memory remains tombstoned; restoration is disabled');
+    if(tombstone)throw new ContractDenial('memory_tombstoned');
     const old=this.get(value.key),revision=old?.revision||0;
     if(revision!==value.expected_revision)throw new MemoryConflict(old);
     if(old&&old.category!==value.category)throw new Error('Keep the existing memory category');
