@@ -1,3 +1,6 @@
+import {settleOwnedProcesses} from './owned-process.js';
+import {superviseSdk} from './supervised-exec.js';
+import {outcomeSchema,checkpointSchema,validateOutcome} from './outcomes.js';
 import {Observations,budgetForSignal,terminalReason,safeFailure} from './observations.js';
 import { Codex } from '@openai/codex-sdk';
 import fs from 'node:fs/promises';
@@ -9,7 +12,7 @@ import { reviewedActionBundle } from './action-registry.js';
 import { isUsageLimit, UsageLimitError } from './usage.js';
 import { Memory, memorySchema } from './memory.js';
 import { Learning, learningSchema, validationSchema, withoutLearning } from './learning.js';
-const schema={type:'object',additionalProperties:false,required:['text','voice','files'],properties:{text:{type:'string'},voice:{type:'boolean'},files:{type:'array',items:{type:'string'}}}};
+const schema={type:'object',additionalProperties:false,required:['text','voice','files'],properties:{text:{type:'string'},voice:{type:'boolean'},files:{type:'array',items:{type:'string'}},outcome:{anyOf:[outcomeSchema,{type:'null'}]},checkpoint:{anyOf:[checkpointSchema,{type:'null'}]}}};
 export class Agent {
   constructor(cfg,store,capability,sdkFactory=options=>new Codex(options),memory=new Memory(cfg.workspace,store,cfg.owner),learning=cfg.learningEnabled?new Learning(cfg.workspace,store,cfg.owner):undefined) { this.cfg=cfg; this.store=store; this.capability=capability; this.sdkFactory=sdkFactory;this.memory=memory;this.learning=learning; }
   async run(user,prompt,profile='main',images=[],signal,saveThread=()=>{},resumeId,memoryReview=false,scope) {
@@ -41,10 +44,12 @@ export class Agent {
     const delivery=internal
       ?(memoryReview==='learning-validation'?'Return only decisions matching the supplied validation schema.':'Return only summary and proposed changes matching the supplied review schema.')+' You cannot write files, send messages, schedule work or mutate memory with tools during this review. The service validates and applies proposals after success.'
       :`Return structured text, voice (true only if requested and not already queued), and existing absolute workspace file paths in files. A local path in text does not deliver an artifact. The service queues the result on the source conversation route; never claim confirmed delivery without evidence. Text uses simple **bold** and inline backticks. Never include secrets. ${voiceDelivery}`;
-    const roleInstructions=role+'\n'+delivery+(profile==='main'&&!readOnly?'\nMail contract: mail_send prepares only. The service presents the exact payload to the owner. Only a direct owner /approve ID HASH command in private chat permits mail_commit with identical arguments and approval_id. Never claim preparation sent anything or simulate approval.':'')+(scope?.toolScope==='read'?'\nThis turn has read-only tool scope. Do not bypass denied operations through code, other integrations or direct file/database writes. Report blockers and continue permitted work. The service handles final response delivery.':'');
+    const outcomeGuidance=' Optional outcome and checkpoint fields report your claimed goal status, checks actually run, evidence and limitations. Schema validation is not host verification. A blocked task can finish execution. Checkpoints describe plan_version, last_verified_milestone, next_safe_step and unresolved_effects; do not repeat uncertain external effects. Never claim a host-verified outcome. Review profile is opt-in for meaningful deliverables with stated criteria; ordinary replies need no second reviewer.';
+    const roleInstructions=role+(internal?'':outcomeGuidance)+'\n'+delivery+(profile==='main'&&!readOnly?'\nMail contract: mail_send prepares only. The service presents the exact payload to the owner. Only a direct owner /approve ID HASH command in private chat permits mail_commit with identical arguments and approval_id. Never claim preparation sent anything or simulate approval.':'')+(scope?.toolScope==='read'?'\nThis turn has read-only tool scope. Do not bypass denied operations through code, other integrations or direct file/database writes. Report blockers and continue permitted work. The service handles final response delivery.':'');
     signal?.throwIfAborted();
     const token=scope?this.capability(user,profile!=='main',internal,signal,{...scope,observationRun:run}):this.capability(user,profile!=='main',internal,signal,{observationRun:run});
-    let disposableWorkspace;
+    let disposableWorkspace,released=false;
+    const release=()=>{if(!released){released=true;this.capability.release(token);}};
     try {
       signal?.throwIfAborted();
       const browserOverrides=[];
@@ -72,7 +77,7 @@ export class Agent {
         await verifyRestrictedConfiguration(sdkOptions,disposableWorkspace,assistant,{signal});
       }
       o.bundle(attempt,sdkOptions.config.developer_instructions,JSON.stringify({assistant:reviewedActionBundle({worker:profile!=='main',memoryReview:internal,toolScope:scope?.toolScope||'conversation',group:Boolean(cfg.group)}),browser:cfg.browserEnabled&&!readOnly,policyVersion:cfg.actionPolicy?.version||null,...(restricted?{execution:restrictedReadDefinition}:{})}));
-      const sdk=this.sdkFactory(sdkOptions);
+      const sdk=superviseSdk(this.sdkFactory(sdkOptions));
       if(!restricted&&readOnly&&cfg.readOnlyWorkspacePrototype)disposableWorkspace=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-read-task-'));
       const opts={workingDirectory:disposableWorkspace||cfg.workspace,skipGitRepoCheck:true,...(!restricted?{sandboxMode:memoryReview||scope?.toolScope==='read'?'read-only':'danger-full-access'}:{}),approvalPolicy:'never',modelReasoningEffort:p.effort,webSearchMode:memoryReview||restricted?'disabled':'live',...(p.model?{model:p.model}:{})};
       const id=restricted?undefined:profile==='main'?this.store.get(`thread:${user}`):resumeId;
@@ -105,6 +110,8 @@ export class Agent {
       if(memoryReview==='learning-validation') {if(!Array.isArray(result.decisions))throw safeFailure('invalid_output');}
       else if(memoryReview) {if(typeof result.summary!=='string'||!Array.isArray(result.changes))throw safeFailure('invalid_output');}
       else if(typeof result.text!=='string'||typeof result.voice!=='boolean'||!Array.isArray(result.files)||result.files.some(f=>typeof f!=='string')) throw safeFailure('invalid_output');
+      if(!memoryReview)validateOutcome(result);
+      release();await settleOwnedProcesses(run);
       const completedThread=profile==='main'&&!restricted?this.store.get(`thread:${user}`):undefined;
       if(completedThread&&history.length)this.store.set(`thread-history:${user}:${completedThread}`,history.at(-1).id);
       if(ownRun)o.boundary(run);
@@ -112,7 +119,7 @@ export class Agent {
       if(ownRun)o.finishRun(run,'completed');
       return result;
     } catch(e) {if(isUsageLimit(e))throw new UsageLimitError();throw e;}
-    finally { this.capability.release(token);if(disposableWorkspace)await fs.rm(disposableWorkspace,{recursive:true,force:true}); }
+    finally { release();await settleOwnedProcesses(run);if(disposableWorkspace)await fs.rm(disposableWorkspace,{recursive:true,force:true}); }
     } catch(e) {const reason=terminalReason(e,signal);o.finishAttempt(attempt,reason,usage);if(ownRun)o.finishRun(run,reason);throw e;}
   }
 }

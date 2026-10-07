@@ -146,3 +146,8 @@ unexpected service and learning exceptions against the actual adapter to verify
 null metrics and suppressed raw errors; a mock adapter exception alone misses
 inner catch-all bugs. Codes are in-memory validation metadata, with no DB migration
 or HTTP error-envelope change.
+
+
+## Task outcome verification
+
+Run `node --test test/task-outcomes.test.js test/reliability.test.js test/agent-lifecycle.test.js test/media.test.js test/voice.test.js test/scheduler.test.js test/observations.test.js test/restricted-read.test.js test/prompts.test.js`, then normal check/full Node/Python/publication checks. Actual pinned SDK fixtures use owned executable children with ignored SIGTERM and argv/env comparisons, never a model/account endpoint. See [boundary and acceptance limits](task-outcomes.md).

@@ -84,6 +84,8 @@ repeated summaries and unproven trials do not independently confirm a fact or fi
 Check current state before reporting status or retrying an uncertain external action.
 Queued output, completed execution, checked results and user acceptance are distinct.
 
+Optional final outcome/checkpoint guidance is supplied by image-owned role instructions. It asks for checks/evidence/limitations and unresolved effects; the service marks every such claim model-reported, never host-verified. The opt-in review profile is for requested deliverables/criteria; ordinary replies do not invoke another reviewer. Legacy responses remain unknown. See [task outcomes](task-outcomes.md).
+
 ## Verification and limits
 
 `test/prompts.test.js` captures SDK construction and turn input with synthetic data:

@@ -211,3 +211,8 @@ nested execution was unavailable. Full isolation is **INCOMPLETE AND BLOCKING**:
 Linux target image, native filesystem/process/proc/IPC/tools/skills and authenticated
 parent+MCP compatibility remain unverified. No account/model/Telegram tests or
 production enablement occurred. See [precise profile and rollback](action-policy.md#disabled-restricted-read-profile-prototype).
+
+
+## Task outcome and cancellation boundary
+
+Optional bounded final outcomes/checkpoints are durable and explicitly model-reported; execution completion is separate. Running cancellation is requested before abort and waits for actual owned SDK/media child exit. Unknown cleanup/restart retains requested capacity with no replay. Synthetic pinned parser/argv tests pass; authenticated runtime, escaped descendants and full native isolation remain blocking. See [task outcomes](task-outcomes.md).

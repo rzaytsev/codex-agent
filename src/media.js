@@ -1,9 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import {ownedExec as exec} from './owned-process.js';
 import { randomUUID } from 'node:crypto';
-import { promisify } from 'node:util';
-const exec = promisify(execFile);
 export async function workspaceFile(root,name) {
   const actual=await fs.realpath(path.resolve(root,name)); const realRoot=await fs.realpath(root);
   if(!actual.startsWith(realRoot+path.sep)) throw new Error('File must be inside workspace');

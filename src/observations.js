@@ -2,7 +2,7 @@ import manifest from '../package.json' with {type:'json'};
 import path from 'node:path';
 import {randomUUID,createHash} from 'node:crypto';
 import {isUsageLimit} from './usage.js';
-const reasons=['completed','incomplete_stream','quota','timeout','cancelled','provider_error','invalid_output','recovered_interruption','budget','output_error'];
+const reasons=['completed','incomplete_stream','quota','timeout','cancelled','provider_error','invalid_output','recovered_interruption','budget','output_error','execution_unknown'];
 const efforts=['minimal','low','medium','high','xhigh','max','ultra'];
 const components=['input_tokens','output_tokens','cached_input_tokens'];
 const numeric=n=>Number.isSafeInteger(n)&&n>=0&&n<=1e15;
@@ -17,7 +17,7 @@ const runtimeValid=v=>v&&Object.keys(v).length===3&&Object.keys(v).every(k=>['no
 export class BudgetError extends Error {constructor(){super('Logical run budget exhausted');this.code='budget';}}
 export function bindBudgetSignal(signal,o,r){if(signal&&r)signals.set(signal,{o,r});}
 export function budgetForSignal(signal){return signal&&signals.get(signal);}
-export function terminalReason(error,signal){return error instanceof BudgetError||signal?.reason instanceof BudgetError?'budget':isUsageLimit(error)?'quota':signal?.aborted?(signal.reason?.code==='timeout'?'timeout':'cancelled'):reasons.includes(error?.observationReason)?error.observationReason:'provider_error';}
+export function terminalReason(error,signal){return error?.executionUnknown?'execution_unknown':error instanceof BudgetError||signal?.reason instanceof BudgetError?'budget':signal?.aborted?(signal.reason?.code==='timeout'?'timeout':'cancelled'):isUsageLimit(error)?'quota':reasons.includes(error?.observationReason)?error.observationReason:'provider_error';}
 export function safeFailure(reason){const e=new Error('Codex execution did not complete');e.observationReason=reason;return e;}
 const toolCategories={history_read:'history',history_search:'history',memory_read:'memory',memory_search:'memory',memory_save:'memory',memory_explain:'memory',memory_forget:'memory',memory_forget_preview:'memory',learning_read:'learning',learning_evidence:'learning',learning_feedback:'learning',profile_read:'profile',profile_write:'profile',profile_patch:'profile',create_task:'task',cancel_task:'task',task_status:'task',schedule:'schedule',list_schedules:'schedule',cancel_schedule:'schedule',send_voice:'delivery',location_get:'location',location_set_default:'location',location_clear_temporary:'location',mail_agents:'mail',mail_send:'mail',mail_commit:'mail',mail_inbox:'mail',mail_read:'mail',mail_status:'mail'};
 const categories=[...new Set(Object.values(toolCategories)),'other'];
@@ -101,7 +101,7 @@ export class Observations {
     if(!valid){this.dropped=Math.min(1e15,this.dropped+1);return false;}
     return this.safe(()=>{this.store.db.prepare('UPDATE run_observations SET terminal=?,payload=? WHERE id=? AND terminal IS NULL').run(p.reason,JSON.stringify(p),p.id);return true;})===true;
   }
-  finishRun(r,reason){if(!r||r.terminal)return;r.terminal=true;clearTimeout(r.timer);if(r.budgetExceeded||r.controller?.signal.reason instanceof BudgetError)reason='budget';if(r.outputFailed&&reason==='completed')reason='output_error';const p={schema_version:1,application_release:applicationRelease,runtime:runtime(),id:r.id,reason:reasons.includes(reason)?reason:'provider_error',elapsedMs:Math.min(1e15,Math.max(0,Math.round(performance.now()-r.started))),tools:r.tools,artifactBytes:r.artifactBytes,attempts:r.attempts,toolCounts:Object.fromEntries(categories.filter(k=>numeric(r.toolCounts?.[k])).map(k=>[k,r.toolCounts[k]])),usageComplete:r.usageComplete,inputTokens:r.usageComplete?r.input:null,outputTokens:r.usageComplete?r.output:null};this.recordRun(p);}
+  finishRun(r,reason){if(!r||r.terminal)return;r.terminal=true;clearTimeout(r.timer);if(reason!=='execution_unknown'&&(r.budgetExceeded||r.controller?.signal.reason instanceof BudgetError))reason='budget';if(r.outputFailed&&reason==='completed')reason='output_error';const p={schema_version:1,application_release:applicationRelease,runtime:runtime(),id:r.id,reason:reasons.includes(reason)?reason:'provider_error',elapsedMs:Math.min(1e15,Math.max(0,Math.round(performance.now()-r.started))),tools:r.tools,artifactBytes:r.artifactBytes,attempts:r.attempts,toolCounts:Object.fromEntries(categories.filter(k=>numeric(r.toolCounts?.[k])).map(k=>[k,r.toolCounts[k]])),usageComplete:r.usageComplete,inputTokens:r.usageComplete?r.input:null,outputTokens:r.usageComplete?r.output:null};this.recordRun(p);}
 }
 
 // Conversation routes use separate SQLite connections to one tenant database.

@@ -33,7 +33,7 @@ export class Conversations {
     this.dm=dm;this.services=new Map();this.sequence=0;this.mainServed=new Map();this.workerServed=new Map();this.agentFactory=agentFactory;this.username='';
   }
   all() {return [this.dm,...this.services.values()];}
-  get busy() {return this.all().some(s=>s.mainBusy||s.controllers.size>0);}
+  get busy() {return this.all().some(s=>s.activeMain||s.activeWorkers>0);}
   async init() {
     for(const row of this.dm.store.db.prepare("SELECT * FROM conversations WHERE kind='group'").all())await this.open(row);
     this.dm.store.set('shared-owner-store-version','2');
@@ -140,7 +140,7 @@ export class Conversations {
   invalidateAll() {for(const service of this.services.values())this.invalidate(service);}
   tick() {
     const services=this.all(),ordered=services.slice().sort((a,b)=>(this.mainServed.get(a)||0)-(this.mainServed.get(b)||0));
-    let active=this.all().reduce((n,s)=>n+s.controllers.size,0),mains=services.filter(s=>s.mainBusy).length,workers=active-mains;
+    let mains=services.filter(s=>s.activeMain).length,workers=services.reduce((n,s)=>n+s.activeWorkers,0),active=mains+workers;
     const ready=(!this.dm.auth||this.dm.auth.ready)&&!this.dm.tdlAuth?.active;
     const eligible=services.filter(s=>!s.cfg.group||s.cfg.group.state==='active');
     const pending=eligible.some(s=>s.store.prepare("SELECT id FROM inputs WHERE $scope AND state='pending' LIMIT 1").get());
@@ -158,11 +158,11 @@ export class Conversations {
     }
     for(const service of services.slice().sort((a,b)=>(this.workerServed.get(a)||0)-(this.workerServed.get(b)||0))) {
       if(!ready||service.cfg.group?.state==='disconnected')continue;
-      if(services.some(s=>s.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().some(job=>s.idleMaintenance(job))))break;
+      if(services.some(s=>s.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state IN ('running','cancel_requested')").all().some(job=>s.idleMaintenance(job))))break;
       const before=service.controllers.size;
       service.workers(Math.min(1,this.dm.cfg.maxWorkers-workers,this.dm.cfg.maxExecutions-active),active===0&&!pending&&!ordinaryQueued);
       const started=service.controllers.size-before;workers+=started;active+=started;if(started)this.workerServed.set(service,++this.sequence);
     }
   }
-  async stop() {for(const service of this.all()){service.stopping=true;for(const ctrl of service.controllers.values())ctrl.abort();}await Promise.allSettled(this.all().flatMap(service=>[service.activeTurn,...(service.workerRuns?.values()||[])]));}
+  async stop() {await Promise.allSettled(this.all().map(service=>service.stop()));}
 }

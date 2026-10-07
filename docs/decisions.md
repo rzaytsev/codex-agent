@@ -357,3 +357,8 @@ first, discard diagnostics and await owned child cleanup. This runtime startup c
 load auth/cloud/model configuration and create state: anonymous fixtures cannot
 approve authenticated compatibility. Configuration races, target Linux acceptance
 and full ordinary-worker isolation remain blocking; keep the option disabled.
+
+
+## 2026-10-07: Separate goal claims from execution and supervise owned child exit
+
+Keep the pinned SDK parser and native model/tool loop, replacing only the private subprocess seam with a version/shape-checked application adapter. This intentionally adds maintenance cost on SDK upgrades in exchange for observable child-exit settlement; compatibility fixtures must pass before changing the pin. Discard stderr and preserve sanitized env/config semantics. Persist bounded model-reported goal/checkpoint data without minting host verification or learning/schedule authority. No automatic second model reviewer, retry or checkpoint replay. Missing exit proof remains requested/unknown and reserves capacity. Same-group signals do not prove escaped-descendant containment. See [task outcomes](task-outcomes.md).

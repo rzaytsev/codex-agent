@@ -78,6 +78,8 @@ existing interruption/uncertainty contracts. See [workflow](workflow.md) for key
 semantics and [backups](backups.md#task-and-schedule-admission-migration) for
 additive migration, audit retention and rollback.
 
+The pinned SDK subprocess and owned media helpers now await actual owned-child exit through bounded TERM/KILL supervision; early generator/callback settlement alone is insufficient. Missing proof/restart retains requested/unknown state and capacity. Escaped descendants and full native isolation remain blocking. See [task outcomes and process limits](task-outcomes.md).
+
 ## Scheduling and storage
 
 Scheduler occurrence identity and advancement commit with job/reminder admission
