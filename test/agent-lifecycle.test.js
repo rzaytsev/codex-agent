@@ -56,7 +56,8 @@ test('completed turns forward cancellation to the capability and SDK and release
   const controller=new AbortController();
   const {agent,issued,released,runs}=await fixture(t);
   assert.deepEqual(await agent.run('123','hello','worker',[],controller.signal),reply);
-  assert.deepEqual(issued,[['123',true,false,controller.signal]]);
+  assert.equal(issued.length,1);assert.deepEqual(issued[0].slice(0,4),['123',true,false,controller.signal]);
+  assert.match(issued[0][4].observationRun.id,/^[a-f0-9-]{36}$/);
   assert.equal(runs[0].options.signal,controller.signal);
   assert.deepEqual(released,['synthetic-capability']);
 });

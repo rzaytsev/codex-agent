@@ -1,3 +1,4 @@
+import { observationsForStore } from './observations.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
 export class AdmissionConflict extends Error {
@@ -49,6 +50,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS history_conversation_order ON history(conversation_id,user,id);
       CREATE INDEX IF NOT EXISTS outbox_conversation_pending ON outbox(conversation_id,id) WHERE state='pending';
       CREATE INDEX IF NOT EXISTS schedules_conversation_due ON schedules(conversation_id,due) WHERE enabled=1;`);
+    this.observations=observationsForStore(this);
   }
   bindConversation(owner,{id=randomUUID(),chatId=owner,kind='dm',title='',sessionId=randomUUID()}={}) {
     return this.transaction(()=>{

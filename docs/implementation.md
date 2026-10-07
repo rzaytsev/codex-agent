@@ -146,3 +146,7 @@ SQLite snapshot retention. No actual model, Telegram, deployed-image or host
 restore acceptance is claimed. Delivery still has uncertain-send semantics.
 See [workflow](workflow.md#schedule-admission-and-changes) and
 [backups](backups.md#task-and-schedule-admission-migration).
+
+## Private run observations
+
+The service records logical runs through final response preparation, with one terminal outcome distinct from SDK attempt completion. Internal memory/learning batches share their job run and cumulative budgets. Schema 1 stores fresh reviewed fields, effective effort/scope/timeout and a model digest, application release, numeric actual Node version, pinned SDK/CLI versions and developer-instruction/tool-bundle SHA-256 hashes. Failed observations increment only a bounded content-free process counter. The pinned SDK parser is tested through synthetic JSONL subprocesses, including its cache-write zero default and malformed lines. See [observations](observations.md) for attribution, migration and runtime limits. No real model/account/Telegram acceptance is claimed.

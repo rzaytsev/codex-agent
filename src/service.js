@@ -15,6 +15,7 @@ import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
 import { AgentMail } from './agent-mail.js';
 import { Learning, LEARNING_HEADING } from './learning.js';
 import { Profiles } from './profiles.js';
+import {budgetForSignal,bindBudgetSignal,terminalReason,BudgetError} from './observations.js';
 import { Artifacts } from './artifacts.js';
 import { AdmissionConflict } from './store.js';
 function requestKey(key,normalize=true) {
@@ -34,6 +35,7 @@ export class Service {
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
+    bindBudgetSignal(this.capabilities.get(token).signal,this.store.observations,scope.observationRun);
     return token;
   }
   releaseCapability(token) {this.capabilities.get(token)?.controller.abort();this.capabilities.delete(token);}
@@ -153,6 +155,8 @@ export class Service {
     }
     const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read','memory_explain','memory_forget_preview','learning_read','learning_evidence','profile_read'];
     if((memoryReview&&!reads.includes(name))||(worker&&![...reads,'memory_save'].includes(name))) throw new Error('Worker tool not allowed');
+    cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
+    this.store.observations.tool(cap.observationRun,name);
     switch(name) {
       case 'mail_agents': if(!this.mail)throw new Error('Messaging disabled');return this.mail.call('list',{},signal);
       case 'mail_send': if(!this.mail)throw new Error('Messaging disabled');return this.mail.send(args);
@@ -201,6 +205,7 @@ export class Service {
         return this.store.admit(this.cfg.owner||user,'task',args.request_key===undefined?undefined:requestKey(args.request_key),payload,()=>{
           const id=this.store.job(user,payload.prompt,payload.profile);
           this.store.set(`task-settings:${id}`,JSON.stringify(settings));
+          if(cap.observationRun)this.store.set(`task-parent-run:${id}`,cap.observationRun.id);
           this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
           if(payload.title)this.store.set(`task-title:${id}`,payload.title);
           if(payload.acknowledgment)this.store.set(`task-acknowledgment:${id}`,payload.acknowledgment);
@@ -335,15 +340,17 @@ export class Service {
   }
   async output(user,result,proactive=false,signal) {
     signal?.throwIfAborted();
+    const budget=budgetForSignal(signal);if(budget)budget.r.outputStage=true;budget?.o.boundary(budget.r);
     const payloads=[];let text=result.text || '';
     if(result.voice&&result.text) {
       try { payloads.push(await this.artifacts.snapshot(user,{type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)},{},signal)); }
-      catch {signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
+      catch {budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
     for(const part of chunks(text))payloads.push({text:part});
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
     signal?.throwIfAborted();
     // Commit the complete prepared response together; cancellation during preparation publishes nothing.
+    budget?.o.boundary(budget.r);
     this.store.transaction(()=>{
       for(const payload of payloads)this.store.enqueue(user,payload,proactive);
       if(text)this.store.history(user,'assistant',text);
@@ -359,7 +366,7 @@ export class Service {
         const a=this.store.db.prepare('SELECT size FROM artifacts WHERE id=?').get(payload.artifactId);
         if(/\.(png|jpe?g)$/i.test(actual)&&a.size<=10*1024*1024)payload.type='photo';
         seen.add(actual);payloads.push(payload);
-      } catch {signal?.throwIfAborted();payloads.push({text:'A requested output file could not be sent (unsafe, missing, sensitive, or larger than 49 MiB).'});}
+      } catch(e) {const budget=budgetForSignal(signal);if(budget)budget.r.outputFailed=true;if(e instanceof BudgetError)throw e;signal?.throwIfAborted();payloads.push({text:'A requested output file could not be sent (unsafe, missing, sensitive, or larger than 49 MiB).'});}
     }
     return payloads;
   }
@@ -384,9 +391,10 @@ export class Service {
     const stopTyping=this.cfg.allowed.has(input.user)?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
     controller.signal.addEventListener('abort',stopTyping,{once:true});
     const settings=this.effectiveSettings('main');
-    const timeout=setTimeout(()=>controller.abort(),settings.timeout*1000);
+    const observationRun=this.store.observations.run(this.cfg.runBudgets,controller);let outcome='completed';
+    const timeout=setTimeout(()=>controller.abort(Object.assign(new Error('Execution deadline'),{code:'timeout'})),settings.timeout*1000);
     try {
-      if(!this.cfg.allowed.has(input.user)||this.cfg.group&&input.actor_id!==this.cfg.owner) { this.store.prepare("UPDATE inputs SET state='rejected' WHERE $scope AND id=?").run(input.id);return; }
+      if(!this.cfg.allowed.has(input.user)||this.cfg.group&&input.actor_id!==this.cfg.owner) { outcome='cancelled';this.store.prepare("UPDATE inputs SET state='rejected' WHERE $scope AND id=?").run(input.id);return; }
       const message=JSON.parse(input.payload);
       this.mainActor=input.actor_id||input.user;
       const command=message.text?.trim();
@@ -399,18 +407,20 @@ export class Service {
         if(this.cfg.group&&!message.event)prepared.text=`Telegram participant ${input.actor_id} (source author):\n${prepared.text}`;
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         this.store.history(input.user,message.event?'event':'user',prepared.text,input.actor_id||input.user);
-        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,settings,toolScope:settings.toolScope});
+        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,settings,toolScope:settings.toolScope,observationRun});
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         await this.output(input.user,result,false,controller.signal);
       }
+      this.store.observations.boundary(observationRun);
       if(controller.signal.aborted) throw new Error('Turn interrupted');
       this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(input.id);
     } catch(e) {
+      outcome=terminalReason(e,controller.signal);if(outcome==='provider_error'&&observationRun.outputStage)outcome='output_error';
       if(this.mainCancelled) {this.store.prepare("UPDATE inputs SET state='cancelled' WHERE $scope AND id=?").run(input.id);return;}
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
-    } finally {clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
+    } finally {this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
@@ -433,7 +443,8 @@ export class Service {
   }
   async runJob(job,ctrl) {
     const settings=JSON.parse(this.store.get(`task-settings:${job.id}`)||'null')||this.effectiveSettings(job.profile);
-    const timer=setTimeout(()=>ctrl.abort(),settings.timeout*1000);
+    const observationRun=this.store.observations.run(this.cfg.runBudgets,ctrl,{jobId:job.id,parentRunId:this.store.get(`task-parent-run:${job.id}`)});let outcome='completed';
+    const timer=setTimeout(()=>ctrl.abort(Object.assign(new Error('Execution deadline'),{code:'timeout'})),settings.timeout*1000);
     try {
       if(this.learningJob(job.id)) {await this.runLearningJob(job,ctrl);return;}
       if(this.memoryJob(job.id)) {await this.runMemoryJob(job,ctrl);return;}
@@ -442,12 +453,14 @@ export class Service {
       const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       const scope={sessionId:job.session_id,actorId:job.actor_id};
+      observationRun.outputStage=true;
       const files=await this.filePayloads(result.files,job.user,scope,ctrl.signal);
       if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
         try {files.unshift(await this.artifacts.snapshot(job.user,{type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)},scope,ctrl.signal));}
-        catch {ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
+        catch {observationRun.outputFailed=true;ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}
       }
       if(ctrl.signal.aborted) throw new Error('Cancelled');
+      this.store.observations.boundary(observationRun);
       this.store.transaction(()=>{
         this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify(result),job.id);
         const maintenance=job.prompt.startsWith('[CLEANUP]');
@@ -469,6 +482,7 @@ export class Service {
         }
       });
     } catch(e) {
+      outcome=terminalReason(e,ctrl.signal);if(outcome==='provider_error'&&observationRun.outputStage)outcome='output_error';
       if(this.idleMaintenance(job)&&ctrl.signal.aborted) {
         this.store.prepare("UPDATE jobs SET state='interrupted',result=? WHERE $scope AND id=? AND state='running'").run('Maintenance interrupted; completed memory batches are retained, unfinished work waits for the next schedule.',job.id);
         return;
@@ -478,7 +492,7 @@ export class Service {
         this.store.prepare("UPDATE jobs SET state='failed',result=? WHERE $scope AND id=?").run(isUsageLimit(e)?'Codex usage limit reached; automatic retry disabled.':'Execution failed or timed out; automatic retry disabled.',job.id);
         this.store.enqueue(job.user,{text:isUsageLimit(e)?`Task ${job.id}: ${await this.usageText(true)}`:`Task ${job.id} failed or timed out. Ask me to inspect it before retrying actions.`},this.idleMaintenance(job));
       }
-    } finally {clearTimeout(timer);this.controllers.delete(job.id);}
+    } finally {this.store.observations.finishRun(observationRun,outcome);clearTimeout(timer);this.controllers.delete(job.id);}
   }
   async runMemoryJob(job,ctrl) {
     const {period,target}=this.memoryJob(job.id);let processed=0,changes=0,batches=0,truncated=0;
@@ -491,6 +505,7 @@ export class Service {
       const applied=this.memory.consolidate(period,batch,result,job.id);processed+=applied.processed;changes+=applied.changes;truncated+=batch.truncated;
     }
     const cursor=Number(this.store.get(`memory-cursor:${job.user}:${period}`)||0);
+    budgetForSignal(ctrl.signal)?.o.boundary(budgetForSignal(ctrl.signal).r);
     this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify({period,processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('memory-export-dirty')!=='1'}),job.id);
   }
   async runLearningJob(job,ctrl) {
@@ -510,6 +525,7 @@ export class Service {
       processed+=batch.records.length;changes+=applied.applied;truncated+=batch.truncated;
     }
     const cursor=Number(this.store.get(`learning-cursor:${job.user}`)||0);
+    budgetForSignal(ctrl.signal)?.o.boundary(budgetForSignal(ctrl.signal).r);
     this.store.prepare("UPDATE jobs SET state='completed',result=? WHERE $scope AND id=?").run(JSON.stringify({processed,changes,batches,cursor,target,truncated_records:truncated,backlog:cursor<target,markdown_synced:this.store.get('learning-export-dirty')!=='1'}),job.id);
   }
   schedules(now=Date.now()) {

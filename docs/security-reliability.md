@@ -116,3 +116,7 @@ back up the selected instance, preserve its Compose project and data mounts, the
 recreate one instance at a time. Verify readiness and preserved state, followed by
 an authorized real interaction. HTTP liveness alone is not proof that model login,
 Telegram delivery or every optional connector works.
+
+## Observation and budget boundaries
+
+Observation payloads contain only validated schema 1 reviewed enums, bounded finite counts, UUIDs and digests. Never persist SDK event/item/error objects, private prompt/tool arguments, raw tool names, paths, URLs, reasoning, error text or diagnostic fallback in receipts. Tenant-local operational relationships are kept separately from receipt payloads. Schema/storage errors drop the observation and increment a content-free counter without failing the user task. Budget exhaustion intentionally aborts the run, unlike telemetry failure. Only measured host service tools and service artifact snapshots are counted; arbitrary code, browser integrations and other SDK tools are outside these hooks. Missing usage cannot prove no subscription spend. See [observations](observations.md).

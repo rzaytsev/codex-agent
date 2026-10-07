@@ -272,3 +272,7 @@ for a development agent or content retrieved from tools.
   enqueue-time contents. Keep privileged auth challenges on their existing lifecycle.
 - Reject sensitive paths, symlinks and hardlinks at the service boundary. Same-grant
   arbitrary code remains outside this protection. See [artifacts](artifacts.md).
+
+## Private observations remain local and conservative
+
+Keep typed run/attempt receipts in the existing private SQLite database; do not add an exporter, collector or telemetry infrastructure. Codex SDK 0.159.2 completion usage is a cumulative thread total. Derive deltas only with a transactional same-process serialized baseline; retain cumulative measurements and mark gaps unattributed. Omit cache-write counts because the pinned parser synthesizes zero when the provider omits that measurement. Run completion includes artifact preparation, while delivery remains a separate outbox lifecycle. Optional budget settings default to disabled and preserve schedules and queue policy. See [observations](observations.md).

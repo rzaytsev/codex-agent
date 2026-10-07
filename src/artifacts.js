@@ -1,3 +1,4 @@
+import {budgetForSignal} from './observations.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -47,6 +48,7 @@ export class Artifacts {
       const before=await source.stat({bigint:true});if(!before.isFile()||before.nlink!==1n||before.size>BigInt(MAX)||!same(before,entries.at(-1)[1]))throw new ArtifactError();
       const bytes=await boundedRead(source);signal?.throwIfAborted();
       if(bytes.length>MAX||!same(before,await source.stat({bigint:true})))throw new ArtifactError();await unchanged(entries);
+      const budget=budgetForSignal(signal);budget?.o.artifact(budget.r,bytes.length);
       const dir=await this.storage(root),id=randomUUID(),snapshot=path.join(dir,id);
       dest=await fs.open(snapshot,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);
       await dest.writeFile(bytes);await dest.sync();await dest.close();dest=null;
