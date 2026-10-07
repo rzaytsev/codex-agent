@@ -5,6 +5,16 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Durable scheduler occurrences and atomic advancement, explicit overlap/misfire
+  policies and requested goal/bound state with authenticated owner completion.
+  Nullable intent columns preserve legacy policies and exact Task1 admission
+  fingerprints. Synthetic tests cover slow workers/latest pending promotion,
+  cancellation-requested activity, bounded downtime, abrupt process exit/reopen,
+  snapshot audit retention, DST and owner/source/session integrity. Bounds are
+  not goal achievement; owner confirmation is an attributed assertion, not
+  independently verified semantics. No live model/Telegram/image acceptance.
+  See [scheduler contracts](workflow.md#occurrences-overlap-and-downtime).
+
 - Immutable ordinary outbox snapshots for main/worker/voice outputs, durable hash
   and route inventory, atomic publication, exact buffered integrity checks before
   upload and explicit legacy gating. Retention is indefinite without automatic GC.

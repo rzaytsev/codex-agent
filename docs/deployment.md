@@ -382,3 +382,22 @@ optional empty-workspace prototype is disabled by default. Full compatible crede
 Build, Linux sandbox canary, separately authorized real ChatGPT auth compatibility, Telegram consent and backup/restore
 acceptance remain deployment gates. Stop execution/delivery and reconcile uncertain
 mail before rollback to older source. See [action policy](action-policy.md).
+
+## Scheduler occurrence upgrade
+
+Before authorized recreation, stop admitting/executing/delivering work and preserve
+a consistent SQLite/workspace/auth snapshot. Startup adds nullable schedule policy/
+goal fields, run/state counters, nullable job occurrence links, a unique occurrence
+index and retained occurrence/explicit-owner goal-receipt tables. Existing rows,
+opaque keys, original admission fingerprints, maintenance configuration, mounts
+and accounts remain. Old jobs have unknown occurrence identity; they are not
+backfilled. No new host settings, infrastructure or prototype enablement is needed.
+
+Verify legacy no-policy retries after advancement/cancellation, new policy state,
+pending coalesced work/restart, owner completion and snapshot restore before live
+acceptance. Older source ignores new bounds/policies/receipts and may admit work
+for a disabled goal incorrectly if reconfigured; stop execution/delivery and
+reconcile pending/interrupted/uncertain work before rollback. Prefer consistent
+pre-upgrade state restore over mixing old source with active new-policy schedules.
+Later admissions/receipts/delivery state revert with that restore. See
+[backups](backups.md#scheduler-occurrence-audit).

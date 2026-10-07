@@ -261,6 +261,24 @@ for a development agent or content retrieved from tools.
   admission idempotency, not exactly-once execution or external delivery. No queue,
   overlap, misfire or configured maintenance policy changes are introduced.
 
+## Explicit scheduler occurrence policies (2026-10-06)
+
+- Add unique schedule/UTC occurrence job links and a retained occurrence ledger;
+  commit them with due advancement. Preserve unknown identity on old jobs rather
+  than inventing a backfill. Keep omitted legacy queue/one-overdue semantics.
+- Use nullable explicit policy/goal intent fields without Zod defaults, preserving
+  exact prior Task1 version1 fingerprints and checking legacy adoption. New explicit
+  behavior changes conflict under an old request key.
+- Bound explicit catch-up per tick and retain skipped ranges without iterating an
+  unbounded outage. Coalesce supersedes only queued jobs; active payloads stay intact.
+  Treat cancel_requested as active in scheduler/maintenance overlap checks.
+- Only requested bounds/goals affect scheduling. Count admitted attempts and
+  report exhaustion separately from achievement. Host completion uses exact
+  authenticated owner-DM assertion after a settled occurrence, never a silent
+  semantic heuristic or arbitrary model claim. Retain provenance and all audit.
+- Keep maintenance, reflection, group source routes, no-model reminders and remote
+  uncertainty contracts. See [workflow](workflow.md#occurrences-overlap-and-downtime).
+
 ## Immutable outbox files
 
 - Prepare ordinary main/worker/voice snapshots and durable metadata before the

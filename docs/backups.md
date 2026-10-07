@@ -96,6 +96,22 @@ state rollback, stop the instance and restore the consistent pre-upgrade databas
 using the procedure above, accepting that later admissions and delivery state
 will also revert. Never combine a ledger from one snapshot with jobs from another.
 
+## Scheduler occurrence audit
+
+The canonical online SQLite snapshot retains schedule policy/goal intent and
+state, job occurrence links, schedule_occurrences (including coalesced/suppressed
+or skipped ranges), schedule_goal_receipts and source owner history. Keep these
+with jobs, admissions, conversations and sessions; do not delete/cascade audit
+through cleanup. Existing workspace/auth backup coverage is unchanged. Synthetic
+snapshot tests compare exact restored policy/occurrence/goal receipts.
+
+Back up before upgrading and stop the service before restoring. Source rollback
+can leave additive columns/tables but older code cannot enforce new policies,
+bounds or owner receipts; do not continue new-policy schedules under it. Reconcile
+queued work and uncertain sends first, or restore the matching pre-upgrade
+database/workspace snapshot while stopped, accepting loss of subsequent state.
+Never combine occurrence/goal audit from one snapshot with jobs from another.
+
 ## Immutable outbox snapshots
 
 The canonical database contains artifact inventory and outbox references. The

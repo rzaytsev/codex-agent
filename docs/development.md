@@ -67,6 +67,16 @@ superseded. Keep deployment receipts private. Preserve unrelated workspace chang
 legacy data and custom instruction sections. Before publication inspect candidate
 filenames/content, staged bytes, commit identity and any imported history.
 
+## Scheduler verification
+
+For scheduler changes run `node --test test/scheduler.test.js test/admission.test.js
+test/reliability.test.js test/learning.test.js test/memory.test.js test/tooling.test.js
+test/conversations.test.js test/conversation-migration.test.js test/assistant.test.js
+test/integration.test.js test/prompts.test.js`, then the standard full checks.
+Fixtures cover slow workers, unique occurrences, abrupt process exit and snapshots,
+prior-shape version1 receipts, bounded outage/DST, deadline admission and exact
+owner receipt rollback. No live endpoint/model/Telegram test is implied.
+
 ## Toolchain boundaries
 
 Codex SDK/CLI and Playwright MCP are pinned in package.json. requirements-tools.txt

@@ -134,12 +134,82 @@ returning a different existing schedule. A deliberate change uses
 operations, so verify cancellation before replacement. Cancellation and runtime
 cron advancement are never undone by an admission retry. The saved response's
 `due` and `enabled` describe original admission; use `list_schedules` for current
-enabled schedules. One-shot retries remain valid after their original due time.
+and disabled schedules, effective policies, goals and state. One-shot retries remain valid after their original due time.
 Cron whitespace and equivalent offset timestamps are normalized; timezone names
 remain explicit strings and schedule keys retain their opaque bytes for legacy
 compatibility. Previously saved schedules acquire an admission record
 only on a matching retry. A changed legacy payload conflicts, preserving its row.
 Configured maintenance schedules retain their existing reconciliation behavior.
+
+Omitted policies/goal fields retain the exact Task1 version1 fingerprint shape.
+Explicit fields participate in new intent fingerprints; a retry cannot introduce
+or change them under an existing key. Legacy adoption also checks these fields.
+
+### Occurrences, overlap and downtime
+
+New scheduler jobs persist `schedule_id` and UTC-millisecond `scheduled_for`,
+with a unique pair. An occurrence ledger, job/settings/actor writes, reminder
+outbox and due advancement commit together under the SQLite writer lock. Restart
+cannot admit that occurrence again, even if its job was later removed. Existing
+jobs have unknown occurrence identity and are not backfilled. This deduplicates
+local admission; execution and remote sends retain their uncertainty contracts.
+
+| Optional policy | Behavior |
+| --- | --- |
+| `overlap=queue` (also omitted) | Admit a worker occurrence even with active earlier work; backlog can grow |
+| `overlap=skip` | Record a skipped occurrence while its schedule has queued, running or cancel_requested work |
+| `overlap=coalesce` | Retain at most one queued occurrence alongside active work; supersede old queued jobs and admit the latest selected occurrence. Running/cancel_requested payloads stay unchanged |
+| Omitted `misfire` | Legacy: admit one stored overdue occurrence, then advance cron beyond the current tick |
+| `misfire=skip` | Skip the overdue range and advance beyond now |
+| `misfire=coalesce` | Admit the latest missed occurrence, skipping the older range |
+| `misfire=catch_up`, `catch_up_limit=1..100` | Admit at most the requested number of oldest missed occurrences in order, then skip the remainder and advance beyond now |
+
+Explicit misfire policies apply when lateness exceeds `misfire_grace_seconds`
+(default 60, range 0–86400). Grace is valid only with explicit misfire; catch-up
+requires its limit and other modes reject that limit. Overlap is about worker
+jobs, so it has no active worker to suppress for plain no-model reminders.
+Misfire and overlap compose: catch-up admissions still respect skip/coalesce.
+One tick handles at most 20 due schedules and 100 candidate occurrences each;
+skipped downtime uses one retained half-open range (`scheduled_for` through
+`skipped_before`) rather than enumerating years of missed cron times. Omitted
+misfire remains unchanged even when overlap is explicit. Cron uses pinned
+cron-parser 5.5.0/IANA rules: spring gaps shift the missing local time forward;
+daily repeated-hour expressions fire once at the first matching local hour.
+These cases are tested in America/New_York. Near an offset change, misfire
+coalescing normalizes the latest occurrence through a fixed 48-hour forward
+window (at most 2881 minute candidates for accepted five-field cron), because
+the parser's backward search differs at DST. Ordinary dates use direct lookup;
+neither path iterates the whole downtime. The unique identity always uses the
+resulting UTC instant. Other timezone/historical transitions need acceptance.
+
+### Requested goals and bounds
+
+Only supply `objective`, `done_condition`, `deadline` or `max_runs` when requested.
+Objectives/done conditions are task-only; a done condition requires an objective.
+Deadline needs an explicit offset and must be future at creation. `max_runs`
+(1–10000) bounds admitted occurrences, including subsequently superseded,
+cancelled, failed or interrupted jobs; it is not a count of successful checks.
+Skipped/suppressed occurrences do not count. Reaching this bound reports
+`max_runs_reached`, never achieved completion. Deadline stops further admission
+and queued work, including before the next cron due or worker start; it reports
+`deadline_reached`. Already running work may settle after the deadline and its
+external actions cannot be undone. Omitted bounds remain unbounded; recurring
+reminders never acquire an arbitrary max-runs limit.
+
+An objective/done-condition hash and `last_completed_job` appear in
+`list_schedules`. After a completed worker occurrence, the owner can deliberately
+send `/schedule_done SCHEDULE_ID COMPLETED_JOB_ID GOAL_HASH` directly in the
+private chat. The host checks the exact current goal hash, owner, source
+conversation, actor, UTC occurrence and its recorded job session. `/new` does
+not invalidate a prior occurrence; a group-origin goal can be confirmed from the
+owner DM. Forwarded/via-bot/event/group commands and mismatched jobs/scopes fail.
+The receipt records `explicit_owner` assertion provenance, not independent
+semantic verification. Arbitrary model `done` fields or completion language do
+not stop schedules. An identical command is idempotent; a different receipt
+binding conflicts. Receipt/evidence, completed goal state and cancellation of
+queued continuations commit together. Other already running jobs remain intact.
+An objective without a done condition has no completion-command hash and continues
+until an explicit bound or cancellation. No semantic completion heuristic runs.
 
 ## Scheduling and delivery
 
