@@ -107,6 +107,11 @@ servers retain their own authority. Only the disabled selected restricted protot
 checks/rejects the effective MCP set before SDK construction. Internal reviews
 also disable web search. Research may use read-only web search. Ordinary main/worker runs retain their runtime settings.
 
+The MCP bridge marks only registry `read` actions with `readOnlyHint: true` so
+the pinned runtime can call them under read-only/never approval policy. Mutation
+and preparation actions remain marked false; service role/scope checks still
+enforce authorization. These annotations do not create an isolation boundary.
+
 `READ_ONLY_WORKSPACE_PROTOTYPE=true` uses an empty disposable task cwd, removed
 at the end of the turn; service DB, approval ledger and auth are not copied there.
 Source data remains supplied through bounded prompt/context and read tools. The
