@@ -92,3 +92,29 @@ test('worker checkpoint projection stays scoped to the host task ID and receives
   await f.agent.run(owner,'Assigned current goal','worker',[],undefined,()=>{},undefined,false,{taskId:id});const context=f.calls[0].input[0].text;
   assert.match(context,/OWN_UNRESOLVED/);assert.doesNotMatch(context,/FOREIGN_UNRESOLVED|MAIN_HISTORY_PRIVATE/);assert.match(context,/Assigned current goal/);
 });
+
+
+test('worker checkpoint survives more than thirty newer jobs while main remains capped at eight',async t=>{
+  const f=await fixture(t);f.store.history(owner,'user','MAIN_HISTORY_PRIVATE');
+  const id=f.store.job(owner,'Older assigned goal');
+  f.store.db.prepare('UPDATE jobs SET created=?,goal_outcome=? WHERE id=?').run(1,JSON.stringify(outcomeRecord({...reply,checkpoint:{...checkpoint,unresolved_effects:['OLDER_OWN_UNRESOLVED']}})),id);
+  const newer=[];
+  for(let i=0;i<35;i++){const job=f.store.job(owner,'Newer goal '+i);newer.push(job);f.store.db.prepare('UPDATE jobs SET created=? WHERE id=?').run(1000+i,job);}
+  assert.equal(f.store.jobs(owner).some(j=>j.id===id),false);
+  await f.agent.run(owner,'Assigned older goal','worker',[],undefined,()=>{},undefined,false,{taskId:id});
+  const context=f.calls.at(-1).input[0].text;assert.match(context,/OLDER_OWN_UNRESOLVED/);assert.doesNotMatch(context,/MAIN_HISTORY_PRIVATE/);
+  const tasks=JSON.parse(context.match(/^Tasks: (.+)$/m)[1]);assert.equal(tasks.length,1);assert.equal(tasks[0].id,id);
+  await f.agent.run(owner,'Show current goals');
+  const mainTasks=JSON.parse(f.calls.at(-1).input[0].text.match(/^Tasks: (.+)$/m)[1]);assert.deepEqual(mainTasks.map(j=>j.id),newer.slice(-8).reverse());
+});
+
+test('worker checkpoint lookup denies absent, foreign-owner and foreign-conversation task IDs',async t=>{
+  const f=await fixture(t);f.store.history(owner,'user','MAIN_HISTORY_PRIVATE');
+  const foreignOwner=f.store.job('456','Foreign owner'),foreignConversation=f.store.job(owner,'Foreign conversation');
+  for(const id of [foreignOwner,foreignConversation])f.store.db.prepare('UPDATE jobs SET goal_outcome=? WHERE id=?').run(JSON.stringify(outcomeRecord({...reply,checkpoint:{...checkpoint,unresolved_effects:['FOREIGN_CHECKPOINT_PRIVATE']}})),id);
+  f.store.db.prepare('UPDATE jobs SET conversation_id=? WHERE id=?').run('foreign-conversation',foreignConversation);
+  for(const taskId of ['absent-task',foreignOwner,foreignConversation]){
+    await f.agent.run(owner,'Assigned goal','worker',[],undefined,()=>{},undefined,false,{taskId});
+    const context=f.calls.at(-1).input[0].text;assert.match(context,/Tasks: \[\]/);assert.doesNotMatch(context,/FOREIGN_CHECKPOINT_PRIVATE|MAIN_HISTORY_PRIVATE/);
+  }
+});

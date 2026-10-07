@@ -15,7 +15,8 @@ request and conversation/audience/route stay explicit in turn input. Checkpoints
 Up to eight scoped task checkpoints are projected as model-reported, host_verified=false.
 Every validated unresolved-effect slot is retained; descriptions over 240 characters
 are truncated with a task_status retrieval pointer. Full originals remain in SQLite.
-Workers receive only their matching task checkpoint when one exists. A checkpoint
+Workers query their single task ID with owner/conversation scope, independently of
+the recent-job listing limit, and receive its checkpoint when one exists. A checkpoint
 cannot resume a job, mint owner intent or authorize retrying an uncertain effect.
 Older corrections outside the bounded tail require native thread continuity or
 explicit memory/history retrieval; synthetic fixtures do not prove live retention.
@@ -93,10 +94,15 @@ and live long-session correction/route/checkpoint acceptance separately opt-in.
 Back up consistent SQLite plus workspace/artifacts/profiles/Codex home before
 an operator image update. Startup adds only history_origins.known_quote, default
 zero for retained rows; it does not fabricate old quote boundaries, rewrite active
-preferences, remove history, change threads or alter schedule policy. Source rollback
-leaves the additive column and audit intact, but older code lacks quote authority
-gates and bounded checkpoint input. Stop and reconcile uncertain work before a
-downgrade; a full matched pre-upgrade restore loses subsequent writes. Never replay
+preferences, remove history, change threads or alter schedule policy.
+Source-only rollback to the pre-Task-8 base is incompatible with this migrated
+schema: its three-value history_origins insert fails against the four-column table,
+breaking ordinary owner intake and potentially leaving history without an origin
+outside an enclosing transaction. Stop the instance and reconcile processes and
+uncertain effects, then restore matched pre-upgrade data and source/image together
+for that downgrade. Such a restore loses subsequent writes; retain audit evidence.
+A separate compatibility rollback would need its own design and verification that
+preserves quote provenance/audit. Do not casually delete the column. Never replay
 uncertain effects or downgrade Task 7 requested-cancellation state blindly.
 Image core/role changes reach existing instances on authorized image recreation;
 seed templates initialize missing files and preserve existing custom profiles.
