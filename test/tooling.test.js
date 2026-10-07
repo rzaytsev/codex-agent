@@ -49,8 +49,8 @@ test('worker artifacts are uploaded without waiting for another model turn, with
   service.agent.run=async()=>({text:'Artifacts ready',voice:false,files:[...files,files[0]]});
   const id=store.job('123','create artifacts');store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(id);await service.runJob(store.db.prepare('SELECT * FROM jobs WHERE id=?').get(id),new AbortController());
   const rows=store.db.prepare('SELECT * FROM outbox').all();assert.equal(rows.length,files.length+1);assert.equal(JSON.parse(rows.at(-1).payload).text,'Artifacts ready');
-  const telegram=new Telegram('unused');const uploads=[];telegram.call=async(method,data)=>{uploads.push({method,data});return true;};
-  for(const row of rows.slice(0,-1))await telegram.sendPart(row.user,JSON.parse(row.payload));
+  const telegram=new Telegram('unused');const uploads=[];telegram.call=async(method,data)=>{if(method==='sendPhoto'||method==='sendDocument')uploads.push({method,data});return true;};
+  service.telegram=telegram;await service.deliver();
   for(let i=0;i<files.length;i++){
     const {method,data}=uploads[i];const photo=path.extname(files[i])==='.png';assert.equal(method,photo?'sendPhoto':'sendDocument');assert.equal(data.get('chat_id'),'123');
     const file=data.get(photo?'photo':'document');assert.equal(file.name,path.basename(files[i]));assert.equal(file.type,expected[path.extname(files[i])]);assert.equal(await file.text(),'bytes'+path.extname(files[i]));

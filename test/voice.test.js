@@ -35,8 +35,8 @@ test('voice tool queues speech for its user and delivery uploads voice, not text
   assert.equal(await fs.readFile(payload.path,'utf8'),'OggS test fixture');
   assert.equal(store.search('123').at(-1).text,'Read the last reply aloud');
   await service.deliver();
-  assert.equal(requests.length,2);assert.match(requests[0].url,/\/sendChatAction$/);assert.equal(JSON.parse(requests[0].body).action,'upload_voice');assert.match(requests[1].url,/\/sendVoice$/);
-  const form=requests[1].body;assert.ok(form instanceof FormData);assert.equal(form.get('chat_id'),'123');
+  assert.equal(requests.length,2);const indicator=requests.find(r=>r.url.endsWith('/sendChatAction')),upload=requests.find(r=>r.url.endsWith('/sendVoice'));assert.equal(JSON.parse(indicator.body).action,'upload_voice');
+  const form=upload.body;assert.ok(form instanceof FormData);assert.equal(form.get('chat_id'),'123');
   assert.equal(form.get('voice').type,'audio/ogg');assert.equal(await form.get('voice').text(),'OggS test fixture');
   assert.equal(form.has('document'),false);assert.equal(store.db.prepare('SELECT state FROM outbox').get().state,'sent');
   await fs.writeFile(path.join(bin,'espeak-ng'),`#!${process.execPath}\nprocess.exit(1);`,{mode:0o700});

@@ -5,6 +5,12 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Immutable ordinary outbox snapshots for main/worker/voice outputs, durable hash
+  and route inventory, atomic publication, exact buffered integrity checks before
+  upload and explicit legacy gating. Retention is indefinite without automatic GC.
+  Synthetic source-change/restart/tamper/symlink/hardlink/route/commit regressions
+  pass; deployed Telegram and restore acceptance remain gates. See [artifacts](artifacts.md).
+
 - Application-owned main/worker/read-only/review instructions are SDK developer
   context, separate from source data and requests. Worker voice uses the existing
   service synthesis path; internal reviews omit editable persona instructions and

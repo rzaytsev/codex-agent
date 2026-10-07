@@ -355,3 +355,15 @@ section. Existing owner, Compose identity, data mounts, authentication and custo
 profile sections remain. CORE.md stays in the read-only image; PLAYBOOK.md and marked
 learning sections are generated in the existing workspace. Preserve a consistent
 SQLite backup and instruction snapshot before recreation. See [learning](learning.md).
+
+## Immutable artifact upgrade
+
+Before recreating the selected instance, preserve a consistent database/workspace
+backup and privately review any legacy path-only outgoing files. Startup retains
+those entries as `legacy` and blocks automatic sending. Newly prepared main, worker
+and voice files use persistent `state/outbox-artifacts` snapshots, with indefinite
+retention and no automatic deletion. Preserve the existing workspace mount; no new
+mount or host permission grant is required. Verify legacy reconciliation, pending
+snapshot restart and hashes before an authorized real upload. Rollback needs a
+stopped sender and consistent pre-upgrade state because older code lacks snapshot
+integrity verification. See [artifacts](artifacts.md) and [backups](backups.md).

@@ -38,6 +38,12 @@ export class Store {
       const columns=this.db.prepare(`PRAGMA table_info(${table})`).all().map(c=>c.name);
       for(const [column,type] of [['conversation_id','TEXT'],['session_id','TEXT'],['actor_id','TEXT']])if(!columns.includes(column))this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
     }
+    this.db.exec(`CREATE TABLE IF NOT EXISTS artifacts (id TEXT PRIMARY KEY, sha256 TEXT NOT NULL, size INTEGER NOT NULL, mime TEXT NOT NULL, filename TEXT NOT NULL, owner TEXT NOT NULL, conversation_id TEXT, session_id TEXT, actor_id TEXT NOT NULL, created INTEGER NOT NULL);`);
+    const outboxColumns=this.db.prepare('PRAGMA table_info(outbox)').all().map(c=>c.name);
+    if(!outboxColumns.includes('artifact_id'))this.db.exec('ALTER TABLE outbox ADD COLUMN artifact_id TEXT REFERENCES artifacts(id)');
+    if(!outboxColumns.includes('legacy_state'))this.db.exec('ALTER TABLE outbox ADD COLUMN legacy_state TEXT');
+    // Do not fabricate enqueue-time immutability for retained path-only rows.
+    this.db.exec("UPDATE outbox SET legacy_state=state,state='legacy' WHERE state IN ('pending','sending','uncertain') AND json_valid(payload) AND json_extract(payload,'$.type') IN ('file','voice','photo') AND json_extract(payload,'$.artifactId') IS NULL");
     this.db.exec(`CREATE INDEX IF NOT EXISTS inputs_conversation_pending ON inputs(conversation_id,created,id) WHERE state='pending';
       CREATE INDEX IF NOT EXISTS jobs_conversation_state ON jobs(conversation_id,state,created);
       CREATE INDEX IF NOT EXISTS history_conversation_order ON history(conversation_id,user,id);
@@ -77,7 +83,15 @@ export class Store {
     const rows=this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND id>? AND created>=? AND created<=? ORDER BY id LIMIT ?`).all(user,after,since,until,limit+1);
     const records=rows.slice(0,limit);return {records,next_cursor:records.at(-1)?.id||after,has_more:rows.length>limit};
   }
-  enqueue(user,payload,proactive=false,{sessionId,actorId}={}) { this.db.prepare('INSERT INTO outbox(user,payload,due,proactive,session_id,actor_id,conversation_id) VALUES (?,?,?,?,?,?,?)').run(user,JSON.stringify(payload),Date.now(),Number(proactive),sessionId||this.get('main-session')||null,actorId||null,this.conversationId||null);this.onEnqueue?.(); }
+  recordArtifact(a) {this.db.prepare('INSERT INTO artifacts VALUES (?,?,?,?,?,?,?,?,?,?)').run(a.id,a.sha256,a.size,a.mime,a.filename,a.owner,a.conversation_id,a.session_id,a.actor_id,a.created);}
+  enqueue(user,payload,proactive=false,{sessionId,actorId}={}) {
+    const session=sessionId||this.get('main-session')||null,actor=actorId||user,conversation=this.conversationId||null;
+    if(payload.artifactId) {
+      const a=this.db.prepare('SELECT * FROM artifacts WHERE id=?').get(payload.artifactId);
+      if(!a||a.owner!==user||a.conversation_id!==conversation||a.session_id!==session||a.actor_id!==actor)throw new Error('Artifact route mismatch');
+    }
+    this.db.prepare('INSERT INTO outbox(user,payload,due,proactive,session_id,actor_id,conversation_id,artifact_id) VALUES (?,?,?,?,?,?,?,?)').run(user,JSON.stringify(payload),Date.now(),Number(proactive),session,actor,conversation,payload.artifactId||null);this.onEnqueue?.();
+  }
   job(user,prompt,profile='worker') { const id = randomUUID(); this.db.prepare('INSERT INTO jobs(id,user,prompt,profile,state,created,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?)').run(id,user,prompt,profile,'queued',Date.now(),this.conversationId||null,this.get('main-session')||null); return id; }
   schedule(id,user,kind,prompt,cron,timezone,due,key) {this.db.prepare('INSERT OR IGNORE INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,user,kind,prompt,cron,timezone,due,key,this.conversationId||null,this.get('main-session')||null);}
   jobs(user) { return this.prepare('SELECT id,profile,state,created,result FROM jobs WHERE $scope AND user=? ORDER BY created DESC LIMIT 30').all(user); }
