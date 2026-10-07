@@ -1,0 +1,22 @@
+{
+  "prior": "aeb5f9f87984b2a82791f5f9b34ea1f24740dd31",
+  "archiveSha256": "da9d4403b5fb86aed03079bd4fbcaf06e0413951f44ab2944ac5817da1b09236",
+  "fixtureSha256": "9846e604149a1840f78c7ed432d5a12c08e416d9b9b16d703f3779377af6ba19",
+  "quoted": "history:1",
+  "direct": "history:2",
+  "generic": "history:3",
+  "rules": {
+    "quoted-trial": {
+      "source": "history:4",
+      "receiptSource": "history:5",
+      "receiptId": "26ce64b7-4549-4842-a0ed-a7889b384d62"
+    },
+    "retained-active-rule": {
+      "source": "history:6",
+      "receiptSource": "history:7",
+      "receiptId": "33e9cebc-880f-47cc-b894-822fc4abe986"
+    }
+  },
+  "modelCalls": 0,
+  "networkCalls": 0
+}

@@ -303,9 +303,13 @@ reports memory-on/off answers separately from record-capture checks.
 
 Host intake now records bounded source origins alongside history. Known hidden
 forwarding, bots, attachments and event data cannot directly confirm new owner
-facts; authenticated owner group facts remain supported. Legacy memory evidence
-keeps its existing factual-evidence behavior, while new preference/outcome learning
-requires direct-owner host attribution; see [learning](learning.md#host-outcome-receipts-and-authority).
+facts; authenticated owner group facts with current quote-aware attribution remain
+supported. Retained attribution without `provenance_version=1` is unknown and
+cannot confirm a new owner fact, even if its old origin says `direct_owner` or
+`owner_group`. A current quote flag overrides that label. Existing active memories,
+versions and audit remain intact. Generic legacy history without an attribution
+row keeps its documented factual-evidence compatibility; it does not grant new
+preference/outcome learning authority. See [learning](learning.md#host-outcome-receipts-and-authority).
 The separate [production contract lane](memory-quality-evals.md#separate-deterministic-production-contract-lane)
 checks restart/correction, replay refusal, descendants and Russian keyword limits
 without claiming semantic retrieval or model quality.

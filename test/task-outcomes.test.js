@@ -6,7 +6,7 @@ import path from 'node:path';
 import {Codex} from '@openai/codex-sdk';
 import {superviseSdk,ExecutionUnknown} from '../src/supervised-exec.js';
 import {validateOutcome,outcomeRecord} from '../src/outcomes.js';
-import {Agent} from '../src/agent.js';
+import {Agent,responseSchema} from '../src/agent.js';
 import {Service} from '../src/service.js';
 import {Store} from '../src/store.js';
 import {config} from '../src/config.js';
@@ -19,6 +19,18 @@ async function fixture(t,source){
  return {dir,binary,options:{codexPathOverride:binary,env:{PATH:path.dirname(process.execPath),HOME:dir,CODEX_HOME:dir}}};
 }
 const completed="console.log(JSON.stringify({type:'turn.completed',usage:{input_tokens:1,output_tokens:1,cached_input_tokens:0}}));";
+
+test('provider response schema requires every object property and represents optional metadata with null',()=>{
+ const check=s=>{
+  if(s.type==='object') {assert.deepEqual([...s.required].sort(),Object.keys(s.properties).sort());assert.equal(s.additionalProperties,false);for(const child of Object.values(s.properties))check(child);}
+  if(s.items)check(s.items);
+  for(const child of s.anyOf||[])check(child);
+ };
+ check(responseSchema);
+ for(const field of ['outcome','checkpoint'])assert(responseSchema.properties[field].anyOf.some(s=>s.type==='null'));
+ assert.equal(outcomeRecord({outcome:null,checkpoint:null}).goal,'unknown');
+ assert.equal(outcomeRecord({}).goal,'unknown'); // Retained legacy results remain readable.
+});
 
 test('pinned SDK ignored-SIGTERM early return control stays alive; supervised Agent waits for actual exit',async t=>{
  const f=await fixture(t,`const fs=require('node:fs');fs.writeFileSync(process.env.HOME+'/pid',String(process.pid));process.on('SIGTERM',()=>{});process.stdin.resume();process.stdin.on('end',()=>{console.log(JSON.stringify({type:'thread.started',thread_id:'synthetic-thread'}));setInterval(()=>console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:'late'}})),20);});`);

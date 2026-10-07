@@ -62,7 +62,8 @@ cancellation failure advances nothing for the unfinished batch. Completed prior
 batches survive restart. Rejected candidates are audited but never installed.
 
 New or revised rules are explicitly unproven trials. Later reviews can promote an
-unchanged rule when new evidence supports its check, or retire it when harmful.
+unchanged rule only with a matching improved host receipt for its preselected check
+and new evidence, or retire it when harmful.
 A model validation pass is not measured improvement and cannot mint an outcome receipt. The evaluator's semantic
 judgment remains fallible, even though service checks reject malformed references,
 foreign owners, forwarded profile authority, obvious secrets and policy-expansion
@@ -88,7 +89,8 @@ uncertain delivery. Retired/resolved records cannot be revived automatically.
 Workers and curators cannot use the mutation tool.
 
 For example: repeated requests for a next step support a scoped planning trial.
-A later owner report that it saved another correction can support promotion. A
+A later direct-owner outcome recorded against the unchanged trial/check can support
+promotion with a matching improved receipt and independent proposal validation. A
 later instruction to stop retires it. Silence leaves usefulness unknown.
 
 Explicit structured-memory forgetting marks learning records citing blocked
@@ -161,12 +163,19 @@ trial sources, stale revisions/hashes, changed checks, blocked evidence and
 unknown/foreign/mismatched observation IDs are rejected. `inconclusive` leaves a
 trial unproven; any `regressed` receipt blocks promotion of that revision even if
 another receipt says improved. Proposals still need independent validation.
+At each new promotion, an `explicit_owner` improvement receipt's cited sources
+must still have current, quote-aware direct-owner authority. A retained receipt
+whose source is now quoted or has unknown historical attribution remains audit
+and cannot authorize promotion. Deterministic host checks retain their distinct
+authority contract; the regression veto remains conservative regardless of later
+source-authority corrections. Already-active records and prior applications are
+preserved.
 
 The host records explicit owner outcomes through the exact command:
 `/learning_outcome KEY REVISION CANDIDATE_HASH improved|inconclusive|regressed`.
 Inspect the trial/check through `learning_read` first. Only authenticated direct
 owner DM text can supply this authority. Hidden/legacy forwarding fields, automatic
-forwarding, via-bot content, attachments, groups, assistant/peer/event/job sources
+forwarding, known Telegram quotes/blockquotes, via-bot content, attachments, groups, assistant/peer/event/job sources
 and model-supplied origin never grant direct owner preference or outcome authority.
 A trusted deterministic host check may use `Learning.recordOutcome` after checking
 the result; this interface is absent from both MCP and direct action registries.
@@ -176,7 +185,11 @@ Full credential/foreign-task isolation remains **incomplete and blocking**.
 
 Host intake adds bounded `history_origins` metadata. `role=user` alone, including
 legacy/imported rows without attribution, is `legacy_unknown` for new learning
-authority. Genuine new owner preferences/styles can be adopted directly without an
+authority. Intake writes `provenance_version=1` with its quote-aware attribution;
+retained attribution without that version defaults to 0 (unknown), including
+historical `direct_owner` rows. Neither text nor timestamps establish old quote
+boundaries. Those rows require fresh owner evidence for new preferences or explicit
+outcomes. Genuine new owner preferences/styles can be adopted directly without an
 experiment. Authenticated group facts remain usable memory evidence, but do not
 supply direct-DM preference or outcome authority. Arbitrary pasted quote semantics
 are not inferred by regex; semantic support is still a review judgment.
@@ -187,6 +200,17 @@ Legacy trials have no preselected binding receipt: reaffirm/revise them as a new
 trial before an outcome can promote them. Back up the consistent SQLite snapshot
 and workspace with the existing [backup process](backups.md). Rollback retires the
 application while retaining receipts, previous revisions and review audit. Source
-rollback to an older image leaves additive tables intact but removes the new gates;
-use a pre-upgrade backup only for deliberate whole-state restoration, which loses
-subsequent writes. No migration deletes records or authentication.
+rollback must follow the [final-stack restoration contract](runtime-contracts.md#migration-and-rollback):
+stop execution/delivery, reconcile owned processes, requested cancellation and
+uncertain effects, then restore matched pre-upgrade source/image, database and
+workspace together. Earlier subsystem-only additive-table compatibility is not
+an operational source-only downgrade path for this stack: pre-Task-8 positional
+history-origin inserts fail against the migrated schema. Retain audit evidence
+before restoration, acknowledge subsequent-write loss, and reconcile external
+effects separately; restoring data does not undo them. No migration deletes
+records or authentication.
+
+Known quote metadata conservatively labels a whole mixed message and blocks new
+preference/confirmed-fact authority; retained audit and original unquoted DM/group
+facts with current provenance remain supported. Existing active facts are preserved.
+See [provenance and migration](runtime-contracts.md).

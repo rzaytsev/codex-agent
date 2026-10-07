@@ -7,7 +7,11 @@ execution and committed its response, but its goal can be `achieved`, `partial`,
 `last_verified_milestone`, `next_safe_step` and `unresolved_effects`. Each list is
 bounded to 16 strings of at most 2,000 characters; checkpoint version is an integer
 from 1 through 1,000,000. Unknown fields and invalid types fail closed. Null/absent
-fields support legacy replies. These records contain private task content, never
+fields support legacy replies. The provider response schema requires both nullable
+fields; new model replies use `null` when no metadata is reported. This satisfies
+the [Structured Outputs requirement](https://platform.openai.com/docs/guides/structured-outputs#all-fields-must-be-required)
+that every property be required, while retained legacy results may omit them.
+These records contain private task content, never
 telemetry payloads.
 
 The service validates shape, then atomically stores the model-reported outcome and
@@ -21,7 +25,10 @@ permitted checks, then inspect the returned checks/evidence/limitations. Such a
 review is still model-reported and does not mint learning or schedule authority.
 Ordinary replies use one model turn.
 
-`task_status` exposes the full stored outcome/checkpoint. `/status` shows execution
+`task_status` lists the latest 30 scoped jobs by default. With `{id: TASK_ID}` it
+retrieves at most one exact task and its full stored outcome/checkpoint, even beyond
+that list. Owner/conversation scope still applies; absent or foreign IDs return
+an empty list. `/status` shows execution
 state, goal, reporting authority and fresh-owner-intent requirement. Returned
 checkpoints survive restart; intermediate model progress that was never returned
 and committed is not invented. There is no resume/retry command and no automatic

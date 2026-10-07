@@ -136,3 +136,9 @@ Outbox rows bind the artifact ID to the original owner/conversation/session/acto
 Delivery verifies the snapshot once and passes those buffered bytes to Telegram,
 including photo fallback. Source paths are no longer delivery inputs for ordinary
 outputs. See [artifact storage](artifacts.md) for retention and legacy gates.
+
+Context assembly projects host history source labels and bounded terminal-result
+model checkpoints without resume authority. Browser output IDs live in turn input;
+developer guidance is stable. [Runtime contracts](runtime-contracts.md) bind
+schema/parser/supervisor, effective registry metadata, declared versions and the
+eight owned skill mounts.

@@ -1,4 +1,5 @@
 import {ContractDenial} from './contract-denial.js';
+import {trustedHistoryOrigin} from './owner-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -134,10 +135,13 @@ export class Memory {
     const match=source.match(/^history:([1-9]\d*)$/);if(!match)return null;
     const row=this.db.prepare('SELECT id,role,actor_id,conversation_id,created,text FROM history WHERE user=? AND id=?').get(this.owner,Number(match[1]));
     if(!row)return null;
-    const origin=this.db.prepare('SELECT origin FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id)?.origin;
+    const provenance=this.db.prepare('SELECT origin,known_quote,provenance_version FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id);
+    const origin=trustedHistoryOrigin(provenance);
     const knownForward=origin==='forwarded'||/Forwarded text \(source data|Forward provenance \(source data\)/.test(row.text);
     const {text,...metadata}=row;
-    return {...metadata,origin:origin||'legacy_unknown',known_forward:knownForward,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward&&(!origin||['direct_owner','owner_group'].includes(origin))};
+    // Preserve documented generic legacy factual evidence only when there is no
+    // attribution row; an ambiguous retained attribution is not owner proof.
+    return {...metadata,origin,provenance_version:provenance?.provenance_version??0,known_forward:knownForward,known_quoted:Boolean(provenance?.known_quote),original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&!knownForward&&(!provenance||['direct_owner','owner_group'].includes(origin))};
   }
   explain(key,revision) {
     const entry=this.get(key,revision);if(!entry)return null;

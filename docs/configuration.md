@@ -192,3 +192,8 @@ and authenticated cloud/model/state behavior requires separate opt-in validation
 Full isolation is **INCOMPLETE AND BLOCKING**, pending target-image and authenticated compatibility. New research uses read scope
 and cannot request conversation scope. Existing persisted schedules/settings are
 not rewritten. See [action policy](action-policy.md) for all categories and gates.
+
+Pinned runtime contract goldens and the eight owned skill inventory add no runtime
+settings or dependency upgrades. Empty MCP tables do not remove lower configured
+servers; service read scope and builtin write restrictions remain separate from
+optional server authority. See [runtime gates](runtime-contracts.md).

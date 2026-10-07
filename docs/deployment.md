@@ -295,7 +295,7 @@ venvs 30 days. Profiles, auth, state/default venv, history, databases/WALs, memo
 uploads, source/project files/environments, backups, deliverables, shared skills
 and pending/uncertain deliveries are preserved. Unknown candidates are retained
 and suggested for review. Measured results are saved in memory/cleanup/.
-This instruction policy guides the fully autonomous model; filesystem access is
+This instruction policy guides owner-authorized model work within action policy; filesystem access is
 still defined by container mounts, not a dedicated deletion sandbox.
 
 Set CLEANUP_ENABLED=false to disable it. MCP schedule cancellation survives
@@ -341,7 +341,9 @@ from this live Telegram acceptance.
 
 /help, /status, /stop and /cancel are processed at intake without a model call,
 even while it is busy. /stop aborts only the requesting user's current main turn;
-/cancel <id> aborts that user's queued/running worker. Cancelled turns don't queue
+/cancel <id> cancels queued work immediately and requests running cancellation.
+Running work settles only after owned child exit; unknown exit retains requested
+capacity. Cancelled turns do not queue
 a final model result. Cancelling cannot undo actions already executed.
 
 Ordinary messages are queued, not injected into a running turn. The current SDK
@@ -401,3 +403,5 @@ reconcile pending/interrupted/uncertain work before rollback. Prefer consistent
 pre-upgrade state restore over mixing old source with active new-policy schedules.
 Later admissions/receipts/delivery state revert with that restore. See
 [backups](backups.md#scheduler-occurrence-audit).
+
+Before runtime upgrades, run the [compatibility contracts and target image gates](runtime-contracts.md). Anonymous synthetic discovery does not prove authenticated startup; image recreation and real acceptance require separate operator authorization.

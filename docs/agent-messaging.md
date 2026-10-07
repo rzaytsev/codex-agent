@@ -17,7 +17,11 @@ does **not** start a model turn or worker.
   request. Repeated acceptance returns the same task.
 - `/mail reject ID`: decline a pending request.
 
-Forwarded commands cannot accept/reject requests. Natural-language acceptance
+Both acceptance and rejection require the shared authenticated direct-owner
+predicate before request state, worker, peer-status or decision-history changes.
+Known Telegram quotes/blockquotes (including caption entities), modern and legacy
+forwarding, automatic forwards, via-bot content and attachments cannot authorize
+either decision. Inbox/read behavior stays available. Natural-language acceptance
 asks the owner to send the direct command. `/status` and `/cancel` apply to the
 accepted worker. Existing owner execution permissions still apply.
 

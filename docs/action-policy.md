@@ -97,11 +97,20 @@ New research turns use read-only scope; requested conversation scope is refused.
 Already persisted task settings/state and schedules are not rewritten; legacy
 research settings are narrowed to read in memory when executed. The pinned
 SDK 0.159.2 uses sandboxMode=read-only and approvalPolicy=never for research,
-read-only and internal reviews. These turns clear configured MCP servers before
-adding the read-only assistant bridge, disable apps/plugins/hooks/multi-agent
-features, omit the Maps key and browser, and disable native project-document
-reload. Internal reviews also disable web search. Research may use read-only web
-search. Ordinary main/worker runs retain their runtime settings.
+read-only and internal reviews. These turns request mcp_servers={} and add the
+read-scoped assistant bridge, disable apps/plugins/hooks/multi-agent features,
+omit the Maps key and browser, and disable native project-document reload.
+Empty MCP tables recursively retain lower-layer servers; requested overrides do
+not prove effective MCP removal. Service read scope denies service mutations,
+while the builtin read-only sandbox restricts filesystem writes. Optional MCP
+servers retain their own authority. Only the disabled selected restricted prototype
+checks/rejects the effective MCP set before SDK construction. Internal reviews
+also disable web search. Research may use read-only web search. Ordinary main/worker runs retain their runtime settings.
+
+The MCP bridge marks only registry `read` actions with `readOnlyHint: true` so
+the pinned runtime can call them under read-only/never approval policy. Mutation
+and preparation actions remain marked false; service role/scope checks still
+enforce authorization. These annotations do not create an isolation boundary.
 
 `READ_ONLY_WORKSPACE_PROTOTYPE=true` uses an empty disposable task cwd, removed
 at the end of the turn; service DB, approval ledger and auth are not copied there.
@@ -248,9 +257,13 @@ The ledger contains private payloads; protect it like history. Keep ledger and
 mail_outbox in the same SQLite snapshot. No extra mount, automatic GC or collector
 is introduced. Stop execution/delivery before rollback: older code can bypass
 approval and blindly retry old pending transport calls. Reconcile pending and
-uncertain operations first. Additive tables can remain with older source, but
-its missing controls must be accepted explicitly; a complete state rollback uses
-the matching pre-upgrade snapshot and also reverts later history/delivery state.
+uncertain operations and requested cancellation first. Earlier subsystem-only
+additive-table compatibility does not make source-only downgrade operational for
+the final stack: pre-Task-8 positional history-origin inserts fail against the
+migrated schema. Follow the [final-stack restoration contract](runtime-contracts.md#migration-and-rollback):
+restore matched pre-upgrade source/image, database and workspace together. Preserve
+audit evidence first and acknowledge loss of later history/delivery writes.
+Restoration cannot undo external effects; reconcile them without blind resend.
 Do not mix approval/outbox tables from different snapshots.
 
 

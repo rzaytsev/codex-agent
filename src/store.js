@@ -1,5 +1,5 @@
 import {interruptedOutcome} from './outcomes.js';
-import {historyOrigin} from './owner-evidence.js';
+import {historyOrigin,knownQuote,trustedHistoryOrigin} from './owner-evidence.js';
 import { observationsForStore } from './observations.js';
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID, createHash } from 'node:crypto';
@@ -32,6 +32,11 @@ export class Store {
       CREATE UNIQUE INDEX IF NOT EXISTS conversations_transport ON conversations(chat_id,coalesce(message_thread_id,0));
       CREATE TABLE IF NOT EXISTS history_origins (history_id INTEGER PRIMARY KEY, owner TEXT NOT NULL, origin TEXT NOT NULL CHECK(origin IN ('direct_owner','owner_group','forwarded','bot','attachment','event','other')));
       CREATE TABLE IF NOT EXISTS main_sessions (id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, thread TEXT, created INTEGER NOT NULL);`);
+    // Additive host quote metadata; retained origins and audit are never rewritten.
+    if(!this.db.prepare('PRAGMA table_info(history_origins)').all().some(c=>c.name==='known_quote'))this.db.exec('ALTER TABLE history_origins ADD COLUMN known_quote INTEGER NOT NULL DEFAULT 0 CHECK(known_quote IN (0,1))');
+    // Unknown historical attribution cannot grant new authority. Do not infer
+    // quote-aware provenance from old defaults, text, timestamps or unbound input.
+    if(!this.db.prepare('PRAGMA table_info(history_origins)').all().some(c=>c.name==='provenance_version'))this.db.exec('ALTER TABLE history_origins ADD COLUMN provenance_version INTEGER NOT NULL DEFAULT 0 CHECK(provenance_version IN (0,1))');
     // No resource foreign key/cascade: retain admission audit through cleanup.
     this.db.exec(`CREATE TABLE IF NOT EXISTS admissions (
       owner TEXT NOT NULL, conversation_id TEXT NOT NULL, intent TEXT NOT NULL,
@@ -93,9 +98,16 @@ export class Store {
   history(user,role,text,actorId=user) { this.db.prepare('INSERT INTO history(user,role,text,created,actor_id,conversation_id,session_id) VALUES (?,?,?,?,?,?,?)').run(user,role,text,Date.now(),actorId,this.conversationId||null,this.get('main-session')||null); return Number(this.db.prepare('SELECT last_insert_rowid() AS id').get().id); }
   // Only host intake uses this path; ordinary history inserts grant no authority.
   ownerHistory(cfg,message,text) {
-    const id=Store.prototype.history.call(this,cfg.owner,message.event?'event':'user',text,String(message.from?.id||cfg.owner));
-    this.db.prepare('INSERT INTO history_origins VALUES (?,?,?)').run(id,cfg.owner,historyOrigin(message,cfg));
-    return id;
+    const write=()=>{
+      const id=Store.prototype.history.call(this,cfg.owner,message.event?'event':'user',text,String(message.from?.id||cfg.owner));
+      this.db.prepare('INSERT INTO history_origins(history_id,owner,origin,known_quote,provenance_version) VALUES (?,?,?,?,1)').run(id,cfg.owner,historyOrigin(message,cfg),Number(knownQuote(message)));
+      return id;
+    };
+    return this.db.isTransaction?write():this.transaction(write);
+  }
+  historySource(id,owner) {
+    const row=this.db.prepare('SELECT origin,known_quote,provenance_version FROM history_origins WHERE history_id=? AND owner=?').get(id,owner);
+    return trustedHistoryOrigin(row);
   }
   search(user,query='',since=0,{all=false}={}) { return this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND created>=? AND instr(lower(text),lower(?))>0 ORDER BY id DESC LIMIT 100`).all(user,since,query).reverse(); }
   historyPage(user,{after=0,since=0,until=Date.now(),limit=50,all=false}={}) {
@@ -114,7 +126,11 @@ export class Store {
   }
   job(user,prompt,profile='worker') { const id = randomUUID(); this.db.prepare('INSERT INTO jobs(id,user,prompt,profile,state,created,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?)').run(id,user,prompt,profile,'queued',Date.now(),this.conversationId||null,this.get('main-session')||null); return id; }
   schedule(id,user,kind,prompt,cron,timezone,due,key) {this.db.prepare('INSERT OR IGNORE INTO schedules(id,user,kind,prompt,cron,timezone,due,unique_key,conversation_id,session_id) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id,user,kind,prompt,cron,timezone,due,key,this.conversationId||null,this.get('main-session')||null);}
-  jobs(user) { return this.prepare('SELECT id,profile,state,created,result,goal_outcome FROM jobs WHERE $scope AND user=? ORDER BY created DESC LIMIT 30').all(user).map(row=>({...row,goal_outcome:row.goal_outcome?JSON.parse(row.goal_outcome):interruptedOutcome()})); }
+  jobs(user,id) {
+    const select='SELECT id,profile,state,created,result,goal_outcome FROM jobs WHERE $scope AND user=?';
+    const rows=id===undefined?this.prepare(select+' ORDER BY created DESC LIMIT 30').all(user):this.prepare(select+' AND id=?').all(user,id);
+    return rows.map(row=>({...row,goal_outcome:row.goal_outcome?JSON.parse(row.goal_outcome):interruptedOutcome()}));
+  }
   admit(owner,intent,key,payload,create) {
     const conversation=this.conversationId||'',fingerprint=createHash('sha256').update(JSON.stringify(canonical({version:1,owner,conversation,intent,...payload}))).digest('hex');
     return this.transaction(()=>{

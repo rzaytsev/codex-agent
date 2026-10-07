@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "@openai/codex": "0.159.2",
+    "@openai/codex-sdk": "0.159.2",
+    "@playwright/mcp": "0.0.83",
+    "cron-parser": "5.5.0",
+    "zod": "4.6.5"
+  },
+  "installed": {
+    "@openai/codex-sdk": "0.159.2",
+    "@openai/codex": "0.159.2",
+    "@playwright/mcp": "0.0.83"
+  },
+  "imageDeclarations": [
+    "FROM node:24-bookworm-slim",
+    "COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/"
+  ],
+  "promptAssemblyHash": "51b4533abf5a48571b7864617a1225d0f22c46323dc9b2fca9db09023b1031a8",
+  "schemaHash": "862ca3a3a69c886539ebfd64dd3992f14a6ca544cf7bb82b7651304f297a05f9",
+  "toolsHash": "75ec7ce2a0c4be2a11e9cf9e0aaf5182e4613e1731c29d703bf1dc06a91f6e93",
+  "promptTemplatesHash": "b9abcbc36380bb5b19310ac768779b10b1750987c69d411561e62c71b4d4428d",
+  "sdkParserHash": "d62ed107033bdba802b283c77d875e4bec3deb2704a910bb7e3f95059473b16f",
+  "supervisorHash": "e17147aa4329fe764b47dd10045ef49fb44c1ac62953c6cd4cc2419a4bcf07e0",
+  "skills": [
+    {
+      "name": "learn",
+      "source": "shared-skill/learn/SKILL.md",
+      "nativePath": ".agents/skills/learn/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "scrape",
+      "source": "shared-skill/scrape/SKILL.md",
+      "nativePath": ".agents/skills/scrape/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "skillify",
+      "source": "shared-skill/skillify/SKILL.md",
+      "nativePath": ".agents/skills/skillify/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "investigate",
+      "source": "shared-skill/investigate/SKILL.md",
+      "nativePath": ".agents/skills/investigate/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "planning",
+      "source": "shared-skill/planning/SKILL.md",
+      "nativePath": ".agents/skills/planning/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "telegram-read",
+      "source": "shared-skill/telegram-read/SKILL.md",
+      "nativePath": ".agents/skills/telegram-read/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "project-manager",
+      "source": "shared-skill/project-manager/SKILL.md",
+      "nativePath": ".agents/skills/project-manager/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "google-maps",
+      "source": "shared-skill/google-maps/SKILL.md",
+      "nativePath": ".agents/skills/google-maps/SKILL.md",
+      "readOnly": true
+    }
+  ]
+}

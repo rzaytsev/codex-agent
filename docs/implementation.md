@@ -216,3 +216,23 @@ production enablement occurred. See [precise profile and rollback](action-policy
 ## Task outcome and cancellation boundary
 
 Optional bounded final outcomes/checkpoints are durable and explicitly model-reported; execution completion is separate. Running cancellation is requested before abort and waits for actual owned SDK/media child exit. Unknown cleanup/restart retains requested capacity with no replay. Synthetic pinned parser/argv tests pass; authenticated runtime, escaped descendants and full native isolation remain blocking. See [task outcomes](task-outcomes.md).
+
+## Context, provenance and compatibility contracts
+
+Source adds host known-quote metadata, bounded scoped terminal-result checkpoint
+context and stable browser instructions with volatile directories in turn input.
+One inventory covers eight owned skill mounts. Synthetic routing expectation checks
+and runtime goldens include actual registry schemas/authority metadata, pinned
+parser/supervisor and declared versions. No compactor, skill automation or
+dependency upgrade is added. Live compaction/semantic quality/cache gains/
+authenticated discovery and target image acceptance remain unrun; full isolation
+remains incomplete and blocking. See [runtime contracts](runtime-contracts.md).
+
+The final authority correction adds quote-aware history provenance version 1;
+retained attribution defaults to unknown for new owner adaptations. Learning and
+memory honor the same quote interpretation, and new promotion revalidates saved
+explicit-owner receipt sources. Existing active records, versions, receipts and
+audit remain intact. Incoming mail accept/reject uses the shared direct-owner gate.
+Exact scoped `task_status({id})` exposes full older checkpoints beyond the default
+30-job list. Synthetic cross-version and transport regressions cover these paths;
+no live integration or full isolation acceptance follows.

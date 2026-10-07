@@ -12,8 +12,11 @@ Schema `schema_version: 1` rejects unsupported versions, unknown fields and
 invalid nested fields. Receipts use finite bounded numeric measurements, booleans,
 fixed reviewed enums, service UUIDs and SHA-256 digests. Effective model is a digest;
 effort, scope and timeout are explicit. Developer instructions and the reviewed
-assistant tool bundle have digests; instructions include effective runtime
-context, so a changed browser output directory changes the effective prompt hash.
+assistant tool bundle have digests. The prompt hash covers stable assembled
+developer instructions. The browser output directory is per-turn input and MCP
+argv, so changing that directory leaves the developer-instruction digest unchanged.
+This digest does not cover the complete per-turn input or measure provider cache
+behavior; actual cache hits and benefits remain unmeasured.
 Application release comes from the package manifest, actual Node major/minor/patch
 are numeric, and SDK/CLI are pinned to 0.159.2. No raw prompts, arguments, private
 thread IDs, tool names, item content/reasoning, URLs, paths, SDK errors, messages or
