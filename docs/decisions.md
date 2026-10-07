@@ -276,3 +276,19 @@ for a development agent or content retrieved from tools.
 ## Private observations remain local and conservative
 
 Keep typed run/attempt receipts in the existing private SQLite database; do not add an exporter, collector or telemetry infrastructure. Codex SDK 0.159.2 completion usage is a cumulative thread total. Derive deltas only with a transactional same-process serialized baseline; retain cumulative measurements and mark gaps unattributed. Omit cache-write counts because the pinned parser synthesizes zero when the provider omits that measurement. Run completion includes artifact preparation, while delivery remains a separate outbox lifecycle. Optional budget settings default to disabled and preserve schedules and queue policy. See [observations](observations.md).
+
+## Typed actions and exact owner consent (2026-10-06)
+
+Use one strict registry for MCP advertisement and direct service validation.
+Preserve local orchestration/delivery behavior; external mail is the first exact
+prepare/approve/commit broker. Bind payload and authority/version/expiry, commit
+consumption with the durable outbox and reconcile unknown remote effects without
+replaying sends. Configuration can narrow authority only. Unbrokered code/browser/
+third-party actions remain outside the policy. Research uses read-only settings;
+its disposable cwd is an opt-in prototype. Actual macOS canaries demonstrated
+readable credentials/foreign tasks with denied writes, so full isolation is an
+incomplete and blocking requirement. Stage A registry/ledger/prototype source
+functionality can be reviewed independently, without declaring full compatible
+isolation complete. Approval previews use service-owned literal delivery; version
+2 invalidates uncommitted approvals from the earlier markup preview while
+retaining audit/outbox data. See [action policy](action-policy.md).

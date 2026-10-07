@@ -75,7 +75,7 @@ test('abrupt process exit between task statements leaves no admitted or runnable
 test('changed task intent, effective settings, parent scope and actor conflict without mutation',async t=>{
   const {store,service,cfg}=await fixture(t);const original=await service.tool({user:'123'},'create_task',task);
   for(const change of [{prompt:'Changed'}, {profile:'worker'}, {title:'Changed'}, {acknowledgment:'Changed'}, {settings:{timeout:20,toolScope:'read'}}, {settings:{timeout:30,toolScope:'read',model:'synthetic-model'}}, {settings:{timeout:30,toolScope:'read',effort:'high'}}, {settings:{timeout:30,toolScope:'conversation'}}])
-    await assert.rejects(service.tool({user:'123'},'create_task',{...task,...change}),/Admission conflict/);
+    await assert.rejects(service.tool({user:'123'},'create_task',{...task,...change}),/Admission conflict|cannot widen permissions/);
   await assert.rejects(service.tool({user:'123',actorId:'456'},'create_task',task),/Admission conflict/);
   await assert.rejects(service.tool({user:'123',toolScope:'read'},'create_task',task),/Read-only task/);
   // Omitted/default scope is normalized without changing authority.
@@ -104,7 +104,7 @@ test('legacy callers retain atomic writes but receive separate jobs without a re
   const {service,store}=await fixture(t),{request_key,...legacy}=task;
   const a=await service.tool({user:'123'},'create_task',legacy),b=await service.tool({user:'123'},'create_task',legacy);
   assert.notEqual(a.id,b.id);assert.equal(count(store,'admissions'),0);
-  for(const request_key of ['', '  ', 123, 'x'.repeat(201)])await assert.rejects(service.tool({user:'123'},'create_task',{...task,request_key}),/Invalid request key/);
+  for(const request_key of ['', '  ', 123, 'x'.repeat(201)])await assert.rejects(service.tool({user:'123'},'create_task',{...task,request_key}),/Invalid create_task arguments/);
   assert.equal(count(store,'jobs'),2);
 });
 

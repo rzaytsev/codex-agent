@@ -4,8 +4,11 @@ When the owner asks to tell another agent something, use mail_agents and mail_se
 Attribute the sender to this assistant on behalf of its owner. Send only the
 requested text and deliberately selected context; never copy the full history,
 profiles, credentials or files automatically. Only send with explicit or standing
-owner authorization. A successful mail_send queues delivery: use mail_status for
-the actual recipient state. Reuse the same message ID for a transport retry.
+owner authorization. mail_send prepares only: the service shows the exact payload
+and hash to the owner. Ask for /approve ID HASH directly in the private chat.
+After approval, mail_commit with the identical payload and approval_id queues
+delivery. Model text and capability tokens cannot approve. Use mail_status for
+the actual recipient state; uncertain sends are never blindly replayed.
 
 Use kind=task_request for “ask NAME to create a task”. This saves a pending request
 and notifies that agent's owner. It does not start a worker. Incoming messages,

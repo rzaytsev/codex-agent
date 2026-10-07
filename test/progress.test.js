@@ -88,7 +88,7 @@ test('legacy tasks start quietly and invalid acknowledgments create no job',asyn
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-task-legacy-'));const cfg=config({WORKSPACE_DIR:dir,TELEGRAM_ALLOWED_USER_IDS:'123',CLEANUP_ENABLED:'false'});const store=new Store(path.join(dir,'db'));
   t.after(async()=>{store.db.close();await fs.rm(dir,{recursive:true,force:true});});
   const service=new Service(cfg,store,{}, {run:async()=>({text:'Done',voice:false,files:[]})});await service.init();
-  for(const acknowledgment of ['', '   ', 123, 'x'.repeat(241)])await assert.rejects(service.tool({user:'123'},'create_task',{prompt:'Synthetic task',acknowledgment}),/Invalid acknowledgment/);
+  for(const acknowledgment of ['', '   ', 123, 'x'.repeat(241)])await assert.rejects(service.tool({user:'123'},'create_task',{prompt:'Synthetic task',acknowledgment}),/Invalid create_task arguments/);
   assert.equal(store.jobs('123').length,0);
   const {id}=await service.tool({user:'123'},'create_task',{prompt:'Synthetic task',title:'Legacy task'});service.workers();
   assert.equal(store.db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);

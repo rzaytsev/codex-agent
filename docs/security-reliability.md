@@ -120,3 +120,14 @@ Telegram delivery or every optional connector works.
 ## Observation and budget boundaries
 
 Observation payloads contain only validated schema 1 reviewed enums, bounded finite counts, UUIDs and digests. Never persist SDK event/item/error objects, private prompt/tool arguments, raw tool names, paths, URLs, reasoning, error text or diagnostic fallback in receipts. Tenant-local operational relationships are kept separately from receipt payloads. Schema/storage errors drop the observation and increment a content-free counter without failing the user task. Budget exhaustion intentionally aborts the run, unlike telemetry failure. Only measured host service tools and service artifact snapshots are counted; arbitrary code, browser integrations and other SDK tools are outside these hooks. Missing usage cannot prove no subscription spend. See [observations](observations.md).
+
+## Brokered action checks
+
+Both MCP and direct tool calls use the strict reviewed action registry. Mail sends
+require exact direct-owner DM approval with a literal service-owned payload
+preview; uncertain remote effects are reconciled
+without resending. Read-only research settings strengthen service/write controls
+but the actual macOS canary allowed credential and foreign-task reads. See
+[action policy](action-policy.md) for the full matrix, probe receipt and bypass limits.
+Compatible credential/foreign-task isolation remains incomplete and blocking;
+Stage A service policy and cwd prototype do not satisfy that requirement.

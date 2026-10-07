@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { validateAction } from './action-registry.js';
+import { ActionApprovals } from './action-policy.js';
 import { assistantMcp } from './mcp-tools.js';
 import { randomUUID } from 'node:crypto';
 import { CronExpressionParser } from 'cron-parser';
@@ -44,6 +46,7 @@ export class Service {
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
     if(this.cfg.mail)this.mail=new AgentMail(this.cfg,this.store);
+    if(this.mail)this.approvals=new ActionApprovals(this.cfg,this.store,this.mail);
     for(const name of ['SOUL.md','AGENTS.md','USER.md']) {
       const dest=path.join(this.cfg.workspace,name);
       let source=path.resolve('templates',name);
@@ -131,12 +134,13 @@ export class Service {
         let body='';for await(const part of req) {body+=part;if(body.length>100000) throw new Error('Request too large');}
         const parsed=JSON.parse(body),token=req.headers.authorization?.replace(/^Bearer /,'');const target=this.conversations?.routes?.get(token)||this;
         if(req.url==='/mcp') {
-          const server=assistantMcp({group:Boolean(target.cfg.group),worker:cap.worker,memoryReview:cap.memoryReview,invoke:(name,args)=>{
+          const server=assistantMcp({group:Boolean(target.cfg.group),worker:cap.worker,memoryReview:cap.memoryReview,toolScope:cap.toolScope,invoke:(name,args)=>{
             if(this.capabilities.get(token)!==cap)throw new Error('Capability revoked');return target.tool(cap,name,args);
           }});
           const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
           res.once('close',()=>{void transport.close();void server.close();});await server.connect(transport);await transport.handleRequest(req,res,parsed);return;
         }
+        if(!parsed||typeof parsed!=='object'||Array.isArray(parsed)||Object.keys(parsed).some(key=>!['name','args'].includes(key)))throw new Error('Invalid request envelope');
         const {name,args}=parsed;const result=await target.tool(cap,name,args);
         res.end(JSON.stringify(result));
       } catch(e) {res.writeHead(e instanceof AdmissionConflict?409:400);res.end(JSON.stringify({error:e instanceof AdmissionConflict?'admission_conflict':'Invalid tool request or unavailable resource'}));}
@@ -144,22 +148,28 @@ export class Service {
     await new Promise((resolve,reject)=>{this.server.once('error',reject);this.server.listen(port,'127.0.0.1',resolve);});
   }
   async tool(cap,name,args={}) {
-    const {user,worker,memoryReview,signal}=cap;
+    const checked=validateAction(cap,name,args),action=checked.action;
+    if(this.cfg.group&&action.dmOnly||this.cfg.actionPolicy?.matrix[action.category]==='deny')throw new Error('Policy denied');
+    const operationSignal=cap.signal?AbortSignal.any([cap.signal,AbortSignal.timeout(action.timeoutMs)]):AbortSignal.timeout(action.timeoutMs);
+    const result=await this.invokeTool(cap,name,checked.args,operationSignal);
+    if(Buffer.byteLength(JSON.stringify(result)??'null')>action.resultLimitBytes)throw new Error('Action result too large');
+    return result;
+  }
+  async invokeTool(cap,name,args={},operationSignal=cap.signal) {
+    const {user}=cap;const signal=operationSignal;
     signal?.throwIfAborted();
     if(!this.cfg.allowed.has(user)) throw new Error('User revoked');
     if(cap.owner!==undefined&&(cap.owner!==this.cfg.owner||cap.conversationId!==this.store.get('conversation-id')||cap.sessionId!==this.store.get('main-session')))throw new Error('Conversation capability revoked');
     if(cap.taskId&&!this.store.prepare("SELECT id FROM jobs WHERE $scope AND id=? AND conversation_id=? AND state='running'").get(cap.taskId,cap.conversationId))throw new Error('Task capability revoked');
-    if(cap.toolScope==='read'&&!['history_search','history_read','task_status','memory_search','memory_read','memory_explain','memory_forget_preview','learning_read','learning_evidence','profile_read','list_schedules','location_get'].includes(name))throw new Error('Read-only task');
     if(this.cfg.group) {
       if(!cap.conversationId||this.cfg.group.state!=='active'||cap.actorId!==this.cfg.owner)throw new Error('Owner group capability unavailable');
     }
-    const reads=['history_search','history_read','task_status','location_get','memory_search','memory_read','memory_explain','memory_forget_preview','learning_read','learning_evidence','profile_read'];
-    if((memoryReview&&!reads.includes(name))||(worker&&![...reads,'memory_save'].includes(name))) throw new Error('Worker tool not allowed');
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
     switch(name) {
       case 'mail_agents': if(!this.mail)throw new Error('Messaging disabled');return this.mail.call('list',{},signal);
-      case 'mail_send': if(!this.mail)throw new Error('Messaging disabled');return this.mail.send(args);
+      case 'mail_send': if(!this.mail)throw new Error('Messaging disabled');return this.approvals.prepare(cap,args);
+      case 'mail_commit': if(!this.mail)throw new Error('Messaging disabled');return this.approvals.commit(cap,args);
       case 'mail_inbox': if(!this.mail)throw new Error('Messaging disabled');return this.mail.inbox();
       case 'mail_read': if(!this.mail)throw new Error('Messaging disabled');return this.mail.read(args.id);
       case 'mail_status': if(!this.mail)throw new Error('Messaging disabled');return this.mail.status(args.id,signal);
@@ -247,9 +257,9 @@ export class Service {
   }
   effectiveSettings(profile,overrides={},parentScope='conversation') {
     const conversation=this.cfg.conversationSettings||{};
-    const settings={...this.cfg.profiles[profile],timeout:profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout,toolScope:'conversation',...conversation,...overrides};
+    const settings={...this.cfg.profiles[profile],timeout:profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout,toolScope:profile==='research'?'read':'conversation',...conversation,...overrides};
     if(!overrides||typeof overrides!=='object'||Array.isArray(overrides)||Object.keys(overrides).some(k=>!['model','effort','timeout','toolScope'].includes(k))||!['minimal','low','medium','high','xhigh','max','ultra'].includes(settings.effort)||(settings.model!==undefined&&(typeof settings.model!=='string'||!settings.model.trim()||settings.model.length>100))||!Number.isInteger(settings.timeout)||settings.timeout<10||settings.timeout>(profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout)||!['conversation','read'].includes(settings.toolScope))throw new Error('Invalid execution settings');
-    if(parentScope==='read'&&settings.toolScope!=='read')throw new Error('Task cannot widen permissions');
+    if((parentScope==='read'||profile==='research')&&settings.toolScope!=='read')throw new Error('Task cannot widen permissions');
     return settings;
   }
   cancelTask(user,id,actor=user) {
@@ -273,7 +283,7 @@ export class Service {
       if(!added) return false;
       this.store.prepare('UPDATE inputs SET actor_id=? WHERE $scope AND id=?').run(String(message.from.id),update.update_id);
       const command=message.text?.trim();
-      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group)(?:\s|$)/.test(command||'')) {
+      if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve)(?:\s|$)/.test(command||'')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);this.store.enqueue(user,{text:'This command is available only to the owner in the private chat.'});return true;
       }
       const authCommand=command==='/auth'||command?.startsWith('/auth ');
@@ -281,6 +291,11 @@ export class Service {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /tdl_auth directly; forwarded commands cannot change your login.'});
         else this.tdlAuth.command(command);
+      } else if(command==='/approve'||command?.startsWith('/approve ')) {
+        this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
+        let text='Approval denied. Send the exact /approve ID HASH directly in the owner private chat before expiry.';
+        try {const parts=command.split(/\s+/);if(parts.length!==3||!this.approvals)throw new Error('Invalid approval');const result=this.approvals.approve(message,parts[1],parts[2]);text=`Mail action ${result.id}: ${result.state}. Approval permits only the prepared payload; commit still queues delivery.`;}catch {}
+        this.store.enqueue(user,{text});
       } else if(command==='/mail'||command?.startsWith('/mail ')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         let text;
@@ -346,6 +361,7 @@ export class Service {
       try { payloads.push(await this.artifacts.snapshot(user,{type:'voice',path:await voice(text.slice(0,12000),this.cfg,signal)},{},signal)); }
       catch {budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
+    // Construct the envelope here; model results cannot choose delivery modes.
     for(const part of chunks(text))payloads.push({text:part});
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
     signal?.throwIfAborted();
@@ -442,7 +458,8 @@ export class Service {
     }
   }
   async runJob(job,ctrl) {
-    const settings=JSON.parse(this.store.get(`task-settings:${job.id}`)||'null')||this.effectiveSettings(job.profile);
+    const persistedSettings=JSON.parse(this.store.get(`task-settings:${job.id}`)||'null')||this.effectiveSettings(job.profile);
+    const settings=job.profile==='research'?{...persistedSettings,toolScope:'read'}:persistedSettings;
     const observationRun=this.store.observations.run(this.cfg.runBudgets,ctrl,{jobId:job.id,parentRunId:this.store.get(`task-parent-run:${job.id}`)});let outcome='completed';
     const timer=setTimeout(()=>ctrl.abort(Object.assign(new Error('Execution deadline'),{code:'timeout'})),settings.timeout*1000);
     try {

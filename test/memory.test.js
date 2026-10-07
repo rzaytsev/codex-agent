@@ -171,7 +171,7 @@ test('SDK turn retrieves relevant memory across fresh conversations, and consoli
   await agent.run('123','What is the codename?');assert.match(contexts[0].text,/The codename is amber/);
   await agent.run('123','memory review','research',[],undefined,()=>{},undefined,true);
   assert.equal(starts[1].sandboxMode,'read-only');assert.equal(starts[1].webSearchMode,'disabled');assert.deepEqual(contexts[1].schema.required,['summary','changes']);
-  assert(options[1].configOverrides.includes('features.apps=false'));assert(options[1].configOverrides[0].includes('ASSISTANT_MEMORY_REVIEW="true"'));
+  assert(options[1].configOverrides.includes('features.apps=false'));assert(options[1].configOverrides.some(value=>value.includes('ASSISTANT_MEMORY_REVIEW="true"')));
 });
 test('nested-to-flat migration preserves revisions, sources, tombstones, checkpoints, schedules and custom instructions',async t=>{
   const {dir,cfg,store,service,memory}=await fixture(t);

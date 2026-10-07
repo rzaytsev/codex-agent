@@ -11,6 +11,8 @@ export class AgentMail {
     store.set('mail-identity',identity);
     store.db.exec(`CREATE TABLE IF NOT EXISTS mail_received (id TEXT PRIMARY KEY, payload TEXT NOT NULL, state TEXT NOT NULL, job_id TEXT);
       CREATE TABLE IF NOT EXISTS mail_outbox (id TEXT PRIMARY KEY, operation TEXT NOT NULL, payload TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending', created INTEGER NOT NULL);`);
+    store.db.prepare("UPDATE mail_outbox SET state='uncertain' WHERE operation='send' AND state='inflight'").run();
+    this.gateLegacySends();
   }
   async call(operation,args={},signal) {return this.request(this.cfg.mail.url,this.cfg.mail.token,operation,args,signal);}
   enqueue(id,operation,payload) {
@@ -81,9 +83,16 @@ export class AgentMail {
       }
     });
   }
+  gateLegacySends() {
+    const ledger=this.store.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='action_approvals'").get();
+    if(ledger)this.store.db.prepare("UPDATE mail_outbox SET state='legacy' WHERE operation='send' AND state='pending' AND NOT EXISTS (SELECT 1 FROM action_approvals a WHERE a.outbox_id=mail_outbox.id AND a.state='committed')").run();
+    else this.store.db.prepare("UPDATE mail_outbox SET state='legacy' WHERE operation='send' AND state='pending'").run();
+  }
   async flush() {
+    this.gateLegacySends();
     for(const row of this.store.db.prepare("SELECT * FROM mail_outbox WHERE state='pending' ORDER BY created,rowid LIMIT 30").all()) {
       try {
+        if(row.operation==='send')this.store.db.prepare("UPDATE mail_outbox SET state='inflight' WHERE id=? AND state='pending'").run(row.id);
         await this.call(row.operation,JSON.parse(row.payload));
         this.store.db.prepare("UPDATE mail_outbox SET state='sent' WHERE id=?").run(row.id);
       } catch(e) {
@@ -92,15 +101,27 @@ export class AgentMail {
             this.store.db.prepare("UPDATE mail_outbox SET state='rejected' WHERE id=?").run(row.id);
             this.store.enqueue(this.cfg.owner,{text:`Mailbox operation ${row.id} was rejected (${e.code}). Inspect /mail or request status before resending.`});
           });
-        } else throw e; // Network/auth/queue failures retain the original operation for retry.
+        } else {
+          if(row.operation==='send')this.store.db.prepare("UPDATE mail_outbox SET state='uncertain' WHERE id=?").run(row.id);
+          throw e; // Unknown remote sends are never automatically replayed.
+        }
       }
+    }
+  }
+  async reconcileUncertain() {
+    for(const row of this.store.db.prepare("SELECT * FROM mail_outbox WHERE operation='send' AND state='uncertain' ORDER BY created LIMIT 30").all()) {
+      try {
+        const result=await this.call('status',{id:JSON.parse(row.payload).id});
+        const payload=JSON.parse(row.payload);
+        if(result?.id===payload.id&&result.sender===this.cfg.mail.id&&result.recipient===payload.to&&result.text===payload.text&&result.kind===payload.kind&&result.context===payload.context&&result.reply_to===payload.reply_to)this.store.db.prepare("UPDATE mail_outbox SET state='sent' WHERE id=? AND state='uncertain'").run(row.id);
+      } catch { /* Missing or unavailable remote state remains uncertain; never send. */ }
     }
   }
   async tick(force=false) {
     if(this.busy||(!force&&Date.now()<this.nextPoll)||!this.cfg.allowed.has(this.cfg.owner))return;
     this.busy=true;
     try {
-      this.jobUpdates();await this.flush();
+      this.jobUpdates();await this.reconcileUncertain();await this.flush();
       const result=await this.call('inbox');
       for(const row of result.messages)this.receive(row);
       await this.flush();this.lastSuccess=Date.now();this.nextPoll=Date.now()+5000;
