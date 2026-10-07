@@ -97,11 +97,15 @@ New research turns use read-only scope; requested conversation scope is refused.
 Already persisted task settings/state and schedules are not rewritten; legacy
 research settings are narrowed to read in memory when executed. The pinned
 SDK 0.159.2 uses sandboxMode=read-only and approvalPolicy=never for research,
-read-only and internal reviews. These turns clear configured MCP servers before
-adding the read-only assistant bridge, disable apps/plugins/hooks/multi-agent
-features, omit the Maps key and browser, and disable native project-document
-reload. Internal reviews also disable web search. Research may use read-only web
-search. Ordinary main/worker runs retain their runtime settings.
+read-only and internal reviews. These turns request mcp_servers={} and add the
+read-scoped assistant bridge, disable apps/plugins/hooks/multi-agent features,
+omit the Maps key and browser, and disable native project-document reload.
+Empty MCP tables recursively retain lower-layer servers; requested overrides do
+not prove effective MCP removal. Service read scope denies service mutations,
+while the builtin read-only sandbox restricts filesystem writes. Optional MCP
+servers retain their own authority. Only the disabled selected restricted prototype
+checks/rejects the effective MCP set before SDK construction. Internal reviews
+also disable web search. Research may use read-only web search. Ordinary main/worker runs retain their runtime settings.
 
 `READ_ONLY_WORKSPACE_PROTOTYPE=true` uses an empty disposable task cwd, removed
 at the end of the turn; service DB, approval ledger and auth are not copied there.

@@ -15,7 +15,7 @@ See [conversations](conversations.md) for linking, permissions and migration.
 
 1. Authenticate the Telegram sender against a configured user allowlist.
 2. Persist the incoming update and assign a stable message/input ID before processing.
-3. Download attachments into the workspace; preserve captions and available forward metadata.
+3. Download attachments into the workspace; preserve captions and available forward/quote metadata.
 4. Prepare model input: transcribe audio, extract PDF text, expose OCR tools for the agent when needed, and provide images for visual analysis.
 5. Route the message to the main conversation with a compact profile, personality instructions, relevant memory, and file references.
 6. Answer directly or create a worker task.
@@ -45,7 +45,8 @@ The main agent owns dialogue, clarification, delegation, and result presentation
 
 The application serializes turns within each conversation while workers execute independently. New user messages enter the input queue. Completed worker answers go directly to the delivery queue, even while the main agent is busy. Ordinary messages wait for the current turn without an automatic queue notice. /stop aborts the current main reply; /cancel targets a worker. Live steering is not implemented. Answer small requests directly; delegate long work before doing its research in the main turn, then return without polling the worker.
 
-The transcript is persistent. Context rotation/compaction can happen underneath a continuous Telegram experience; summaries and durable memory preserve continuity.
+The transcript is persistent. Context rotation/compaction can happen underneath a continuous Telegram experience; native thread context and durable memory support continuity; live long-session
+retention has a separate acceptance gate.
 
 Fresh model threads receive the latest twelve service history entries. Resumed
 threads receive only unseen entries from that bounded tail. A cursor advances
@@ -254,3 +255,6 @@ core. Main turns can resolve questions or retire harmful lessons through explici
 owner feedback. User-facing reflection retains separate source gathering and
 notification semantics. Daily reflections can offer one validated knowledge-gap
 question, once, without treating silence as acceptance.
+
+Bounded recent rows carry host origin labels; scoped model checkpoints preserve
+unresolved-effect slots without authorizing resume/replay. See [context contracts](runtime-contracts.md).

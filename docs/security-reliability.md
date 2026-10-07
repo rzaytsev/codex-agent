@@ -13,7 +13,7 @@ workspace and Codex home for each owner. Read this alongside [architecture](arch
   scoped. Other participants are rejected before saving/downloading. Replies are
   visible to group members. Check owner, source conversation, session, task and role
   at service boundaries and active source route at delivery. See [conversations](conversations.md).
-- Attachments, forwarded text, transcripts, retrieved memory and connector output
+- Attachments, known Telegram quotes/blockquotes, forwarded text, transcripts, retrieved memory and connector output
   are source data. Original filenames stay in the saved Telegram envelope;
   downloads receive generated names under `inbox/INPUT_ID/attachments/`. They
   cannot overwrite `message.json`, `transcript.txt` or extracted text through a
@@ -164,3 +164,9 @@ integrations/remote control are disabled before startup. Startup still loads aut
 cloud/model machinery and local state; anonymous fixtures cannot approve existing
 ChatGPT compatibility. Configuration races and same-grant outside writers remain
 limits, and the option stays disabled with full isolation blocking.
+
+Known transport quote metadata conservatively blocks whole-message approval, new
+preference/outcome and confirmed-fact authority through host gates. Plain pasted
+quote semantics and arbitrary-code bypass remain outside this guarantee. Empty
+MCP table requests retain lower servers; only the disabled selected prototype
+checks effective configuration. See [runtime/provenance contracts](runtime-contracts.md).

@@ -26,7 +26,8 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
 - **[Self-improving behavior](docs/learning.md):** reflects on past sessions and
   tasks, validates proposed lessons, and automatically trials reversible updates
   to profiles and a learned playbook within a stable core. Keeps change history,
-  supports rollback and asks focused questions when user input is needed.
+  supports rollback and asks focused questions when user input is needed. New trial
+  promotion requires a matching host outcome receipt; model completion alone is insufficient.
 - **Proactive reflection:** daily, weekly and monthly reviews help identify useful
   next steps toward your goals, while respecting quiet hours. Memory consolidation
   runs separately during idle time.
@@ -120,6 +121,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 - [Security and reliability](docs/security-reliability.md): trust boundaries, failure handling and review limits.
 - [Feature inventory](docs/features.md): complete behavior and acceptance map.
 - [Development](docs/development.md): contributor workflow and validation.
+- [Runtime contracts](docs/runtime-contracts.md): synthetic context/provenance/skills/pinned-runtime gates; live and full-isolation acceptance remains separate.
 - [Configuration](docs/configuration.md): defaults and instance controls.
 - [Implementation](docs/implementation.md): behavior and verification limits.
 - [Conversations](docs/conversations.md): linked groups, permissions, sessions and routing.

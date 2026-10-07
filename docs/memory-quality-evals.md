@@ -79,12 +79,17 @@ A full run can consume dozens of subscription calls; inspect one case first.
 
 All three opt-in flags are mandatory. `--isolated-runtime` is an operator
 attestation, not a container launcher. The runner starts no Telegram poller,
-listener, delivery loop, schedule loop or browser. It removes MCP configuration,
-disables apps/plugins/hooks, shell, browser/computer, image, native memory and
+listener, delivery loop, schedule loop or browser. It requests empty MCP
+configuration and disposable HOME/CODEX_HOME, disables apps/plugins/hooks, shell, browser/computer, image, native memory and
 multi-agent features, and uses fresh read-only threads with web search and
 sandbox network access disabled. These feature switches were checked with the
 pinned CLI's `features list`; removed switches are not treated as protection.
 The live adapter refuses CLI/SDK versions other than 0.159.2 until reviewed.
+Empty MCP tables do not erase all lower system/cloud configuration. The adapter
+has no verified effective-config absence preflight; its unexpected-tool guard
+observes activity after it happens. Fresh auth-only fixture isolation and reviewed
+pins are still required, and app-server authenticated startup/target compatibility
+remain acceptance gates. No live execution was performed for these contracts.
 
 This is **not a universal tool firewall**. Read-only mode alone does not prevent
 reading files outside the workspace. Unexpected tool events fail the evaluation,
@@ -104,7 +109,7 @@ put scorer expectations into model input. Each case/mode/repeat has its own
 status, probe answers, record snapshots, source IDs and per-check result. `sources` maps real
 history references to fixture message IDs; `sourceRefs` retains the synthetic
 SQLite references. Generated memory keys are reported, not dictated or scored.
-Completed evaluation streams are not aborted again during cleanup: the pinned SDK removes child-process error listeners after draining, so a late abort can emit an unhandled error. Active calls still honor the case deadline and caller cancellation.
+This opt-in quality adapter retains the raw SDK lifecycle (it is separate from Agent supervision). Completed evaluation streams are not aborted again during cleanup: the pinned SDK removes child-process error listeners after draining, so a late abort can emit an unhandled error. Active calls still honor the case deadline and caller cancellation.
 
 Errors are separate from failed quality checks: their checks have passed=null
 and are counted as unscored, not failed. Comparison denominators come from the
@@ -201,3 +206,5 @@ never establishes enforcement: the exception reaches the harness, which records
 an unscored error and omits its raw message/stack. Real-adapter fault injection tests
 cover both service-tool and learning-application boundaries; legitimate refusals
 still require final-state and forbidden-effect checks.
+
+Synthetic context/skills/runtime contracts are separate from this model-quality lane; see [runtime contracts](runtime-contracts.md).

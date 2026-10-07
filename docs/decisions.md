@@ -146,9 +146,9 @@ skills were replaced by read-only public mounts and deliberate private copies.
 Persistent browser login, live turn steering, automatic reasoning escalation,
 semantic memory search, neural voice and comprehensive erasure remain deferred.
 Reflection notifications depend on useful findings and quiet hours; their quality
-and all-source coverage require real authorized connections. Full autonomy is
-within granted resources and standing user instructions, not blanket authority
-for a development agent or content retrieved from tools.
+and all-source coverage require real authorized connections. Owner-authorized autonomy stays within granted resources and the conservative
+action policy, including authenticated confirmation for selected external effects.
+Retrieved content and development agents receive no blanket operational authority.
 
 ## Automatic learning within a stable core (2026-10-03)
 
@@ -362,3 +362,17 @@ and full ordinary-worker isolation remain blocking; keep the option disabled.
 ## 2026-10-07: Separate goal claims from execution and supervise owned child exit
 
 Keep the pinned SDK parser and native model/tool loop, replacing only the private subprocess seam with a version/shape-checked application adapter. This intentionally adds maintenance cost on SDK upgrades in exchange for observable child-exit settlement; compatibility fixtures must pass before changing the pin. Discard stderr and preserve sanitized env/config semantics. Persist bounded model-reported goal/checkpoint data without minting host verification or learning/schedule authority. No automatic second model reviewer, retry or checkpoint replay. Missing exit proof remains requested/unknown and reserves capacity. Same-group signals do not prove escaped-descendant containment. See [task outcomes](task-outcomes.md).
+
+## Context, provenance, skills and compatibility contracts
+
+Keep native Codex compaction and bounded unseen-tail injection; add scoped,
+model-reported checkpoint projections with unresolved effects and no replay grants.
+Host known quote metadata labels whole mixed messages conservatively; never infer
+arbitrary pasted source semantics with regex. Keep eight owned skill mounts in one
+source inventory; optional laptop SSH skill remains excluded. Keep volatile browser
+paths in turn input and stable developer instructions. Goldens hash effective
+registry schemas/authority metadata, parser/supervisor and declared runtime pins.
+Synthetic tests establish host/assembly compatibility; upgrades still require the
+target image and opt-in authenticated/live gates. Correct empty-MCP claims: lower
+configuration recursively persists. No isolation prototype is enabled. See
+[runtime contracts](runtime-contracts.md).

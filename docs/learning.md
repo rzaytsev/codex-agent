@@ -62,7 +62,8 @@ cancellation failure advances nothing for the unfinished batch. Completed prior
 batches survive restart. Rejected candidates are audited but never installed.
 
 New or revised rules are explicitly unproven trials. Later reviews can promote an
-unchanged rule when new evidence supports its check, or retire it when harmful.
+unchanged rule only with a matching improved host receipt for its preselected check
+and new evidence, or retire it when harmful.
 A model validation pass is not measured improvement and cannot mint an outcome receipt. The evaluator's semantic
 judgment remains fallible, even though service checks reject malformed references,
 foreign owners, forwarded profile authority, obvious secrets and policy-expansion
@@ -88,7 +89,8 @@ uncertain delivery. Retired/resolved records cannot be revived automatically.
 Workers and curators cannot use the mutation tool.
 
 For example: repeated requests for a next step support a scoped planning trial.
-A later owner report that it saved another correction can support promotion. A
+A later direct-owner outcome recorded against the unchanged trial/check can support
+promotion with a matching improved receipt and independent proposal validation. A
 later instruction to stop retires it. Silence leaves usefulness unknown.
 
 Explicit structured-memory forgetting marks learning records citing blocked
@@ -166,7 +168,7 @@ The host records explicit owner outcomes through the exact command:
 `/learning_outcome KEY REVISION CANDIDATE_HASH improved|inconclusive|regressed`.
 Inspect the trial/check through `learning_read` first. Only authenticated direct
 owner DM text can supply this authority. Hidden/legacy forwarding fields, automatic
-forwarding, via-bot content, attachments, groups, assistant/peer/event/job sources
+forwarding, known Telegram quotes/blockquotes, via-bot content, attachments, groups, assistant/peer/event/job sources
 and model-supplied origin never grant direct owner preference or outcome authority.
 A trusted deterministic host check may use `Learning.recordOutcome` after checking
 the result; this interface is absent from both MCP and direct action registries.
@@ -190,3 +192,7 @@ application while retaining receipts, previous revisions and review audit. Sourc
 rollback to an older image leaves additive tables intact but removes the new gates;
 use a pre-upgrade backup only for deliberate whole-state restoration, which loses
 subsequent writes. No migration deletes records or authentication.
+
+Known quote metadata conservatively labels a whole mixed message and blocks new
+preference/confirmed-fact authority; retained audit and original unquoted DM/group
+facts are preserved. See [provenance and migration](runtime-contracts.md).

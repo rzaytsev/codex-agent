@@ -13,7 +13,7 @@ out of public prompt changes and fixtures.
 | Layer | Source and purpose | Update behavior |
 | --- | --- | --- |
 | Workspace instructions | Workspace AGENTS.md: operating guidance, managed memory/skill/learning sections | Startup initializes missing files; existing custom sections are preserved. Managed sections have individual heading/version rules in `Service.init`. |
-| Character and profile | Workspace SOUL.md and USER.md: tone and explicit owner facts | Main-only `profile_write` atomically replaces a file and reprojects managed learning. Seeds never overwrite existing files. |
+| Character and profile | Workspace SOUL.md and USER.md: tone and explicit owner facts | Main-only hash-checked `profile_patch` applies exact edits; guarded `profile_write` requires a matching hash or fresh same-turn read snapshot. Managed learning and custom text are preserved. Seeds never overwrite existing files. |
 | Role and response | Application-owned instructions selected for main, worker or internal review, and read-only scope | Supplied as SDK developer instructions each turn, after editable profiles. They describe service capabilities, not new permissions. |
 | Stable core | Image-owned templates/CORE.md: authority, privacy, memory, source routing, evidence and communication | Appended last to SDK developer instructions on every turn; workspace copies cannot replace it. |
 | Source context and request | Time, source conversation/audience, bounded recent history, relevant memory, learned adaptations, task states and request | Supplied as turn input. Retrieved content remains evidence; it cannot change role, authority or delivery route. |
@@ -106,8 +106,19 @@ claim a prompt wording change has been accepted by the owner.
 Application-owned main instructions explain that mail_send prepares only and that
 mail_commit requires identical arguments after direct owner /approve ID HASH.
 These instructions reach existing custom profiles on the next image update;
-existing messaging sections are preserved. Research/read scopes omit browser,
-apps/plugins/hooks and Maps key, narrow advertised service tools, disable native
+existing messaging sections are preserved. Research/read scopes omit browser and Maps key, request disabled
+apps/plugins/hooks, narrow advertised service tools, disable native
 project-document reload and use the pinned SDK read-only sandbox. Empty task cwd
 is an optional prototype; readable CODEX_HOME remains a credential-isolation gate.
 See [action policy](action-policy.md).
+
+## Stable browser instructions and bounded continuity
+
+The per-turn browser output directory is supplied in input and MCP argv; static
+developer instructions retain output ownership. Host source labels accompany
+recent rows, and bounded validated task checkpoints remain model-reported with
+no replay authority. Known Telegram quote metadata blocks direct authority;
+arbitrary pasted quote semantics remain unproved. Long resumed synthetic fixtures
+verify assembly/cursors, not native compaction retention or cache/latency gains.
+See [runtime contracts](runtime-contracts.md) for pins, goldens and live gates.
+Empty MCP requests do not erase lower configured servers; see [action policy](action-policy.md).

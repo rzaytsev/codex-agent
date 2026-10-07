@@ -11,6 +11,9 @@ a running Docker daemon is needed only for building/running containers.
 npm ci
 npm run check
 npm test
+npm run eval:contracts
+npm run eval:skills
+npm run contract:runtime -- --output /tmp/runtime-contract.json
 python3 -m unittest discover -s test -p '*.py'
 python3 scripts/check-publication.py
 ```
@@ -151,3 +154,13 @@ or HTTP error-envelope change.
 ## Task outcome verification
 
 Run `node --test test/task-outcomes.test.js test/reliability.test.js test/agent-lifecycle.test.js test/media.test.js test/voice.test.js test/scheduler.test.js test/observations.test.js test/restricted-read.test.js test/prompts.test.js`, then normal check/full Node/Python/publication checks. Actual pinned SDK fixtures use owned executable children with ignored SIGTERM and argv/env comparisons, never a model/account endpoint. See [boundary and acceptance limits](task-outcomes.md).
+
+## Context and runtime compatibility verification
+
+Run test/context-contract.test.js and test/runtime-contract.test.js first, then
+the pinned supervisor/parser/restricted tests and full checks. Review golden refresh
+bytes explicitly; all prerelease upgrades require contracts plus target-image
+acceptance. Anonymous disposable skills discovery uses --anonymous; authenticated
+startup can contact cloud/model state and needs separate authorization. Synthetic
+routing checks prove the scorer/expectation format, not semantic selection quality.
+See [runtime contracts](runtime-contracts.md) for commands, migration and gates.

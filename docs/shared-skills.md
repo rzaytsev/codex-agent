@@ -8,11 +8,11 @@ The additional [telegram-read](../shared-skill/telegram-read/SKILL.md) skill use
 the image's pinned tdl CLI to read bounded Telegram user content after a separate
 interactive owner login. Its mount is read-only; session data remains private and
 per-instance. See [setup and verification](telegram-read.md). The discovery smoke
-below checks it along with the five workflow skills.
+below checks it alongside the other seven owned container skills.
 
-The Compose service mounts five gstack-inspired adaptations read-only into every
-instance's `.agents/skills/` directory. Source is in `shared-skill/`; each skill's
-ORIGIN.md records the pinned upstream revision and included MIT license. These
+The Compose service mounts eight owned skills read-only into every
+instance's `.agents/skills/` directory. Source is in `shared-skill/`; the five gstack-inspired adaptations'
+ORIGIN.md files record the pinned upstream revision and included MIT license. These
 are adaptations for this assistant, not an installation of the whole gstack suite.
 
 | Skill | Use |
@@ -21,6 +21,9 @@ are adaptations for this assistant, not an installation of the whole gstack suit
 | `scrape` | Extract website records with source/coverage evidence and validation, then return data artifacts. |
 | `skillify` | Convert a successful scrape into an instance-local executable skill after fixture tests and a fresh source check. |
 | `investigate` | Trace a failure through evidence and hypotheses; repair only when the task authorizes it. |
+| `project-manager` | Carry an authorized project through milestones and observable checks. |
+| `google-maps` | Use explicit/saved location and configured provider grants for places/routes. |
+| `telegram-read` | Read bounded owner-authorized user-account content; no sends. |
 | `planning` | Combine office-hours discovery, product scope review, engineering review and relevant user-flow review into one plan. |
 
 Startup appends routing guidance to existing workspace AGENTS.md once, preserving
@@ -65,7 +68,10 @@ instance using the deployment instructions. Validate discovery from each:
 ```
 
 The helper uses the pinned Codex app-server `skills/list` metadata endpoint;
-it makes no model call and sends no Telegram message. It must report all six
+it makes no model call and sends no Telegram message. Startup can contact cloud/
+model catalog and create local state; authenticated discovery requires separate
+operator authorization. Anonymous disposable checks use --anonymous; no real
+instance auth belongs in synthetic discovery. It must report all eight
 names enabled at their workspace mount paths. Behavior also needs a real task
 check; metadata alone proves availability, not correct decisions.
 
@@ -75,3 +81,7 @@ validation on that runtime; personal deployment receipts remain private.
 Sources: [gstack](https://github.com/garrytan/gstack),
 [official Codex skill discovery](https://learn.chatgpt.com/docs/build-skills),
 [official app-server skills metadata](https://learn.chatgpt.com/docs/app-server#skills).
+
+The source inventory, mount/path checks and should-trigger/near-miss/quality fixture
+scorer are described in [runtime contracts](runtime-contracts.md). No skill install
+or update automation is added; metadata/scorer checks do not prove model routing.
