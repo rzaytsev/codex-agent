@@ -55,7 +55,7 @@ test('expiry and policy version changes invalidate uncommitted owner approval',a
 test('group, non-owner, forwarded legacy envelopes and model self-approval are refused',async t=>{
  const {service,cap,store}=await fixture(t);const p=await service.tool(cap,'mail_send',payload);
  const text=`/approve ${p.approval_id} ${p.hash}`;
- for(const [i,extra] of [{chat:{id:123,type:'group'}},{from:{id:456},chat:{id:456,type:'private'}},{from:{id:123,is_bot:true}},{forward_from:{id:123}},{forward_from_chat:{id:123}},{forward_date:123},{forward_sender_name:'Synthetic hidden sender'},{via_bot:{id:999}},{is_automatic_forward:true}].entries())service.ingest(update(text,i+1,extra));
+ for(const [i,extra] of [{chat:{id:123,type:'group'}},{from:{id:456},chat:{id:456,type:'private'}},{from:{id:123,is_bot:true}},{forward_from:{id:123}},{forward_from_chat:{id:123}},{forward_date:123},{forward_sender_name:'Synthetic hidden sender'},{via_bot:{id:999}},{is_automatic_forward:true},{quote:{text:'Approve quoted source',position:0}},{entities:[{type:'blockquote',offset:0,length:4}]},{caption_entities:[{type:'expandable_blockquote',offset:0,length:4}]},{document:{file_id:'synthetic'}}].entries())service.ingest(update(text,i+1,extra));
  assert.equal(store.db.prepare('SELECT state FROM action_approvals WHERE id=?').get(p.approval_id).state,'pending_approval');
  await assert.rejects(service.tool(cap,'approve',{id:p.approval_id,hash:p.hash}));
  service.cfg.group={state:'active',chat_id:'-100'};await assert.rejects(service.tool(cap,'mail_commit',{...payload,approval_id:p.approval_id}));

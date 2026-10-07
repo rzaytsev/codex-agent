@@ -12,3 +12,12 @@ function valid(value,schema){
 export function validateOutcome(result){for(const [key,schema] of [['outcome',outcomeSchema],['checkpoint',checkpointSchema]])if(result[key]!==undefined&&result[key]!==null&&!valid(result[key],schema))throw safeFailure('invalid_output');return result;}
 export function outcomeRecord(result){validateOutcome(result);return {version:1,authority:result.outcome?'model_reported':'unknown',goal:result.outcome?.status||'unknown',checks:result.outcome?.checks||[],evidence:result.outcome?.evidence||[],limitations:result.outcome?.limitations||[],checkpoint:result.checkpoint||null,host_verified:false,resume:'fresh_owner_intent_required'};}
 export const interruptedOutcome=()=>({...outcomeRecord({}),limitations:['Execution effects may be unresolved; reconcile before new work.']});
+
+// Bounded context projection, never a resume/replay authorization. Keep every
+// unresolved-effect slot while shortening long descriptions; full task_status
+// retains the original validated checkpoint.
+export function checkpointContext(value) {
+  if(!valid(value,checkpointSchema))return null;
+  const bounded=s=>s.length>240?s.slice(0,240)+'… [truncated; read task_status]':s;
+  return {...value,last_verified_milestone:bounded(value.last_verified_milestone),next_safe_step:bounded(value.next_safe_step),unresolved_effects:value.unresolved_effects.map(bounded)};
+}
