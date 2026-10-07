@@ -97,3 +97,49 @@ test('Agent drains revoked in-flight voice tools before final logical observatio
  await until(()=>fs.access(marker).then(()=>true,()=>false));await pause(30);assert.equal(returned,false);assert.equal(store.db.prepare('SELECT terminal FROM run_observations').get().terminal,null);
  await run;await voiceFailure;const pid=Number(await fs.readFile(marker,'utf8'));assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});assert.equal(store.db.prepare('SELECT terminal FROM run_observations').get().terminal,'completed');assert.equal(store.db.prepare('SELECT count(*) n FROM outbox').get().n,0);
 });
+
+for(const interruption of ['none','cancel','timeout','budget'])test(`EOF before owned exit settles after cleanup and releases capacity: ${interruption}`,async t=>{
+ const source=`const fs=require('node:fs');fs.writeFileSync(process.env.HOME+'/pid',String(process.pid));process.on('SIGTERM',()=>{fs.writeFileSync(process.env.HOME+'/term','ready');${interruption==='none'?'process.exit(0);':''}});process.stdin.resume();process.stdin.on('end',()=>{console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({text:'late EOF final',voice:false,files:[]})}}));${completed}process.stdout.end();setInterval(()=>{},1000);});`;
+ const f=await fixture(t,source),cfg=config({WORKSPACE_DIR:f.dir,CODEX_HOME:path.join(f.dir,'codex'),TELEGRAM_ALLOWED_USER_IDS:'123',BROWSER_ENABLED:'false',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',MEMORY_ENABLED:'false',LEARNING_ENABLED:'false',MAX_WORKERS:'1'}),store=new Store(path.join(f.dir,'db')),service=new Service(cfg,store,{},{});await service.init();
+ let pid; t.after(()=>{if(pid)try{process.kill(pid,'SIGKILL');}catch{}store.db.close();});
+ const capability=(...args)=>service.capability(...args);capability.release=token=>service.releaseCapability(token);
+ service.agent=new Agent(cfg,store,capability,options=>new Codex({...options,...f.options}));
+ const first=store.job('123','synthetic EOF before exit');service.workers();
+ if(interruption!=='none'){
+  // Interrupt only after EOF's initial wait has expired and cleanup sent TERM.
+  await until(()=>fs.access(path.join(f.dir,'term')).then(()=>true,()=>false));
+  if(interruption==='cancel')service.cancelTask('123',first);
+  else {const {BudgetError}=await import('../src/observations.js');service.controllers.get(first).abort(interruption==='budget'?new BudgetError():Object.assign(new Error('Execution deadline'),{code:'timeout'}));}
+ }
+ await Promise.all(service.workerRuns.values());pid=Number(await fs.readFile(path.join(f.dir,'pid'),'utf8'));assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});pid=undefined;
+ const firstRow=store.jobs('123').find(j=>j.id===first);assert.equal(firstRow.state,interruption==='cancel'?'cancelled':'failed');
+ assert.equal(store.db.prepare('SELECT terminal FROM run_observations').get().terminal,interruption==='none'?'provider_error':interruption==='cancel'?'cancelled':interruption);
+ assert.equal(service.activeWorkers,0);assert.equal(store.search('123').filter(r=>r.role==='assistant').length,0);
+ assert(!store.db.prepare('SELECT payload FROM outbox').all().some(r=>JSON.parse(r.payload).text==='late EOF final'));
+ assert.equal(store.db.prepare('SELECT count(*) n FROM outbox WHERE artifact_id IS NOT NULL').get().n,0);
+ // A fresh authorized task uses the actual SDK and must acquire the freed slot.
+ await fs.writeFile(f.binary,`#!${process.execPath}\nprocess.stdin.resume();process.stdin.on('end',()=>{console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({text:'fresh result',voice:false,files:[]})}}));${completed}});`,{mode:0o700});
+ const next=store.job('123','fresh synthetic work');service.workers();assert.equal(store.jobs('123').find(j=>j.id===next).state,'running');await Promise.all(service.workerRuns.values());assert.equal(store.jobs('123').find(j=>j.id===next).state,'completed');
+});
+
+for(const interruption of ['timeout','cancel'])test(`owned media EOF retains actual exit classification: ${interruption}`,async t=>{
+ const {ownedExec}=await import('../src/owned-process.js');
+ const f=await fixture(t,`const fs=require('node:fs');fs.writeFileSync(process.env.HOME+'/pid',String(process.pid));process.on('SIGTERM',()=>process.exit(0));process.stdout.end();setInterval(()=>{},1000);`),ctrl=new AbortController();
+ const running=ownedExec(f.binary,[],{signal:ctrl.signal,env:f.options.env,timeout:interruption==='timeout'?200:5000});const rejected=assert.rejects(running,error=>{assert.equal(error.executionUnknown,undefined);assert.equal(error.message,interruption==='timeout'?'Media process failed':'This operation was aborted');return true;});
+ await until(()=>fs.access(path.join(f.dir,'pid')).then(()=>true,()=>false));if(interruption==='cancel')ctrl.abort();await rejected;
+ const pid=Number(await fs.readFile(path.join(f.dir,'pid'),'utf8'));assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});
+});
+
+test('EOF with genuinely unobserved exit retains requested capacity after bounded cleanup',async t=>{
+ const f=await fixture(t,`const fs=require('node:fs');fs.writeFileSync(process.env.HOME+'/pid',String(process.pid));process.stdin.resume();process.stdin.on('end',()=>{console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:JSON.stringify({text:'unsettled final',voice:false,files:[]})}}));${completed}process.stdout.end();setInterval(()=>{},1000);});`),cfg=config({WORKSPACE_DIR:f.dir,CODEX_HOME:path.join(f.dir,'codex'),TELEGRAM_ALLOWED_USER_IDS:'123',BROWSER_ENABLED:'false',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',MEMORY_ENABLED:'false',LEARNING_ENABLED:'false',MAX_WORKERS:'1'}),store=new Store(path.join(f.dir,'db')),service=new Service(cfg,store,{},{});await service.init();
+ const capability=(...args)=>service.capability(...args);capability.release=token=>service.releaseCapability(token);service.agent=new Agent(cfg,store,capability,options=>new Codex({...options,...f.options}));
+ const realKill=process.kill;let pid,blockedSignals=0;
+ try {
+  // Fault injection is scoped to this owned fixture's group only. It models
+  // unsuccessful signal delivery; the real child remains alive at settlement.
+  process.kill=(target,signal)=>{if(pid&&target===-pid&&['SIGTERM','SIGKILL'].includes(signal)){blockedSignals++;return true;}return realKill(target,signal);};
+  const first=store.job('123','synthetic missing exit proof');service.workers();await until(()=>fs.access(path.join(f.dir,'pid')).then(()=>true,()=>false));pid=Number(await fs.readFile(path.join(f.dir,'pid'),'utf8'));await Promise.all(service.workerRuns.values());
+  assert.ok(blockedSignals>=2);assert.doesNotThrow(()=>realKill(pid,0));assert.equal(store.jobs('123').find(j=>j.id===first).state,'cancel_requested');assert.equal(store.db.prepare('SELECT terminal FROM run_observations').get().terminal,'execution_unknown');
+  const next=store.job('123','fresh synthetic intent');service.workers();assert.equal(store.jobs('123').find(j=>j.id===next).state,'queued');assert.equal(service.activeWorkers,1);assert.equal(store.db.prepare('SELECT count(*) n FROM outbox').get().n,0);
+ } finally {process.kill=realKill;if(pid){try{realKill(-pid,'SIGKILL');}catch{}await until(()=>{try{realKill(pid,0);return false;}catch(error){return error.code==='ESRCH';}});}store.db.close();}
+});

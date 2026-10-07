@@ -61,7 +61,9 @@ export function superviseSdk(sdk) {
     try {
       for await(const line of lines)yield line;
       if(!exited)await waitExit(exit,1000);
-      if(!exited)throw new ExecutionUnknown();
+      // EOF is not exit proof or success. Cleanup below may still observe exit;
+      // only its final evidence can classify execution as unknown.
+      if(!exited)throw failure();
       a.signal?.throwIfAborted();
       if(failed||exitCode!==0)throw failure();
     } finally {

@@ -51,8 +51,10 @@ no account, filesystem or network grants. Dependency versions are unchanged.
 
 Owned SDK and media helpers run in their own process group. Cancellation sends
 SIGTERM, escalates to SIGKILL after 250 ms and waits for the owned child's actual
-exit event. Media stdout remains bounded; subprocess stderr is discarded and
-failure diagnostics are fixed. Service-tool media work is tracked through its
+exit event. If stdout ends before the child exits, forced cleanup remains a
+non-success even after a model completion event; an observed exit releases
+capacity, and only missing proof after cleanup is unknown. Media stdout remains
+bounded; subprocess stderr is discarded and failure diagnostics are fixed. Service-tool media work is tracked through its
 logical run so releasing the capability also drains its owned helpers before
 settlement. Shutdown awaits main/worker promises instead of exiting after an
 unconditional two-second timer. Timeout and budget observation reasons remain
