@@ -209,7 +209,7 @@ export class Service {
         this.store.transaction(()=>{this.store.enqueue(user,payload);this.store.history(user,'assistant',args.text);});
         return {queued:true,format:'ogg/opus'};
       }
-      case 'task_status': return this.store.jobs(user);
+      case 'task_status': return this.store.jobs(user,args.id);
       case 'create_task': {
         if(!['worker','research','review'].includes(args.profile || 'worker')||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid task');
         if(args.title!==undefined&&(typeof args.title!=='string'||!args.title.trim()||args.title.length>160)) throw new Error('Invalid title');
@@ -372,7 +372,7 @@ export class Service {
           if(!action)text=this.mail.inbox().map(r=>`${r.id}: ${r.kind} from ${r.sender} (${r.state})${r.job_id?` task ${r.job_id}`:''}`).join('\n')||'No incoming agent messages.';
           else if(action==='read'&&id){const r=this.mail.read(id);text=`From ${r.sender}; ${r.kind}; ${r.state}\nContext: ${r.context}\n${r.text}`;}
           else if(['accept','reject'].includes(action)&&id) {
-            if(message.forward_origin)throw new Error('Send acceptance or rejection directly; forwarded commands cannot authorize work.');
+            if(!directOwner(message,this.cfg))throw new Error('Send acceptance or rejection directly; source content cannot authorize work.');
             const result=this.mail.decide(id,action==='accept');
             text=`Request ${id}: ${result.state}${result.job_id?`; task ${result.job_id}`:''}.`;
           } else throw new Error('Use /mail, /mail read ID, /mail accept ID or /mail reject ID.');

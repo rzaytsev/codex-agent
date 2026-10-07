@@ -1,4 +1,5 @@
 import {ContractDenial} from './contract-denial.js';
+import {trustedHistoryOrigin} from './owner-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
@@ -51,8 +52,8 @@ export class Learning {
     if(history) {
       const row=this.db.prepare("SELECT id,role,text,created,actor_id FROM history WHERE user=? AND id=? AND role IN ('user','assistant','event')").get(this.owner,Number(history[1]));
       if(row) {
-        const origin=this.db.prepare('SELECT origin FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id)?.origin||'legacy_unknown';
-        return {...row,source,origin,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&origin==='direct_owner'};
+        const provenance=this.db.prepare('SELECT origin,known_quote,provenance_version FROM history_origins WHERE owner=? AND history_id=?').get(this.owner,row.id),origin=trustedHistoryOrigin(provenance);
+        return {...row,source,origin,provenance_version:provenance?.provenance_version??0,original_owner_statement:row.role==='user'&&row.actor_id===this.owner&&origin==='direct_owner'};
       }
     }
     if(/^job:[a-z0-9-]{1,80}$/.test(source)) {
@@ -123,7 +124,10 @@ export class Learning {
         if(current.status==='trial') {
           const receipts=this.outcomes(current.key).filter(r=>r.candidate_revision===current.revision&&r.candidate_hash===current.candidate_hash&&r.check_hash===current.check_hash);
           if(receipts.some(r=>r.outcome==='regressed'))throw new ContractDenial('learning_regression');
-          const improved=receipts.find(r=>r.outcome==='improved'&&r.evidence_ids.every(s=>this.usable({sources:[s]})&&change.sources.includes(s)));
+          // Retained receipts stay in audit, but new promotion needs current
+          // source authority. Deterministic checks have a distinct host contract.
+          const improved=receipts.find(r=>r.outcome==='improved'&&r.evidence_ids.every(s=>this.usable({sources:[s]})&&change.sources.includes(s))&&
+            (r.authority==='deterministic_check'||r.authority==='explicit_owner'&&r.evidence_ids.every(s=>evidence.some(e=>e.source===s&&e.original_owner_statement===true))));
           if(!improved)throw new ContractDenial('learning_outcome_required');
         }
       }

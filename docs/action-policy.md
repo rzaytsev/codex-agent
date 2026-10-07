@@ -252,9 +252,13 @@ The ledger contains private payloads; protect it like history. Keep ledger and
 mail_outbox in the same SQLite snapshot. No extra mount, automatic GC or collector
 is introduced. Stop execution/delivery before rollback: older code can bypass
 approval and blindly retry old pending transport calls. Reconcile pending and
-uncertain operations first. Additive tables can remain with older source, but
-its missing controls must be accepted explicitly; a complete state rollback uses
-the matching pre-upgrade snapshot and also reverts later history/delivery state.
+uncertain operations and requested cancellation first. Earlier subsystem-only
+additive-table compatibility does not make source-only downgrade operational for
+the final stack: pre-Task-8 positional history-origin inserts fail against the
+migrated schema. Follow the [final-stack restoration contract](runtime-contracts.md#migration-and-rollback):
+restore matched pre-upgrade source/image, database and workspace together. Preserve
+audit evidence first and acknowledge loss of later history/delivery writes.
+Restoration cannot undo external effects; reconcile them without blind resend.
 Do not mix approval/outbox tables from different snapshots.
 
 

@@ -14,7 +14,11 @@ only unseen rows from that tail. Each row carries a host source label. Current
 request and conversation/audience/route stay explicit in turn input. Checkpoints are persisted only with terminal results, not periodically mid-run.
 Up to eight scoped task checkpoints are projected as model-reported, host_verified=false.
 Every validated unresolved-effect slot is retained; descriptions over 240 characters
-are truncated with a task_status retrieval pointer. Full originals remain in SQLite.
+are truncated with a task_status retrieval pointer. `task_status({id: TASK_ID})`
+returns at most one exact owner/conversation-scoped task with its full stored
+checkpoint, including tasks older than the default latest-30 listing. Absent or
+foreign-owner/conversation IDs return an empty list; the lookup grants no wider
+scope. Full originals remain in SQLite.
 Workers query their single task ID with owner/conversation scope, independently of
 the recent-job listing limit, and receive its checkpoint when one exists. A checkpoint
 cannot resume a job, mint owner intent or authorize retrying an uncertain effect.
@@ -27,7 +31,16 @@ label the entire mixed message conservatively. Known quotes, forwarded input and
 attachments cannot mint direct approval, new preference/outcome authority or new
 confirmed owner facts through the real host gates. Original unquoted owner DM and
 linked-owner group facts remain supported; group facts grant no DM preference or
-outcome authority. Legacy origins/revisions/audit are retained. Arbitrary pasted
+outcome authority. New intake stamps quote-aware `provenance_version=1`; retained
+attribution without a version is 0 (unknown), including old `direct_owner` and
+`owner_group` rows. These cannot authorize new owner preferences, confirmed facts
+or explicit-owner trial promotions without fresh evidence. Current quote flags
+override historical origin labels in both learning and memory. Existing active
+records, revisions, receipt applications and audit remain intact, as does the
+documented generic legacy factual-evidence path for history without attribution.
+Explicit-owner improvement receipts must pass current source-authority checks at
+new promotion; deterministic checks and conservative regression veto retain their
+separate contracts. Arbitrary pasted
 quotation boundaries and semantic entailment are not inferred from text regex.
 These gates do not constrain arbitrary code with the process's filesystem grants.
 
@@ -92,17 +105,20 @@ and live long-session correction/route/checkpoint acceptance separately opt-in.
 ## Migration and rollback
 
 Back up consistent SQLite plus workspace/artifacts/profiles/Codex home before
-an operator image update. Startup adds only history_origins.known_quote, default
-zero for retained rows; it does not fabricate old quote boundaries, rewrite active
+an operator image update. Startup adds history_origins.known_quote and
+provenance_version, both defaulting to zero for retained rows. Zero provenance
+means unknown attribution, not proof of an unquoted owner statement. Startup
+does not fabricate old quote boundaries, rewrite active
 preferences, remove history, change threads or alter schedule policy.
 Source-only rollback to the pre-Task-8 base is incompatible with this migrated
-schema: its three-value history_origins insert fails against the four-column table,
+schema: its three-value history_origins insert fails against the expanded table,
 breaking ordinary owner intake and potentially leaving history without an origin
 outside an enclosing transaction. Stop the instance and reconcile processes and
 uncertain effects, then restore matched pre-upgrade data and source/image together
 for that downgrade. Such a restore loses subsequent writes; retain audit evidence.
 A separate compatibility rollback would need its own design and verification that
-preserves quote provenance/audit. Do not casually delete the column. Never replay
+preserves quote provenance/audit. Do not casually delete metadata columns. Restoring
+data does not undo external effects. Never replay
 uncertain effects or downgrade Task 7 requested-cancellation state blindly.
 Image core/role changes reach existing instances on authorized image recreation;
 seed templates initialize missing files and preserve existing custom profiles.

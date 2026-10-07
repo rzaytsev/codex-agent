@@ -78,11 +78,13 @@ test('plan-only read scope uses real service denials and checkpoint projection r
   const {checkpointContext}=await import('../src/outcomes.js');assert.equal(checkpointContext({...checkpoint,extra:'forged'}),null);
   const full={...checkpoint,unresolved_effects:Array(16).fill('x'.repeat(2000))};const bounded=checkpointContext(full);assert.equal(bounded.unresolved_effects.length,16);assert.ok(bounded.unresolved_effects.every(e=>e.length<300&&e.includes('task_status')));assert.deepEqual(full.unresolved_effects,Array(16).fill('x'.repeat(2000)));
 });
-test('additive known-quote migration preserves origins, old history, revisions and audit on reopen',async t=>{
+test('additive quote-aware provenance migration preserves origins and history with unknown retained authority',async t=>{
   const f=await fixture(t);const id=f.store.ownerHistory(f.cfg,message('Original owner fact'),'Original owner fact');
-  const before=f.store.db.prepare('SELECT * FROM history WHERE id=?').get(id);f.store.db.exec('ALTER TABLE history_origins DROP COLUMN known_quote');
+  const before=f.store.db.prepare('SELECT * FROM history WHERE id=?').get(id);f.store.db.exec('ALTER TABLE history_origins DROP COLUMN known_quote; ALTER TABLE history_origins DROP COLUMN provenance_version');
   const reopened=new Store(path.join(f.dir,'db'));t.after(()=>reopened.db.close());
-  assert.deepEqual(reopened.db.prepare('SELECT * FROM history WHERE id=?').get(id),before);assert.equal(reopened.historySource(id,owner),'direct_owner');assert.equal(reopened.db.prepare('SELECT known_quote FROM history_origins WHERE history_id=?').get(id).known_quote,0);
+  assert.deepEqual(reopened.db.prepare('SELECT * FROM history WHERE id=?').get(id),before);assert.equal(reopened.historySource(id,owner),'legacy_unknown');
+  const provenance=reopened.db.prepare('SELECT origin,known_quote,provenance_version FROM history_origins WHERE history_id=?').get(id);
+  assert.equal(provenance.origin,'direct_owner');assert.equal(provenance.known_quote,0);assert.equal(provenance.provenance_version,0);
 });
 
 test('worker checkpoint projection stays scoped to the host task ID and receives no main history',async t=>{
@@ -117,4 +119,20 @@ test('worker checkpoint lookup denies absent, foreign-owner and foreign-conversa
     await f.agent.run(owner,'Assigned goal','worker',[],undefined,()=>{},undefined,false,{taskId});
     const context=f.calls.at(-1).input[0].text;assert.match(context,/Tasks: \[\]/);assert.doesNotMatch(context,/FOREIGN_CHECKPOINT_PRIVATE|MAIN_HISTORY_PRIVATE/);
   }
+});
+
+test('task_status retrieves the full older checkpoint by exact scoped ID while preserving bounded default listing',async t=>{
+  const f=await fixture(t),id=f.store.job(owner,'Older goal');
+  const full={...checkpoint,last_verified_milestone:'M'.repeat(300),next_safe_step:'S'.repeat(300),unresolved_effects:['x'.repeat(300)+' END_OF_EFFECT']};
+  f.store.db.prepare('UPDATE jobs SET created=1,goal_outcome=? WHERE id=?').run(JSON.stringify(outcomeRecord({...reply,checkpoint:full})),id);
+  for(let i=0;i<31;i++)f.store.job(owner,'Newer goal');
+  const listed=await f.service.tool({user:owner},'task_status',{});assert.equal(listed.length,30);assert.equal(listed.some(r=>r.id===id),false);
+  for(const role of [{},{worker:true},{memoryReview:true},{toolScope:'read'}]) {
+    const found=await f.service.tool({user:owner,...role},'task_status',{id});
+    assert.equal(found.length,1);assert.equal(found[0].id,id);assert.deepEqual(found[0].goal_outcome.checkpoint,full);
+  }
+  const foreignOwner=f.store.job('456','Foreign owner'),foreignConversation=f.store.job(owner,'Foreign conversation');
+  f.store.db.prepare('UPDATE jobs SET conversation_id=? WHERE id=?').run('foreign-conversation',foreignConversation);
+  for(const denied of ['absent-task',foreignOwner,foreignConversation])assert.deepEqual(await f.service.tool({user:owner},'task_status',{id:denied}),[]);
+  for(const args of [{id:''},{id:'x'.repeat(81)},{id:123},{id,scope:'all'}])await assert.rejects(f.service.tool({user:owner},'task_status',args),/Invalid task_status arguments/);
 });

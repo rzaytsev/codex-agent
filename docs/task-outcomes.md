@@ -21,7 +21,10 @@ permitted checks, then inspect the returned checks/evidence/limitations. Such a
 review is still model-reported and does not mint learning or schedule authority.
 Ordinary replies use one model turn.
 
-`task_status` exposes the full stored outcome/checkpoint. `/status` shows execution
+`task_status` lists the latest 30 scoped jobs by default. With `{id: TASK_ID}` it
+retrieves at most one exact task and its full stored outcome/checkpoint, even beyond
+that list. Owner/conversation scope still applies; absent or foreign IDs return
+an empty list. `/status` shows execution
 state, goal, reporting authority and fresh-owner-intent requirement. Returned
 checkpoints survive restart; intermediate model progress that was never returned
 and committed is not invented. There is no resume/retry command and no automatic

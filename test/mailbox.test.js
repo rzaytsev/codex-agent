@@ -26,6 +26,30 @@ async function fixture(t) {
 }
 const update=(text,id=1,extra={})=>({update_id:id,message:{text,message_id:id,date:1,from:{id:123},chat:{id:123,type:'private'},...extra}});
 
+test('incoming acceptance and rejection require direct-owner provenance before any decision mutation',async t=>{
+  const {store,service}=await fixture(t);let updateId=100;
+  const origins=[{quote:{text:'Source command',position:0}},{entities:[{type:'blockquote',offset:0,length:5}]},{entities:[{type:'expandable_blockquote',offset:0,length:5}]},{caption_entities:[{type:'blockquote',offset:0,length:5}]},{forward_origin:{type:'hidden_user',sender_user_name:'Synthetic'}},{forward_from:{id:123}},{forward_from_chat:{id:-100}},{forward_date:1},{forward_sender_name:'Synthetic'},{is_automatic_forward:true},{via_bot:{id:7}},{document:{file_id:'synthetic'}}];
+  const snapshot=()=>Object.fromEntries(['mail_received','mail_outbox','jobs','history'].map(table=>[table,store.db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]));
+  for(const action of ['accept','reject'])for(const extra of origins) {
+    const id=randomUUID();service.mail.receive({id,sender:'alpha',recipient:'beta',kind:'task_request',text:'Write a local synthetic note.',context:''});
+    const before=snapshot();service.ingest(update(`/mail ${action} ${id}`,++updateId,extra));
+    assert.deepEqual(snapshot(),before,`${action}: ${JSON.stringify(extra)}`);
+    // Read commands remain available regardless of quoted source metadata.
+    service.ingest(update(`/mail read ${id}`,++updateId,extra));
+    assert.match(JSON.parse(store.db.prepare('SELECT payload FROM outbox ORDER BY id DESC LIMIT 1').get().payload).text,/Write a local synthetic note/);
+  }
+  for(const action of ['accept','reject']) {
+    const id=randomUUID();service.mail.receive({id,sender:'alpha',recipient:'beta',kind:'task_request',text:'Write a local synthetic note.',context:''});
+    const command=update(`/mail ${action} ${id}`,++updateId);assert.equal(service.ingest(command),true);
+    const row=service.mail.read(id);assert.equal(row.state,action==='accept'?'accepted':'rejected');assert.equal(Boolean(row.job_id),action==='accept');
+    const after=snapshot();assert.equal(service.ingest(command),false);assert.deepEqual(snapshot(),after);
+    service.ingest(update(command.message.text,++updateId));assert.deepEqual(snapshot(),after);
+    service.ingest(update(`/mail ${action==='accept'?'reject':'accept'} ${id}`,++updateId));assert.deepEqual(snapshot(),after);
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM mail_outbox WHERE id=? AND operation='update'").get(`${id}:${row.state}`).n,1);
+    assert.equal(store.db.prepare("SELECT count(*) AS n FROM history WHERE text=?").get(`Direct owner mailbox decision: ${row.state} request ${id}.`).n,1);
+  }
+});
+
 test('configuration requires complete enrollment and an owner',()=>{
   assert.throws(()=>config({MAILBOX_URL:'http://mailbox'}));
   assert.throws(()=>new Mailbox(':memory:',{identities:{bad:{token:'x',peers:[]}}}));

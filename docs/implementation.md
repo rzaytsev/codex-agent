@@ -227,3 +227,12 @@ parser/supervisor and declared versions. No compactor, skill automation or
 dependency upgrade is added. Live compaction/semantic quality/cache gains/
 authenticated discovery and target image acceptance remain unrun; full isolation
 remains incomplete and blocking. See [runtime contracts](runtime-contracts.md).
+
+The final authority correction adds quote-aware history provenance version 1;
+retained attribution defaults to unknown for new owner adaptations. Learning and
+memory honor the same quote interpretation, and new promotion revalidates saved
+explicit-owner receipt sources. Existing active records, versions, receipts and
+audit remain intact. Incoming mail accept/reject uses the shared direct-owner gate.
+Exact scoped `task_status({id})` exposes full older checkpoints beyond the default
+30-job list. Synthetic cross-version and transport regressions cover these paths;
+no live integration or full isolation acceptance follows.

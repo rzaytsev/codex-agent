@@ -5,6 +5,14 @@ export function knownQuote(message) {
   return message?.quote!==undefined || [message?.entities,message?.caption_entities].some(entities=>
     Array.isArray(entities)&&entities.some(entity=>['blockquote','expandable_blockquote'].includes(entity?.type)));
 }
+// Version 1 is written only by quote-aware host intake. Older origins are audit,
+// not proof of an original owner statement; a quote flag always overrides them.
+export function trustedHistoryOrigin(provenance) {
+  if(provenance?.known_quote)return 'quoted';
+  const origin=provenance?.origin;
+  if(['direct_owner','owner_group'].includes(origin)&&provenance.provenance_version!==1)return 'legacy_unknown';
+  return origin||'legacy_unknown';
+}
 const attachmentFields=['document','photo','voice','audio','video','video_note','animation','sticker','contact','location'];
 // Host transport metadata, shared with action approval. Text never grants authority.
 export function directOwner(message,cfg) {

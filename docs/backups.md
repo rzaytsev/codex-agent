@@ -151,13 +151,17 @@ Task 7 adds nullable jobs.goal_outcome JSON and durable cancel_requested inputs/
 
 ## Known source metadata
 
-The additive history_origins.known_quote column defaults to zero for retained rows,
-without inferring old quote boundaries or changing revisions/origins. Existing
+The additive history_origins.known_quote and provenance_version columns default
+to zero for retained rows, without inferring old quote boundaries or changing
+revisions/origins. Version 0 is unknown attribution and cannot authorize new owner
+adaptations; existing active records and receipts remain audit. New quote-aware
+host intake writes version 1. Existing
 consistent SQLite snapshots retain this host metadata; no new mount is required.
 Source-only downgrade to the pre-Task-8 base is incompatible: its three-value
-history_origins insert fails against the migrated four-column table, breaking owner
+history_origins insert fails against the expanded table, breaking owner
 intake and potentially leaving history without origin outside a transaction.
 Stop/reconcile processes and uncertain effects, then restore matched pre-upgrade
 data and source/image together, retaining audit evidence. A separate compatibility
 rollback requires design/verification that preserves quote provenance/audit; do not
-casually delete the column. See [runtime migration](runtime-contracts.md#migration-and-rollback).
+casually delete metadata columns. Restore loses subsequent writes and cannot undo
+external effects. See [runtime migration](runtime-contracts.md#migration-and-rollback).

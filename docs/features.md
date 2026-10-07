@@ -48,6 +48,14 @@ receipts are excluded. Consult [implementation](implementation.md) for limits.
 | Task goal outcomes and cancellation settlement | Bounded optional model-reported outcomes/checkpoints persisted separately from execution; requested cancellation reserves capacity until owned child exit, unknown recovery never replays; no automatic reviewer/resume | [Task outcomes](task-outcomes.md); actual pinned SDK and owned media process regressions |
 | Context/runtime compatibility | Bounded host source labels and scoped model checkpoints; stable browser instructions; pinned schema/parser/supervisor/effective-registry goldens; synthetic routing scorer, no semantic-quality/live-compaction claim | [Runtime contracts](runtime-contracts.md); context/runtime/task-outcome fixtures |
 
+Final provenance correction versions quote-aware intake, treats retained attribution
+as unknown for new owner authority, and rechecks explicit-owner receipt sources at
+promotion while preserving active records/audit and generic legacy factual evidence.
+Both incoming mailbox decisions use the shared direct-owner gate. Exact scoped
+`task_status({id})` retrieves full older checkpoints. These contracts are covered by
+`test/authority-upgrade.test.js` (actual pre-Task-8 synthetic SQLite fixture),
+`test/mailbox.test.js` and `test/context-contract.test.js`.
+
 ## Deliberate limits and superseded proposals
 
 - Exactly one owner per container. Earlier multiple-owner allowlists and nested

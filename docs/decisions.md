@@ -376,3 +376,19 @@ Synthetic tests establish host/assembly compatibility; upgrades still require th
 target image and opt-in authenticated/live gates. Correct empty-MCP claims: lower
 configuration recursively persists. No isolation prototype is enabled. See
 [runtime contracts](runtime-contracts.md).
+
+## Prospective authority after upgrade (2026-10-07)
+
+Historical attribution without verified quote-aware provenance cannot authorize
+new preferences, confirmed owner facts or explicit-owner trial promotion. Stamp
+new host intake with provenance version 1 and retain older attribution as version
+0 (unknown), without guessing from timestamps, text or unbound input envelopes.
+Share quote interpretation across learning, memory and context; revalidate an
+explicit-owner improvement receipt's source at each new promotion. Preserve
+existing active records, versions, receipts/audit, the conservative regression
+veto, deterministic host-check authority and generic legacy factual-evidence
+compatibility for history with no attribution. Incoming mail accept/reject must
+use the same direct-owner predicate as other owner consent. Provide exact scoped
+task lookup for checkpoint reconciliation. Final-stack rollback requires stopped,
+reconciled, matched source/image and data restoration; additive subsystem tables
+alone do not establish downgrade compatibility.
