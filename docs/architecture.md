@@ -41,6 +41,12 @@ conversation-scoped service instances on one canonical owner database. Each has 
 worker threads; a coordinator enforces fair shared execution limits. Stable IDs
 survive Telegram renames/migrations. See [conversations](conversations.md).
 
+When Telegram reports private topic mode enabled, the coordinator also routes
+owner private messages by chat/topic ID. Topic handles share the canonical database,
+owner memory/learning metadata and workspace, but retain independent sessions and
+recent context. Their transport wrappers bind every delivery/indicator to the topic;
+the default service owns maintenance and instance-wide account lifecycle.
+
 agent.js reads workspace AGENTS.md, SOUL.md and USER.md each turn, removes generated
 learning sections, selects application-owned role/delivery instructions, appends
 the image-owned stable core and supplies scoped learning records. Role rules are

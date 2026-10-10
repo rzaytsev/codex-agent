@@ -37,7 +37,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared?.memory||new Memory(cfg.workspace,store,cfg.owner);this.learning=shared?.learning||new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -46,7 +46,15 @@ export class Service {
   }
   releaseCapability(token) {this.capabilities.get(token)?.controller.abort();this.capabilities.delete(token);}
   async init() {
-    if(this.shared) {this.mail=this.shared.mail;this.store.recover();return;}
+    if(this.shared) {
+      this.mail=this.shared.mail;
+      if(this.cfg.topic&&this.mail) {
+        // Bind decisions to this topic without rerunning instance mail recovery.
+        this.mail=Object.create(this.mail);this.mail.store=this.store;
+        this.approvals=new ActionApprovals(this.cfg,this.store,this.mail);
+      }
+      this.store.recover();return;
+    }
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
     if(this.cfg.mail)this.mail=new AgentMail(this.cfg,this.store);
@@ -169,6 +177,7 @@ export class Service {
     if(this.cfg.group) {
       if(!cap.conversationId||this.cfg.group.state!=='active'||cap.actorId!==this.cfg.owner)throw new Error('Owner group capability unavailable');
     }
+    if(this.cfg.topic&&(!this.conversations?.topicsEnabled||this.cfg.topic.state!=='active'||cap.actorId!==this.cfg.owner))throw new Error('Owner topic capability unavailable');
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
     switch(name) {
@@ -302,8 +311,10 @@ export class Service {
   ingest(update) {
     const message=update.message || (update.edited_message?.location?update.edited_message:null);
     if(this.cfg.group?!(message&&!message.from?.is_bot&&String(message.chat?.id)===this.cfg.group.chat_id&&String(message.from?.id)===this.cfg.owner&&this.cfg.group.state==='active'):!authorized(message,this.cfg)) return false;
+    if(this.cfg.topic?(!this.conversations?.topicsEnabled||this.cfg.topic.state!=='active'||String(message.chat.id)!==this.cfg.topic.chat_id||message.message_thread_id!==this.cfg.topic.message_thread_id):(this.conversations?.topicsEnabled&&message.message_thread_id!==undefined))return false;
     const user=this.cfg.group?this.cfg.owner:String(message.from.id);
-    return this.store.transaction(()=>{
+    const afterCommit=[];
+    const added=this.store.transaction(()=>{
       const tdlCommand=/^\/tdl_auth(?:\s|$)/.test(message.text?.trim()||'');
       // Control commands never enter model history; discard any unsolicited secret arguments.
       const added=this.store.ingest(update.update_id,user,tdlCommand?{message_id:message.message_id,text:['/tdl_auth','/tdl_auth status','/tdl_auth cancel'].includes(message.text.trim())?message.text.trim():'/tdl_auth invalid'}:message);
@@ -317,6 +328,7 @@ export class Service {
       if(tdlCommand&&this.tdlAuth) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /tdl_auth directly; forwarded commands cannot change your login.'});
+        else if(this.cfg.topic)afterCommit.push(()=>this.tdlAuth.command(command));
         else this.tdlAuth.command(command);
       } else if(command==='/approve'||command?.startsWith('/approve ')) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
@@ -381,6 +393,7 @@ export class Service {
       } else if(this.auth&&(authCommand||(!message.forward_origin&&command==='/start'&&this.auth.status==='signed_out'))) {
         this.store.prepare("UPDATE inputs SET state='done' WHERE $scope AND id=?").run(update.update_id);
         if(message.forward_origin)this.store.enqueue(user,{text:'Send /auth directly to manage your login; forwarded commands cannot change it.'});
+        else if(this.cfg.topic)afterCommit.push(()=>this.auth.command(command));
         else this.auth.command(command);
       } else if(command==='/help'||command==='/status'||command==='/stop'||command==='/cancel'||command?.startsWith('/cancel ')) {
         let text;
@@ -411,10 +424,14 @@ export class Service {
         if(!update.edited_message) this.store.enqueue(user,{text});
       }
       this.store.set(`known:${user}`,'1');
-      this.auth?.notifyMissing();
-      if(!this.cfg.group){this.memorySchedules(user);this.learningSchedules(user);this.reviewSchedules(user);}
+      if(!this.cfg.topic)this.auth?.notifyMissing();
+      if(!this.cfg.group&&!this.cfg.topic){this.memorySchedules(user);this.learningSchedules(user);this.reviewSchedules(user);}
       return added;
     });
+    for(const fn of afterCommit)fn();
+    // The instance maintenance connection must write after topic intake commits.
+    if(added&&this.cfg.topic){const owner=this.shared;owner.store.set(`known:${user}`,'1');owner.auth?.notifyMissing();owner.memorySchedules(user);owner.learningSchedules(user);owner.reviewSchedules(user);}
+    return added;
   }
   event(user,text) {
     const id=this.store.db.prepare('SELECT min(coalesce(min(id),0),0)-1 AS id FROM inputs').get().id;this.store.ingest(id,user,{event:true,text});
@@ -717,7 +734,7 @@ export class Service {
     this.store.onEnqueue();
   }
   async deliver() {
-    if(this.delivering||this.stopping||this.cfg.group?.state==='disconnected') return;this.delivering=true;
+    if(this.delivering||this.stopping||this.cfg.group?.state==='disconnected'||this.cfg.topic&&!this.conversations?.topicsEnabled) return;this.delivering=true;
     try {
       const rows=this.store.prepare("SELECT * FROM outbox WHERE $scope AND state='pending' AND due<=? AND (?=0 OR proactive=0) ORDER BY id LIMIT 10").all(Date.now(),Number(quiet(this.cfg)));
       for(const row of rows) {

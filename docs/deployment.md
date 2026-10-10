@@ -135,6 +135,13 @@ Original media, captions and forward metadata are saved in inbox/. PDF text is e
 
 ## Shared owner conversations
 
+Private-chat topics require the updated routing image and Threaded Mode enabled in
+BotFather. The service discovers the capability automatically; no env/mount/profile
+change is needed. Preserve the canonical database and existing sessions during
+recreation. Validate two topic sessions, scoped `/new`/status, shared recall and
+source-bound worker/file/reminder delivery; container health alone does not prove
+the Telegram client flow. See [private topics](conversations.md#private-telegram-topics).
+
 Rebuild/recreate each selected instance while idle, preserving its Compose project,
 mounts, profiles, credentials and database. Startup imports old group databases into
 `state/assistant.sqlite` once and copies saved session rollouts into the existing

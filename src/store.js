@@ -69,12 +69,12 @@ export class Store {
       CREATE INDEX IF NOT EXISTS schedules_conversation_due ON schedules(conversation_id,due) WHERE enabled=1;`);
     this.observations=observationsForStore(this);
   }
-  bindConversation(owner,{id=randomUUID(),chatId=owner,kind='dm',title='',sessionId=randomUUID()}={}) {
+  bindConversation(owner,{id=randomUUID(),chatId=owner,messageThreadId=null,kind='dm',title='',sessionId=randomUUID()}={}) {
     return this.transaction(()=>{
       const previous=this.get('conversation-owner');if(previous&&previous!==owner)throw new Error('Conversation belongs to another owner');
-      let row=kind==='group'?this.db.prepare('SELECT * FROM conversations WHERE id=?').get(id):this.db.prepare('SELECT * FROM conversations WHERE kind=? LIMIT 1').get(kind);
-      if(row&&(row.owner!==owner||(kind==='group'&&row.id!==id)))throw new Error('Conversation identity mismatch');
-      if(!row){const session=sessionId;this.db.prepare('INSERT INTO conversations(id,owner,chat_id,kind,title,session_id) VALUES (?,?,?,?,?,?)').run(id,owner,chatId,kind,title,session);this.db.prepare('INSERT INTO main_sessions VALUES (?,?,?,?)').run(session,id,this.get(`thread:${owner}`)||null,Date.now());row=this.db.prepare('SELECT * FROM conversations WHERE id=?').get(id);}
+      let row=kind!=='dm'?this.db.prepare('SELECT * FROM conversations WHERE id=?').get(id):this.db.prepare('SELECT * FROM conversations WHERE kind=? LIMIT 1').get(kind);
+      if(row&&(row.owner!==owner||row.kind!==kind||(kind!=='dm'&&(row.id!==id||row.chat_id!==String(chatId)||row.message_thread_id!==messageThreadId))))throw new Error('Conversation identity mismatch');
+      if(!row){const session=sessionId;this.db.prepare('INSERT INTO conversations(id,owner,chat_id,message_thread_id,kind,title,session_id) VALUES (?,?,?,?,?,?,?)').run(id,owner,chatId,messageThreadId,kind,title,session);this.db.prepare('INSERT INTO main_sessions VALUES (?,?,?,?)').run(session,id,kind==='dm'?this.get(`thread:${owner}`)||null:null,Date.now());row=this.db.prepare('SELECT * FROM conversations WHERE id=?').get(id);}
       this.conversationId=row.id;this.kind=kind;
       this.set('conversation-owner',owner);this.set('conversation-id',row.id);this.set('main-session',row.session_id);
       this.db.prepare('INSERT OR IGNORE INTO main_sessions VALUES (?,?,NULL,?)').run(row.session_id,row.id,Date.now());
@@ -87,7 +87,11 @@ export class Store {
   // Explicit query scopes keep the existing SQL readable. Never infer scope from
   // the last active chat or rewrite arbitrary SQL automatically.
   prepare(sql) {return this.db.prepare(sql.replaceAll('$scope',this.conversationId?`conversation_id='${this.conversationId.replaceAll("'","''")}'`:'conversation_id IS NULL'));}
-  metaKey(key) {return this.kind==='group'?`conversation:${this.conversationId}:${key}`:key;}
+  metaKey(key) {
+    // Topic handles share owner memory/learning metadata on their own connection.
+    if(this.kind==='topic'&&/^(memory-|learning-)/.test(key))return key;
+    return this.kind&&this.kind!=='dm'?`conversation:${this.conversationId}:${key}`:key;
+  }
   rotateSession(user) {
     const conversation=this.get('conversation-id');if(!conversation){this.set(`thread:${user}`,'');return;}
     this.transaction(()=>{const id=randomUUID();this.db.prepare('INSERT INTO main_sessions VALUES (?,?,NULL,?)').run(id,conversation,Date.now());this.db.prepare('UPDATE conversations SET session_id=? WHERE id=?').run(id,conversation);this.set('main-session',id);this.set(`thread:${user}`,'');});

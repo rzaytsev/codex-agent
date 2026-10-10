@@ -22,7 +22,7 @@ owner knowledge remains shared. `AGENTS.md`, `SOUL.md`, `USER.md`, generated lea
 skills, projects, source files and account integrations are shared across chats.
 The Codex home/authentication is shared within the instance, isolated from other owners.
 
-Each conversation has a stable UUID, Telegram chat ID, optional reserved thread ID,
+Each conversation has a stable UUID, Telegram chat ID, optional Telegram topic ID,
 lifecycle state, settings and replaceable main session. Recent history and task status
 are local to that conversation. History tools default to it; explicit `scope=all`
 retrieves other owner conversations when relevant. Relevant memory and learning are
@@ -40,6 +40,44 @@ introduced for multi-participant access are retired. Isolation between different
 bot owners remains. Normal model code retains the instance's granted filesystem
 and account access; conversation routing is not a filesystem security boundary.
 Authentication challenges and mailbox acceptance remain in the owner DM.
+
+## Private Telegram topics
+
+Enable Threaded Mode in BotFather for the bot. Telegram clients present private
+topics; the service detects `getMe.has_topics_enabled` on each polling cycle,
+before processing updates. No environment setting or separate Telegram user-account
+login is needed. See [Telegram topics](https://core.telegram.org/bots/features#topics-in-private-chats).
+
+An authenticated owner message with a positive `message_thread_id` creates or
+reopens the conversation for that exact chat/topic pair. Each topic has its own
+recent history, main model thread/session, input queue, tasks, schedules and scoped
+capabilities. `/new`, `/status`, `/stop` and `/cancel` affect that conversation.
+Text, files, photos, voice, typing and fallback uploads retain the topic ID.
+Restart and late worker results preserve their original destination. Topic creation
+and rename events update metadata without invoking a model. Group forum topics
+remain unsupported.
+
+Memory records, provenance, learning, profile files, skills, documents, workspace,
+locations and account access stay owner-wide. Topic database handles use the same
+canonical database and global memory/learning metadata; one default-conversation
+maintenance loop collects history and outcomes from every conversation. A first
+interaction in a topic also initializes that owner's maintenance schedules.
+Models receive only their topic's recent context, with shared memory retrieval and
+explicit `scope=all` history retrieval when relevant. Shared knowledge does not
+mean automatically inserting every other topic's transcript into the prompt.
+
+Existing default-chat history and model sessions are retained. Newly discovered
+topics start separate sessions; older mixed transcripts are not guessed into topics.
+Messages without a topic ID use the default conversation. Instance-wide login
+challenges, proactive reviews and mailbox notifications still use the default
+private-chat destination; login changes invalidate all conversation sessions.
+Mailbox requests accepted inside a topic create their worker in that topic.
+
+Turning Threaded Mode off resumes the ordinary default conversation. Retained
+topic queues, schedules and delivery wait until it is enabled again; stale topic
+messages are rejected instead of merging into the default chat. Telegram errors
+for unavailable or deleted topics retain normal failed/uncertain delivery handling
+and never redirect a topic's output to another conversation.
 
 ## Migration and recovery
 
@@ -65,7 +103,7 @@ DB and any retained legacy DBs; new groups need no separate database file.
 Link with `/link@BOT_USERNAME` directly in the chosen group as the owner. Group
 messages require an entity-based direct mention or `/command@BOT_USERNAME`.
 Unmentioned messages, other participants, bots, unknown groups, edited messages
-and forum topics are discarded. Replies without mentions remain unsupported.
+and group forum topics are discarded. Replies without mentions remain unsupported.
 For plain mentions, disable privacy in BotFather and re-add the bot, or make it
 an admin. Privacy-enabled bots receive addressed commands; plain mentions are
 not guaranteed. See [Telegram privacy](https://core.telegram.org/bots/features#privacy-mode).

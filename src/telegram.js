@@ -29,12 +29,12 @@ export class Telegram {
     signal?.throwIfAborted();
     return data.result;
   }
-  async action(user,action='typing') {
-    try {await this.call('sendChatAction',{chat_id:user,action},5000);return true;} catch {return false;}
+  async action(user,action='typing',messageThreadId) {
+    try {await this.call('sendChatAction',{chat_id:user,action,...(messageThreadId!==undefined?{message_thread_id:messageThreadId}:{})},5000);return true;} catch {return false;}
   }
-  startTyping(user) {
+  startTyping(user,messageThreadId) {
     let stopped=false;let pending=false;
-    const tick=async()=>{if(stopped||pending)return;pending=true;try {await this.action(user);} finally {pending=false;}};
+    const tick=async()=>{if(stopped||pending)return;pending=true;try {await this.action(user,'typing',messageThreadId);} finally {pending=false;}};
     void tick();const timer=setInterval(()=>void tick(),4000);timer.unref();
     return ()=>{stopped=true;clearInterval(timer);};
   }
@@ -82,10 +82,12 @@ export class Telegram {
       signal?.throwIfAborted();
     } finally {await fs.rm(temp,{force:true});}
   }
-  async sendPart(user,payload) {
+  async sendPart(user,payload,messageThreadId) {
+    const route={chat_id:user,...(messageThreadId!==undefined?{message_thread_id:messageThreadId}:{})};
     if (payload.type === 'file' || payload.type === 'voice' || payload.type === 'photo') {
       if(payload.artifactId&&!Buffer.isBuffer(payload.bytes))throw new Error('Artifact bytes must be verified before sending');
       const data=new FormData(); data.set('chat_id',user);
+      if(messageThreadId!==undefined)data.set('message_thread_id',String(messageThreadId));
       const field=payload.type === 'voice'?'voice':payload.type==='photo'?'photo':'document';
       data.set(field,new Blob([payload.bytes??await fs.readFile(payload.path)],{type:payload.mime||(payload.type==='voice'?'audio/ogg':mimeType(payload.path))}),payload.filename||path.basename(payload.path));
       if(payload.caption)data.set('caption',payload.caption);
@@ -93,13 +95,13 @@ export class Telegram {
       try {return await this.call(payload.type==='voice'?'sendVoice':payload.type==='photo'?'sendPhoto':'sendDocument',data);}
       catch(e) {
         if(payload.type!=='photo'||e.code!==400) throw e;
-        const fallback=new FormData();fallback.set('chat_id',user);fallback.set('document',data.get('photo'));if(payload.caption)fallback.set('caption',payload.caption);
+        const fallback=new FormData();fallback.set('chat_id',user);if(messageThreadId!==undefined)fallback.set('message_thread_id',String(messageThreadId));fallback.set('document',data.get('photo'));if(payload.caption)fallback.set('caption',payload.caption);
         return this.call('sendDocument',fallback);
       }
     }
     // Literal envelopes are created by the service, never copied from model results.
-    if(payload.plainText===true)return this.call('sendMessage',{chat_id:user,text:payload.text});
-    try { return await this.call('sendMessage',{chat_id:user,text:format(payload.text),parse_mode:'HTML'}); }
-    catch(e) { if(e.code!==400) throw e; return this.call('sendMessage',{chat_id:user,text:payload.text}); }
+    if(payload.plainText===true)return this.call('sendMessage',{...route,text:payload.text});
+    try { return await this.call('sendMessage',{...route,text:format(payload.text),parse_mode:'HTML'}); }
+    catch(e) { if(e.code!==400) throw e; return this.call('sendMessage',{...route,text:payload.text}); }
   }
 }

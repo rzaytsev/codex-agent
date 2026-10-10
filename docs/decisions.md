@@ -1,5 +1,17 @@
 # Design decisions
 
+## Private Telegram topic conversations (2026-10-10)
+
+Follow BotFather's `getMe.has_topics_enabled` capability instead of introducing a
+second configuration switch. Give each private chat/topic pair its own context,
+model session, scoped controls and durable destination, with owner checks before
+creation. Keep one owner database, shared memory/learning metadata and workspace;
+initialize only the default service's maintenance schedules, after topic intake
+commits. Preserve legacy default history and topic sessions without guessing a
+historical transcript split. Disabled topic routes wait rather than redirecting
+or replaying output into the default conversation. Telegram client acceptance
+remains distinct from source/image tests and container readiness.
+
 ## One personal agent, several conversation threads (COD-1–COD-5)
 
 - Share owner memory, rules, profiles, learning, files, skills and integrations

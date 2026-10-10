@@ -51,10 +51,10 @@ while(!service.stopping) {
     catch {console.error('Telegram command registration failed; will retry; private error details suppressed');}
   }
   try {
-    const updates=await telegram.call('getUpdates',{offset:Number(store.get('offset')||0),timeout:30,allowed_updates:['message','edited_message','my_chat_member']});
     const identity=await telegram.call('getMe',{});
     if(typeof identity?.username!=='string')throw new Error('Telegram identity unavailable');
-    conversations.username=identity.username;
+    conversations.setIdentity(identity);
+    const updates=await telegram.call('getUpdates',{offset:Number(store.get('offset')||0),timeout:30,allowed_updates:['message','edited_message','my_chat_member']});
     for(const update of updates) {await conversations.ingest(update);store.set('offset',update.update_id+1);}
     service.state=service.auth.health;lastPoll=Date.now();
   } catch {service.state='degraded:telegram';console.error('Telegram polling failed; private error details suppressed');await new Promise(r=>setTimeout(r,5000));}

@@ -16,6 +16,10 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   history and customizes preferences, personality and operating instructions
   through `USER.md`, `SOUL.md` and `AGENTS.md`, with configurable models and
   reasoning levels.
+- **[Private Telegram topics](docs/conversations.md#private-telegram-topics):**
+  automatically follows BotFather threaded mode. Each topic keeps its own recent
+  context, model session, tasks and reply destination; owner memory, learning,
+  profiles and documents remain shared within the bot.
 - **[Topic-specific group conversations](docs/conversations.md):** the owner can
   link groups to the same bot. Direct mentions enter independent conversations,
   with separate recent context, threads and delivery. Memory, rules, files, skills

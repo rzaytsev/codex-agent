@@ -5,6 +5,15 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- Private Telegram topics follow BotFather threaded mode automatically. Chat/topic
+  pairs keep independent model sessions, recent context, commands and durable
+  worker/reminder/artifact destinations, including restart and late results.
+  Owner memory, learning metadata, profiles and documents remain shared, with one
+  maintenance loop across conversations. Toggle-off retains topic queues without
+  merging or redirecting them. Synthetic routing, transport fallback and persistence
+  tests cover these contracts; actual owner/model thread interactions remain a
+  separate acceptance gate. See [private topics](conversations.md#private-telegram-topics).
+
 - Durable scheduler occurrences and atomic advancement, explicit overlap/misfire
   policies and requested goal/bound state with authenticated owner completion.
   Nullable intent columns preserve legacy policies and exact Task1 admission

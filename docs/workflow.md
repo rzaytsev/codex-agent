@@ -13,6 +13,11 @@ not enter history. `/new`, `/status`, `/stop` and `/cancel` act on the current
 conversation. Authentication challenges and mailbox acceptance stay in the owner DM.
 See [conversations](conversations.md) for linking, permissions and migration.
 
+When BotFather threaded mode is enabled, private-chat topics also have independent
+sessions, queues and controls. Worker results and reminders return to the source
+topic; memory, learning and documents remain shared across the owner's conversations.
+The default owner maintenance loop collects topic evidence after intake commits.
+
 1. Authenticate the Telegram sender against a configured user allowlist.
 2. Persist the incoming update and assign a stable message/input ID before processing.
 3. Download attachments into the workspace; preserve captions and available forward/quote metadata.

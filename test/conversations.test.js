@@ -10,6 +10,7 @@ import { Agent } from '../src/agent.js';
 import { Conversations, addressed, normalizeCommand } from '../src/conversations.js';
 
 const dm=(id,text)=>({update_id:id,message:{message_id:id,date:1,from:{id:123},chat:{id:123,type:'private'},text}});
+const topic=(id,thread,text)=>{const update=dm(id,text);Object.assign(update.message,{message_thread_id:thread,is_topic_message:true});return update;};
 function group(id,actor=123,chat=-100,text='/link@demo_bot') {
   const length=text.split(' ')[0].length;
   return {update_id:id,message:{message_id:id,date:1,from:{id:actor},chat:{id:chat,type:'group',title:'Synthetic group'},text,entities:text.startsWith('/')?[{type:'bot_command',offset:0,length}]:[{type:'mention',offset:text.indexOf('@demo_bot'),length:9}]}};
@@ -18,7 +19,7 @@ async function fixture(t,env={}) {
   const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-conversations-'));
   const cfg=config({TELEGRAM_ALLOWED_USER_IDS:'123',WORKSPACE_DIR:workspace,CODEX_HOME:path.join(workspace,'codex'),PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',MEMORY_ENABLED:'false',LEARNING_ENABLED:'false',...env});
   const store=new Store(path.join(workspace,'dm.sqlite')),sent=[],calls=[];
-  const telegram={sendPart:async(chat,payload)=>sent.push({chat,payload})};
+  const telegram={sendPart:async(chat,payload,thread)=>sent.push({chat,payload,thread})};
   const agent={run:async(user,prompt,profile)=>{calls.push({user,prompt,profile});return {text:'Synthetic reply',voice:false,files:[]};}};
   const service=new Service(cfg,store,telegram,agent);await service.init();
   const router=new Conversations(service,{agentFactory:()=>agent});service.conversations=router;router.username='demo_bot';
@@ -191,4 +192,126 @@ test('shared HTTP MCP dispatch routes the capability to its conversation and rej
 
 test('authorization changes reset every group thread and revoke running capabilities',async t=>{
   const {router,link}=await fixture(t);const a=await link(1),b=await link(2,-200);a.store.set('thread:123','A');b.store.set('thread:123','B');const cap=capability(a,'123'),previous=a.store.get('main-session');router.invalidateAll();assert.equal(a.store.get('thread:123'),'');assert.equal(b.store.get('thread:123'),'');assert.notEqual(a.store.get('main-session'),previous);await assert.rejects(a.tool(cap,'history_search',{}));
+});
+
+test('private topics require the Telegram capability and exact owner before any persistence',async t=>{
+  const {router,store,service}=await fixture(t);
+  assert.equal(await router.ingest(topic(1,101,'Disabled topic')),false);
+  router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  for(const thread of [0,-1,'101',1.5,2147483648])assert.equal(await router.ingest(topic(2,thread,'Invalid')),false);
+  for(const change of [{from:{id:456}},{from:{id:123,is_bot:true}},{chat:{id:456,type:'private'}}]) {
+    const input=topic(3,101,'Foreign');Object.assign(input.message,change);assert.equal(await router.ingest(input),false);
+  }
+  const edited=topic(4,101,'Edited');assert.equal(await router.ingest({update_id:4,edited_message:edited.message}),false);
+  assert.equal(store.db.prepare('SELECT count(*) AS n FROM inputs').get().n,0);
+  assert.equal(router.services.size,0);
+  assert.equal(await router.ingest(topic(5,101,'Owner topic')),true);
+  const a=[...router.services.values()][0];assert.equal(a.cfg.topic.message_thread_id,101);
+  assert.equal(service.ingest(topic(6,101,'Wrong root route')),false);
+  assert.equal(a.ingest(topic(7,202,'Wrong topic route')),false);
+  assert.equal(a.ingest(dm(8,'Missing topic')),false);
+  assert.equal(await router.ingest(topic(5,101,'Owner topic')),false);
+  await assert.rejects(a.tool(capability(a,'456'),'history_search',{}));
+});
+
+test('topic contexts and controls are independent while owner knowledge and documents stay shared',async t=>{
+  const {router,service,workspace}=await fixture(t,{MEMORY_ENABLED:'true',LEARNING_ENABLED:'true',PROACTIVE_ENABLED:'true'});
+  router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  service.store.set('thread:123','retained-default');
+  await router.ingest(topic(1,101,'Topic A owner fact'));const a=[...router.services.values()][0];await a.conversation();
+  await router.ingest(topic(2,202,'Topic B owner fact'));const b=[...router.services.values()][1];await b.conversation();
+  const source=a.store.search('123')[0].id;
+  const memoryBatch=service.memory.batch('daily',service.memory.target('daily')),learningBatch=service.learning.batch(service.learning.target());
+  for(const marker of ['Topic A owner fact','Topic B owner fact']){assert.ok(memoryBatch.records.some(r=>r.text===marker));assert.ok(learningBatch.records.some(r=>r.text===marker));}
+  assert.equal(a.learning.evidence(`history:${source}`).original_owner_statement,true);
+  a.memory.save({key:'shared-topic-fact',category:'facts',title:'Shared topic fact',content:'Owner knowledge from topic A',certainty:'confirmed',sources:[`history:${source}`],expected_revision:0});
+  assert.equal(b.memory.get('shared-topic-fact').content,'Owner knowledge from topic A');
+  assert.equal(service.memory.get('shared-topic-fact').content,'Owner knowledge from topic A');assert.equal(service.learning.evidence(`history:${source}`).original_owner_statement,true);assert.equal(a.profiles,b.profiles);assert.equal(a.locations,b.locations);
+  assert.equal((await a.tool(capability(a),'history_search',{}))[0].text,'Topic A owner fact');
+  assert.equal((await b.tool(capability(b),'history_search',{}))[0].text,'Topic B owner fact');
+  assert.equal((await b.tool(capability(b),'history_search',{scope:'all'})).length,4);
+  const profile=await a.tool(capability(a),'profile_read',{file:'USER.md'});await a.tool(capability(a),'profile_write',{file:'USER.md',content:'Shared topic preference',expected_hash:profile.hash});
+  assert.equal((await b.tool(capability(b),'profile_read',{file:'USER.md'})).content,'Shared topic preference');
+  await fs.writeFile(path.join(workspace,'projects','shared.txt'),'Shared document');assert.equal(await fs.readFile(path.join(b.cfg.workspace,'projects','shared.txt'),'utf8'),'Shared document');
+  a.store.set('thread:123','A');b.store.set('thread:123','B');const cap=capability(a),oldSession=a.store.get('main-session');
+  await router.ingest(topic(3,101,'/new'));await a.conversation();
+  assert.equal(a.store.get('thread:123'),'');assert.notEqual(a.store.get('main-session'),oldSession);assert.equal(b.store.get('thread:123'),'B');assert.equal(service.store.get('thread:123'),'retained-default');
+  await assert.rejects(a.tool(cap,'history_search',{}),/revoked/);await assert.rejects(b.tool(capability(a),'history_search',{}),/revoked/);
+  const schedules=service.store.db.prepare('SELECT kind,conversation_id FROM schedules WHERE enabled=1').all();
+  assert.equal(schedules.filter(r=>r.kind==='memory').length,2);assert.equal(schedules.filter(r=>r.kind==='learning').length,1);assert.equal(schedules.filter(r=>r.kind==='review').length,3);
+  assert.ok(schedules.every(r=>r.conversation_id===service.store.get('conversation-id')));
+  assert.equal(service.store.db.prepare('SELECT count(*) AS n FROM learning_events').get().n>=4,true);
+  a.store.set('memory-export-dirty','1');assert.equal(service.store.get('memory-export-dirty'),'1');assert.equal(b.store.get('memory-export-dirty'),'1');
+  b.store.set('learning-cursor:123','4');assert.equal(service.store.get('learning-cursor:123'),'4');assert.equal(a.store.get('learning-cursor:123'),'4');
+});
+
+test('topic worker artifacts, late results and reminders retain their topic after restart',async t=>{
+  const {router,service,sent,workspace}=await fixture(t);router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  await router.ingest(topic(1,101,'A'));const a=[...router.services.values()][0];await a.conversation();
+  await router.ingest(topic(2,202,'B'));const b=[...router.services.values()][1];await b.conversation();
+  const task=await a.tool(capability(a),'create_task',{prompt:'A worker'}),job=a.store.prepare('SELECT * FROM jobs WHERE $scope AND id=?').get(task.id);
+  assert.equal((await b.tool(capability(b),'cancel_task',{id:task.id})).cancelled,false);
+  await fs.writeFile(path.join(workspace,'outputs','topic.txt'),'Topic artifact');
+  a.agent={run:async()=>({text:'Late A result',voice:false,files:['outputs/topic.txt']})};
+  await router.ingest(topic(3,101,'/new'));await a.conversation();a.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(task.id);await a.runJob(job,new AbortController());
+  assert.equal(a.store.search('123').some(r=>r.text==='Late A result'),false);
+  const schedule=await a.tool(capability(a),'schedule',{kind:'reminder',prompt:'A topic reminder',due:new Date(Date.now()+60000).toISOString(),key:'restart'});
+  a.store.set('thread:123','saved-A');b.store.set('thread:123','saved-B');const ids=[a,b].map(s=>s.store.get('conversation-id'));
+  for(const s of router.services.values())s.store.db.close();router.services.clear();await router.init();
+  const reopened=router.services.get(ids[0]);assert.equal(reopened.store.get('thread:123'),'saved-A');assert.equal(router.services.get(ids[1]).store.get('thread:123'),'saved-B');assert.equal(service.store.get('thread:123'),undefined);
+  reopened.schedules(schedule.due+1);await reopened.deliver();
+  assert.ok(sent.every(r=>r.chat==='123'&&r.thread===101));assert.ok(sent.some(r=>r.payload.text==='Late A result'));assert.ok(sent.some(r=>r.payload.text==='A topic reminder'));assert.ok(sent.some(r=>r.payload.filename==='topic.txt'&&r.payload.bytes.toString()==='Topic artifact'));
+});
+
+test('disabling topic mode retains routes and queues without merging or redirecting them',async t=>{
+  const {router,service,sent}=await fixture(t);router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  await router.ingest(topic(1,101,'Retained topic request'));const a=[...router.services.values()][0];a.store.set('thread:123','saved-topic');a.store.enqueue('123',{text:'Retained topic reply'});const cap=capability(a);
+  router.setIdentity({username:'demo_bot',has_topics_enabled:false});router.tick();await flush();await a.deliver();assert.equal(sent.length,0);assert.equal(a.mainBusy,false);
+  assert.equal(await router.ingest(topic(2,101,'Stale topic message')),false);await assert.rejects(a.tool(cap,'history_search',{}));
+  assert.equal(await router.ingest(dm(3,'Normal chat request')),true);await service.conversation();await service.deliver();assert.equal(sent[0].thread,undefined);
+  assert.equal(a.store.get('thread:123'),'saved-topic');assert.equal(a.store.prepare("SELECT count(*) AS n FROM outbox WHERE $scope AND state='pending'").get().n,1);
+  router.setIdentity({username:'demo_bot',has_topics_enabled:true});await a.deliver();assert.equal(sent[1].thread,101);assert.equal(sent[1].payload.text,'Retained topic reply');
+});
+
+test('topic metadata never becomes a model request and authentication availability is global',async t=>{
+  const {router,service,calls}=await fixture(t);router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  const created=topic(1,101,undefined);created.message.forum_topic_created={name:'Project A'};await router.ingest(created);
+  const a=[...router.services.values()][0];const edited=topic(2,101,undefined);edited.message.forum_topic_edited={name:'Renamed A'};await router.ingest(edited);assert.equal(a.cfg.topic.title,'Renamed A');
+  a.store.db.exec("CREATE TEMP TRIGGER reject_topic_title BEFORE UPDATE OF title ON conversations BEGIN SELECT RAISE(ABORT,'Synthetic metadata failure'); END");
+  const failed=topic(20,101,undefined);failed.message.forum_topic_edited={name:'Failed rename'};await assert.rejects(router.ingest(failed));a.store.db.exec('DROP TRIGGER reject_topic_title');
+  assert.equal(a.store.db.prepare('SELECT count(*) AS n FROM inputs WHERE id=20').get().n,0);assert.equal(a.cfg.topic.title,'Renamed A');
+  assert.equal(a.store.prepare("SELECT count(*) AS n FROM inputs WHERE $scope AND state='pending'").get().n,0);
+  service.auth={ready:false,phase:'idle',notifyMissing:()=>{}};assert.equal(a.auth,service.auth);
+  service.auth.command=()=>service.store.set('synthetic-auth-control','shared');service.tdlAuth={active:false,command:()=>service.store.set('synthetic-tdl-control','shared')};
+  await router.ingest(topic(30,101,'/auth status'));await router.ingest(topic(31,101,'/tdl_auth status'));assert.equal(service.store.get('synthetic-auth-control'),'shared');assert.equal(service.store.get('synthetic-tdl-control'),'shared');
+  a.usageText=async()=>'Shared account usage';await router.ingest(topic(3,101,'/usage'));router.tick();await a.activeTurn;assert.equal(calls.length,0);
+  a.store.set('thread:123','saved');const token=capability(a);router.invalidateAll();assert.equal(a.store.get('thread:123'),'');await assert.rejects(a.tool(token,'history_search',{}));
+});
+
+test('topic SDK context uses a separate thread and recent history with current shared owner rules',async t=>{
+  const {router,service,workspace}=await fixture(t,{BROWSER_ENABLED:'false'});router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  await router.ingest(topic(1,101,'A pending'));await router.ingest(topic(2,202,'B pending'));const [a,b]=router.services.values();
+  service.store.set('thread:123','default-only');b.store.set('thread:123','B-only');
+  service.store.history('123','user','Default recent marker');a.store.history('123','user','A recent marker');b.store.history('123','user','B recent marker');
+  await fs.writeFile(path.join(workspace,'SOUL.md'),'Shared owner rule for every topic');let context,options;
+  const thread={runStreamed:async input=>{context=input[0].text;return {events:async function*(){yield {type:'thread.started',thread_id:'A-native'};yield {type:'item.completed',item:{type:'agent_message',text:JSON.stringify({text:'ok',voice:false,files:[]})}};yield {type:'turn.completed'};}()};}};
+  const cap=(...args)=>a.capability(...args);cap.release=token=>a.releaseCapability(token);
+  const agent=new Agent(a.cfg,a.store,cap,opts=>{options=opts;return {startThread:()=>thread,resumeThread:()=>{throw new Error('Topic A must start fresh');}};},a.memory,a.learning);
+  await agent.run('123','Topic A request','main',[],undefined,undefined,undefined,false,{actorId:'123',settings:a.effectiveSettings('main')});
+  assert.ok(options.config.developer_instructions.includes('Shared owner rule for every topic'));assert.ok(context.includes('Telegram private topic 101'));assert.ok(context.includes('A recent marker'));assert.ok(!context.includes('Default recent marker')&&!context.includes('B recent marker'));
+  assert.equal(a.store.get('thread:123'),'A-native');assert.equal(b.store.get('thread:123'),'B-only');assert.equal(service.store.get('thread:123'),'default-only');
+});
+
+test('opening a topic leaves in-flight mail alone and binds owner acceptance and approvals to that topic',async t=>{
+  const {router,service,sent}=await fixture(t,{MAILBOX_URL:'http://127.0.0.1:1',MAILBOX_TOKEN:'x'.repeat(32),MAILBOX_ID:'synthetic'});router.setIdentity({username:'demo_bot',has_topics_enabled:true});
+  service.store.db.prepare('INSERT INTO mail_outbox VALUES (?,?,?,?,?)').run('inflight','send',JSON.stringify({id:'inflight',to:'peer',text:'Existing send',kind:'message'}),'inflight',Date.now());
+  await router.ingest(topic(1,101,'A'));await router.ingest(topic(2,202,'B'));const [a,b]=router.services.values();
+  assert.equal(service.store.db.prepare('SELECT state FROM mail_outbox WHERE id=?').get('inflight').state,'inflight');
+  service.store.db.prepare('INSERT INTO mail_received VALUES (?,?,?,NULL)').run('incoming',JSON.stringify({id:'incoming',sender:'peer',kind:'task_request',text:'Synthetic task',context:''}),'pending_acceptance');
+  await router.ingest(topic(3,101,'/mail accept incoming'));assert.equal(a.store.jobs('123').length,1);assert.equal(b.store.jobs('123').length,0);assert.equal(service.store.jobs('123').length,0);
+  const prepared=await a.tool(capability(a),'mail_send',{id:'topic-mail',to:'peer',text:'Owner selected text'});
+  await router.ingest(topic(4,202,`/approve ${prepared.approval_id} ${prepared.hash}`));assert.equal(service.store.db.prepare('SELECT state FROM action_approvals WHERE id=?').get(prepared.approval_id).state,'pending_approval');
+  await router.ingest(topic(5,101,`/approve ${prepared.approval_id} ${prepared.hash}`));assert.equal(service.store.db.prepare('SELECT state FROM action_approvals WHERE id=?').get(prepared.approval_id).state,'approved');
+  const result=await a.tool(capability(a),'mail_commit',{id:'topic-mail',to:'peer',text:'Owner selected text',approval_id:prepared.approval_id});assert.equal(result.state,'pending');
+  await a.deliver();assert.ok(sent.every(r=>r.thread===101));assert.ok(sent.some(r=>r.payload.plainText===true));
 });

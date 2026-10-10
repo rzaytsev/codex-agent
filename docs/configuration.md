@@ -10,6 +10,11 @@ src/config.js for application validation. Each private instance has its own
 agent.env. Recreate its container after env changes. Empty model names use the
 runtime default; available names/reasoning levels depend on the signed-in account.
 
+Private-chat Threaded Mode is controlled in BotFather, not an environment variable.
+The service follows Telegram's `has_topics_enabled` flag and scopes conversations
+by chat/topic while sharing owner knowledge and workspace. See
+[private topics](conversations.md#private-telegram-topics).
+
 | Setting | Default / contract |
 | --- | --- |
 | AGENT_NAME | Created instance name; launcher pins the matching Compose project |
