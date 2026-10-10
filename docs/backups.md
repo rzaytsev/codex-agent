@@ -165,3 +165,13 @@ data and source/image together, retaining audit evidence. A separate compatibili
 rollback requires design/verification that preserves quote provenance/audit; do not
 casually delete metadata columns. Restore loses subsequent writes and cannot undo
 external effects. See [runtime migration](runtime-contracts.md#migration-and-rollback).
+
+## Research dossiers
+
+Canonical online snapshots retain all `research_*` tables, source text, revisions
+and reviews. Existing workspace backups cover `tasks/<id>/report-<revision>` and
+immutable outbox artifacts. Preserve matched database/files through cleanup and
+restore. Original fetched response bytes are temporary; retained extracted source
+text is authoritative. The old runtime cannot execute queued deep tasks: stop and
+reconcile them before downgrade, retain additive data for forward recovery, and
+never replay interrupted research automatically. See [research](research.md).

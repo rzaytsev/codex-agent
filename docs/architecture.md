@@ -147,4 +147,13 @@ Context assembly projects host history source labels and bounded terminal-result
 model checkpoints without resume authority. Browser output IDs live in turn input;
 developer guidance is stable. [Runtime contracts](runtime-contracts.md) bind
 schema/parser/supervisor, effective registry metadata, declared versions and the
-eight owned skill mounts.
+nine owned skill mounts.
+
+## Research dossiers
+
+The [research subsystem](research.md) adds scoped SQLite dossiers, search logs,
+public-source text snapshots, revisioned claims and report versions. Dedicated
+deep workers have task research-write tools; existing regular research stays
+read-only. The service runs a separate read-only passage review, exports reports
+with existing document tools and uses the same immutable outbox/source route.
+Research corpus data stays separate from personal-fact memory.

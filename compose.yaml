@@ -34,6 +34,7 @@ services:
       - ./shared-skill/investigate:/workspace/.agents/skills/investigate:ro
       - ./shared-skill/planning:/workspace/.agents/skills/planning:ro
       - ./shared-skill/telegram-read:/workspace/.agents/skills/telegram-read:ro
+      - ./shared-skill/deep-research:/workspace/.agents/skills/deep-research:ro
     tmpfs:
       - /tmp:size=512m,exec
     read_only: true

@@ -53,8 +53,8 @@ instruction stability does not invent token attribution or measured caching gain
 ## Skills inventory and routing expectations
 
 src/shared-skills.js owns the reviewed inventory: learn, scrape, skillify,
-investigate, planning, telegram-read, project-manager and google-maps. Tests match
-all eight source metadata files, exact read-only Compose mounts and native paths.
+investigate, planning, telegram-read, project-manager, google-maps and deep-research. Tests match
+all nine source metadata files, exact read-only Compose mounts and native paths.
 The optional laptop agent-messaging directory is excluded; no SSH/mount/installation
 or update automation is introduced. Discovery smoke uses this inventory and checks
 skills/list metadata. App-server startup can access cloud/model catalog/local state;
@@ -62,7 +62,7 @@ metadata discovery is not side-effect-free authenticated startup. Use --anonymou
 with disposable HOME/CODEX_HOME for synthetic checks. Real-instance discovery needs
 separate operator authorization and runtime compatibility acceptance.
 
-The twenty-four should-trigger, near-miss and quality specs in
+The twenty-seven should-trigger, near-miss and quality specs in
 [test fixtures](../test/fixtures/skills-contracts.json) define expected selected
 skills, denied effects and required evidence. The deterministic harness scores
 explicit structured synthetic decisions and negative candidates; it never infers

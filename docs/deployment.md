@@ -412,3 +412,14 @@ Later admissions/receipts/delivery state revert with that restore. See
 [backups](backups.md#scheduler-occurrence-audit).
 
 Before runtime upgrades, run the [compatibility contracts and target image gates](runtime-contracts.md). Anonymous synthetic discovery does not prove authenticated startup; image recreation and real acceptance require separate operator authorization.
+
+## Deep research rollout
+
+Build the candidate with unchanged subscription auth and existing persistent
+mounts. Prepare source ACLs, mount `shared-skill/deep-research` read-only as the ninth
+skill and recreate named instances serially. Startup appends the versioned research
+section to custom AGENTS.md once; do not replace seeds or custom profiles. Back up
+SQLite, workspace/profile/auth state first. Validate real public collection,
+independent review, PDF rendering, source-route outbox sending and preserved state;
+keep receipts private. Health is not owner acceptance. Reconcile active deep jobs
+and pending output before returning to a prior image. See [research](research.md).

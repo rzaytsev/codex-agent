@@ -263,3 +263,13 @@ question, once, without treating silence as acceptance.
 
 Bounded recent rows carry host origin labels; scoped model checkpoints preserve
 unresolved-effect slots without authorizing resume/replay. See [context contracts](runtime-contracts.md).
+
+## Research requests
+
+Choose regular research for a focused answer, deep research for comprehensive
+evidence-backed reports, or ask about depth if scope is ambiguous. Main admission
+returns promptly. Deep workers save plans, searches, sources and passage-backed
+claims; the service reviews and exports after the worker turn, then delivers on
+the source route. `/status` includes collection/review progress. Recall saved
+dossiers for follow-ups; cancellation and restart retain evidence without replay.
+See [research](research.md) for the complete contract.

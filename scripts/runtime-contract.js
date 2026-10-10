@@ -2,13 +2,14 @@ import fs from 'node:fs/promises';
 import crypto from 'node:crypto';
 import {sharedSkills} from '../src/shared-skills.js';
 import {reviewedActionBundle} from '../src/action-registry.js';
+import {researchReviewSchema} from '../src/research-schema.js';
 import {responseSchema} from '../src/agent.js';
 import {memorySchema} from '../src/memory.js';
 import {learningSchema,validationSchema} from '../src/learning.js';
 const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;
 export const digest=v=>crypto.createHash('sha256').update(typeof v==='string'?v:JSON.stringify(canonical(v))).digest('hex');
 export function effectiveTools() {
-  return ['main','worker','curator'].flatMap(role=>['conversation','read'].flatMap(toolScope=>[false,true].map(group=>({role,toolScope,group,actions:reviewedActionBundle({worker:role==='worker',memoryReview:role==='curator',toolScope,group})}))));
+  return ['main','worker','curator'].flatMap(role=>['conversation','read','research'].flatMap(toolScope=>[false,true].map(group=>({role,toolScope,group,actions:reviewedActionBundle({worker:role==='worker',memoryReview:role==='curator',toolScope,group})}))));
 }
 export async function runtimeContract() {
   const pkg=JSON.parse(await fs.readFile('package.json','utf8'));
@@ -16,13 +17,13 @@ export async function runtimeContract() {
     installed[name]=JSON.parse(await fs.readFile(`node_modules/${name}/package.json`,'utf8')).version;
     if(installed[name]!==pkg.dependencies[name])throw new Error('Installed runtime contract pin mismatch');
   }
-  const sources=['src/agent.js','src/supervised-exec.js','src/owned-process.js','src/action-registry.js','src/restricted-read.js','src/restricted-config.js','src/owner-evidence.js','src/store.js','src/memory.js','src/learning.js','src/outcomes.js','src/shared-skills.js','scripts/runtime-contract.js','scripts/skills-contract.js','scripts/shared-skills-smoke.js','test/runtime-contract.test.js','test/context-contract.test.js','test/fixtures/skills-contracts.json','test/action-policy.test.js','test/task-outcomes.test.js','test/restricted-read.test.js','test/observations.test.js','package.json','package-lock.json','Dockerfile','compose.yaml',...sharedSkills.map(s=>s.source)];
+  const sources=['src/agent.js','src/service.js','src/config.js','src/research.js','src/research-fetch.js','src/research-schema.js','scripts/research-extract.py','scripts/research-layout.py','scripts/research-smoke.js','test/research.test.js','src/supervised-exec.js','src/owned-process.js','src/action-registry.js','src/restricted-read.js','src/restricted-config.js','src/owner-evidence.js','src/store.js','src/memory.js','src/learning.js','src/outcomes.js','src/shared-skills.js','scripts/runtime-contract.js','scripts/skills-contract.js','scripts/shared-skills-smoke.js','test/runtime-contract.test.js','test/context-contract.test.js','test/fixtures/skills-contracts.json','test/action-policy.test.js','test/task-outcomes.test.js','test/restricted-read.test.js','test/observations.test.js','package.json','package-lock.json','Dockerfile','compose.yaml',...sharedSkills.map(s=>s.source)];
   const templates=(await fs.readdir('templates')).filter(n=>n.endsWith('.md')).sort();
   sources.push(...templates.map(n=>`templates/${n}`));
   const sourceHashes={};for(const source of sources)sourceHashes[source]=digest(await fs.readFile(source,'utf8'));
   // Source definitions include actual schemas, roles, scopes, side-effect category,
   // retry, timeout and DM metadata. Never hash or serialize SDK options/capabilities.
-  const compatibility={version:1,dependencies:pkg.dependencies,installed,imageDeclarations:(await fs.readFile('Dockerfile','utf8')).split('\n').filter(s=>s.startsWith('FROM ')||s.startsWith('COPY --from=')),promptAssemblyHash:sourceHashes['src/agent.js'],schemaHash:digest({responseSchema,memorySchema,learningSchema,validationSchema}),toolsHash:digest(effectiveTools()),promptTemplatesHash:digest(Object.fromEntries(templates.map(n=>[n,sourceHashes[`templates/${n}`]]))),sdkParserHash:digest(await fs.readFile('node_modules/@openai/codex-sdk/dist/index.js','utf8')),supervisorHash:sourceHashes['src/supervised-exec.js'],skills:sharedSkills};
+  const compatibility={version:1,dependencies:pkg.dependencies,installed,imageDeclarations:(await fs.readFile('Dockerfile','utf8')).split('\n').filter(s=>s.startsWith('FROM ')||s.startsWith('COPY --from=')),promptAssemblyHash:sourceHashes['src/agent.js'],schemaHash:digest({responseSchema,memorySchema,learningSchema,validationSchema,researchReviewSchema}),toolsHash:digest(effectiveTools()),promptTemplatesHash:digest(Object.fromEntries(templates.map(n=>[n,sourceHashes[`templates/${n}`]]))),sdkParserHash:digest(await fs.readFile('node_modules/@openai/codex-sdk/dist/index.js','utf8')),supervisorHash:sourceHashes['src/supervised-exec.js'],skills:sharedSkills};
   return {compatibility,runtimeHash:digest(compatibility),sourceHashes,modelCalls:0,qualityEvidence:false,liveAcceptance:false,targetImageAcceptance:false};
 }
 if(process.argv[1]===new URL(import.meta.url).pathname) {

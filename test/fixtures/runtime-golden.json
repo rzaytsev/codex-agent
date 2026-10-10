@@ -17,10 +17,10 @@
     "FROM node:24-bookworm-slim",
     "COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/"
   ],
-  "promptAssemblyHash": "898dfae4d96f7278f240ee40bac690f4c947ecf1b9898638bd4c4a9af0116bcb",
-  "schemaHash": "862ca3a3a69c886539ebfd64dd3992f14a6ca544cf7bb82b7651304f297a05f9",
-  "toolsHash": "75ec7ce2a0c4be2a11e9cf9e0aaf5182e4613e1731c29d703bf1dc06a91f6e93",
-  "promptTemplatesHash": "b9abcbc36380bb5b19310ac768779b10b1750987c69d411561e62c71b4d4428d",
+  "promptAssemblyHash": "e66b9d71d9d9871f4ad0e11228d7ab5ea719dde5c08e1a11f09fe65020673563",
+  "schemaHash": "82de7ce273c28ec3dbb244e5dad8ca0909312ce233786da8c4b30853d304fdaa",
+  "toolsHash": "1f971312407d99c29c702bb464c6bae1c7bda0b8bf1879b5bf09ef0be2f617fa",
+  "promptTemplatesHash": "a3c218eadbb03d9bedc6ea4f6785ebc115f57ba30c430029dbacde725c832eb5",
   "sdkParserHash": "d62ed107033bdba802b283c77d875e4bec3deb2704a910bb7e3f95059473b16f",
   "supervisorHash": "e17147aa4329fe764b47dd10045ef49fb44c1ac62953c6cd4cc2419a4bcf07e0",
   "skills": [
@@ -70,6 +70,12 @@
       "name": "google-maps",
       "source": "shared-skill/google-maps/SKILL.md",
       "nativePath": ".agents/skills/google-maps/SKILL.md",
+      "readOnly": true
+    },
+    {
+      "name": "deep-research",
+      "source": "shared-skill/deep-research/SKILL.md",
+      "nativePath": ".agents/skills/deep-research/SKILL.md",
       "readOnly": true
     }
   ]

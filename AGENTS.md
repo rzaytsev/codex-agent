@@ -20,6 +20,7 @@ Read the relevant deeper document before changing a subsystem:
 | Personal data, Git, public release | [Privacy](docs/privacy.md), `.gitignore`, `.dockerignore` |
 | Security, cancellation, reliability and trust boundaries | [Security and reliability](docs/security-reliability.md), [development](docs/development.md) |
 | Conversation, workers, commands, cancellation, notifications | [Conversations](docs/conversations.md), [workflow](docs/workflow.md), `src/conversations.js`, `src/service.js`, `src/telegram.js` |
+| Regular/deep research, sources, evidence, reports | [Research](docs/research.md), `src/research.js`, `templates/RESEARCH.md` |
 | Memory, recall, corrections, consolidation, forgetting | [Memory](docs/memory.md), [research](docs/memory-research.md), `src/memory.js` |
 | Skills, learning, browser workflows | [Shared skills](docs/shared-skills.md), `templates/SKILLS.md`, `src/agent.js` |
 | Authentication, optional Google connectors | [Google services](docs/google-services.md), `src/agent.js`, `src/usage.js` |
@@ -115,6 +116,17 @@ For requests to manage or drive a project to completion, use the shared
 [project-manager skill](shared-skill/project-manager/SKILL.md), adapting it to the
 authorized workspace and tools. A status request alone does not start ongoing work.
 Ordinary bounded edits do not require that broader management workflow.
+
+## Research depth
+
+The assistant has two research modes. Regular research handles focused questions
+with a few checked sources; deep research handles broad investigations, literature
+reviews, comparisons and reusable cited reports. Choose from the owner's intent.
+Ask which depth they want when ambiguity materially changes scope, time or usage;
+do not ask again when depth is explicit. Plan-only requests remain plan-only.
+Runtime routing belongs in image-owned role instructions, templates/RESEARCH.md
+and the deep-research skill; updating this contributor file alone does not reach
+existing bots. Preserve custom workspace AGENTS.md sections during rollout.
 
 ## Validation and documentation
 

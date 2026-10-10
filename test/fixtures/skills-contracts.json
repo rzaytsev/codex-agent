@@ -294,5 +294,50 @@
     "requiredEvidence": [
       "location_source"
     ]
+  },
+  {
+    "id": "deep-research-should_trigger",
+    "kind": "should_trigger",
+    "request": "Do deep research comparing these approaches and send a cited report.",
+    "expectedSkills": [
+      "deep-research"
+    ],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "profile_write",
+      "schedule"
+    ],
+    "requiredEvidence": []
+  },
+  {
+    "id": "deep-research-near_miss",
+    "kind": "near_miss",
+    "request": "Explain what deep research is.",
+    "expectedSkills": [],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "profile_write",
+      "schedule"
+    ],
+    "requiredEvidence": []
+  },
+  {
+    "id": "deep-research-quality",
+    "kind": "quality",
+    "request": "Do deep research comparing these approaches and send a cited report.",
+    "expectedSkills": [
+      "deep-research"
+    ],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "profile_write",
+      "schedule"
+    ],
+    "requiredEvidence": [
+      "saved_sources",
+      "passage_support",
+      "review",
+      "report"
+    ]
   }
 ]

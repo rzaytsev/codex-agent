@@ -164,3 +164,13 @@ acceptance. Anonymous disposable skills discovery uses --anonymous; authenticate
 startup can contact cloud/model state and needs separate authorization. Synthetic
 routing checks prove the scorer/expectation format, not semantic selection quality.
 See [runtime contracts](runtime-contracts.md) for commands, migration and gates.
+
+## Research verification
+
+Run `node --test test/research.test.js test/prompts.test.js` first, then full checks.
+Refresh runtime goldens only after reviewing effective scope/schema/inventory
+changes. `node scripts/research-smoke.js --output /tmp/research-smoke` is an opt-in
+subscription-backed check in a disposable workspace with intercepted Telegram
+delivery and no poller. Inspect its real rendered PDF as well as receipt counts.
+Verify deployed delivery separately; none of these establish owner quality
+acceptance. See [research](research.md).

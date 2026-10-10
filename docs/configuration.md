@@ -194,11 +194,21 @@ assistant-only MCP configuration with a bounded pinned-runtime preflight. Extra
 lower-layer shell set keys or foreign/inherited MCP settings cause a fixed rejection
 before SDK construction; owner config is never edited. Startup is not a pure parser
 and authenticated cloud/model/state behavior requires separate opt-in validation.
-Full isolation is **INCOMPLETE AND BLOCKING**, pending target-image and authenticated compatibility. New research uses read scope
+Full isolation is **INCOMPLETE AND BLOCKING**, pending target-image and authenticated compatibility. Regular research uses read scope
 and cannot request conversation scope. Existing persisted schedules/settings are
 not rewritten. See [action policy](action-policy.md) for all categories and gates.
 
-Pinned runtime contract goldens and the eight owned skill inventory add no runtime
+Pinned runtime contract goldens and the nine owned skill inventory add no runtime
 settings or dependency upgrades. Empty MCP tables do not remove lower configured
 servers; service read scope and builtin write restrictions remain separate from
 optional server authority. See [runtime gates](runtime-contracts.md).
+
+## Deep research
+
+`DEEP_RESEARCH_MODEL` is optional (authenticated runtime default);
+`DEEP_RESEARCH_REASONING` defaults to high. `RESEARCH_MAX_SOURCES` defaults to 40
+(1–200). Worker timeout/concurrency and logical-run budgets include review/export;
+the review uses REVIEW_MODEL/REVIEW_REASONING. Existing read-only `research`
+settings remain unchanged. The separate `deep_research` profile permits assigned
+research writes and task workspace output; it does not enable the restricted-read
+prototype or establish native credential isolation. See [research](research.md).

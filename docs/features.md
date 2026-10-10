@@ -18,7 +18,7 @@ receipts are excluded. Consult [implementation](implementation.md) for limits.
 | Conversation routing | Stable IDs across renames/migration; per-conversation FIFO/main session, source-bound jobs/schedules/files, disconnected delivery blocking and shared execution limits | `src/conversations.js`, `src/store.js`; `test/conversations.test.js`; migration/model and real Telegram acceptance remain required |
 | Private Telegram threads | Automatic BotFather capability detection; independent topic context/session, commands, jobs/schedules and text/media delivery; shared owner memory/learning/profiles/documents; retained queues while disabled | [Conversations](conversations.md#private-telegram-topics); `test/conversations.test.js`, `test/telegram-topics.test.js`; actual owner thread exchange remains an acceptance gate |
 | Main conversation | Configurable model, low default reasoning; saved Codex thread; /new resets thread while retaining durable data | `src/agent.js`, `src/service.js`; assistant/integration tests |
-| Background work | Atomic job/settings/actor/title/acknowledgment admission; optional stable request keys detect conflicts and deduplicate retries; worker/research/review profiles, bounded concurrency/timeouts, task state, concise request-language start acknowledgments, direct completion text/files without another main turn | `src/service.js`; admission/integration/assistant/progress/tooling/latency tests |
+| Background work | Atomic job/settings/actor/title/acknowledgment admission; optional stable request keys detect conflicts and deduplicate retries; worker/research/review/deep_research profiles, bounded concurrency/timeouts, task state, concise request-language start acknowledgments, direct completion text/files without another main turn | `src/service.js`; admission/integration/assistant/progress/tooling/latency tests |
 | Commands and cancellation | /help, /auth, /tdl_auth, /usage, /status, /new, /cancel, /stop, /location; /start begins login if signed out, otherwise onboarding conversation | `src/telegram.js`, `src/service.js`; progress/usage/location tests |
 | Responsiveness | Typing refreshed every four seconds; nonblocking upload indicators; committed replies wake delivery immediately; no automatic working acknowledgment or busy-turn queue notice | `src/telegram.js`, `src/service.js`; progress/latency tests |
 | Bounded history injection | Fresh threads receive the latest twelve history entries; resumed threads receive unseen entries from that tail, including directly delivered worker answers | `src/agent.js`; `test/latency.test.js`; model timing depends on account and workload |
@@ -35,7 +35,7 @@ receipts are excluded. Consult [implementation](implementation.md) for limits.
 | Browser interaction | Headless Chromium + pinned Playwright MCP; isolated main/worker turn sessions, screenshots/downloads under outputs | `src/agent.js`, `scripts/browser-smoke.js`; integration tests and real browser smoke |
 | Location | Direct pins/live edits; temporary location for strictly 12 hours, then default; explicit place wins; no invented home coordinates | `src/location.js`; `test/location.test.js` |
 | Maps | Optional Google Places/Routes key, separately billed; OpenStreetMap fallback with explicit limitations | `shared-skill/google-maps/`; helper CLI/manual validation |
-| Shared workflows | Eight owned mounts: learn, scrape, skillify, investigate, planning, telegram-read, project-manager, google-maps; generated skills stay private | [Skills](shared-skills.md), `scripts/shared-skills-smoke.js`; runtime discovery/evaluation |
+| Shared workflows | Nine owned mounts: learn, scrape, skillify, investigate, planning, telegram-read, project-manager, google-maps, deep-research; generated skills stay private | [Skills](shared-skills.md), `scripts/shared-skills-smoke.js`; runtime discovery/evaluation |
 | Documents and Python | Writable persistent venv; uv, scientific/document libraries, Pandoc, LibreOffice, OCR and system tools | `src/python.js`, Dockerfile; tooling tests and `scripts/tooling-smoke.py` |
 | Daily cleanup | Idle daily maintenance, age thresholds, preserve sensitive/nonreproducible data, private report, yield to intake | `templates/CLEANUP.md`, `src/service.js`; tooling tests; actual deletion choices need runtime review |
 | Optional account tools | Per-instance Codex plugins/MCP and Google connectors; no automatic account grants | [Google services](google-services.md), `scripts/google-status.js`; runtime metadata + authorized operation |
@@ -100,3 +100,11 @@ schedule reconciliation, dependency-review scope and remaining trust boundaries.
    quiet hours, coverage limits and no repeated empty notifications.
 7. Restore a consistent backup into isolated data directories; validate profiles,
    auth presence, history, schedules, memory and files before any authorized start.
+
+## Research depth
+
+[Regular and deep research](research.md) are implemented. The assistant selects
+depth from intent or asks when ambiguous. Deep tasks retain scoped SQLite sources,
+exact passage-backed versioned claims, search logs and reviewed PDF/Markdown
+reports; follow-ups can retrieve dossiers after `/new`. Host matching, model
+review, execution, delivery and owner quality acceptance remain separate.

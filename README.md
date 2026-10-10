@@ -38,6 +38,9 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
 - **[Scheduled tasks and reminders](docs/workflow.md):** durable one-time
   reminders and recurring cron tasks in your timezone. Simple reminders do not
   require a model call.
+- **[Regular and deep research](docs/research.md):** chooses a focused answer or
+  a comprehensive investigation, retaining source evidence and delivering reviewed
+  PDF/Markdown reports through Telegram.
 - **Background tasks:** delegates research and other work to bounded workers,
   with progress/status commands, cancellation and saved completion files.
 - **[Plugins and MCP integrations](docs/configuration.md):** per-instance plugin
@@ -131,6 +134,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 - [Conversations](docs/conversations.md): linked groups, permissions, sessions and routing.
 - [Backups](docs/backups.md): optional encrypted host backups and restore.
 - [Google services](docs/google-services.md): optional account connections.
+- [Research](docs/research.md): depth selection, collection, evidence, reports and retention.
 - [Shared skills](docs/shared-skills.md): public and private skill behavior.
 - [Telegram user content](docs/telegram-read.md): tdl installation, separate owner login and reading skill.
 - [Learning](docs/learning.md): automatic adaptation, stable core, questions and rollback.

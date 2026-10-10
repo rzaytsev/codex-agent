@@ -404,3 +404,22 @@ use the same direct-owner predicate as other owner consent. Provide exact scoped
 task lookup for checkpoint reconciliation. Final-stack rollback requires stopped,
 reconciled, matched source/image and data restoration; additive subsystem tables
 alone do not establish downgrade compatibility.
+
+## Regular and deep research (2026-10-10)
+
+Keep regular research as the existing read-only profile; introduce an explicit
+deep_research profile for comprehensive investigations and saved reports. Choose
+depth from intent, asking only for material ambiguity. Store owner/conversation/
+session-bound dossiers in SQLite outside personal memory. Use exact saved
+passages, claim revisions and a separate read-only model review; distinguish host
+matching from model semantic judgment. The service exports PDF/Markdown with the
+existing toolchain and queues immutable source-route output. Preserve partial
+evidence across cancellation/restart without automatic replay. Add one original
+shared skill, making nine owned mounts; no worker swarm, alternate provider,
+dependency upgrade or stronger isolation claim. See [research](research.md).
+
+Deep workers receive the selected workflow text in their assembled instructions,
+so native sandbox file access is not required to read the skill. The pinned Codex
+configuration explicitly approves only the effective research service tool names;
+the service still rechecks role, task and route on every operation. This fixes
+write-tool approval rejection under workspace-write plus approval_policy=never.

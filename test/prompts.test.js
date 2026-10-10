@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {researchReviewSchema} from '../src/research-schema.js';
 import { config } from '../src/config.js';
 import { Store } from '../src/store.js';
 import { Service } from '../src/service.js';
@@ -21,7 +22,7 @@ async function fixture(t,env={}) {
   const sdkFactory=options=>{
     const thread=threadOptions=>({runStreamed:async(input,runOptions)=>{
       calls.push({options,threadOptions,input,runOptions});
-      const result=runOptions.outputSchema===validationSchema?{decisions:[]}
+      const result=runOptions.outputSchema===researchReviewSchema?{summary:'Synthetic review',decisions:[],gaps:[]}:runOptions.outputSchema===validationSchema?{decisions:[]}
         :[memorySchema,learningSchema].includes(runOptions.outputSchema)?{summary:'',changes:[]}
           :{text:'Synthetic answer',voice:false,files:[]};
       return {events:async function*(){
@@ -145,7 +146,7 @@ test('restricted profile hashes stable reviewed policy and scoped registry witho
  for(let i=0;i<2;i++)await agent.run('123','Synthetic research','research');
  const hashes=store.db.prepare('SELECT payload FROM attempt_observations').all().map(row=>JSON.parse(row.payload).toolsHash);
  const expected=createHash('sha256').update(JSON.stringify({assistant:reviewedActionBundle({worker:true,memoryReview:false,toolScope:'read',group:false}),browser:false,policyVersion:cfg.actionPolicy.version,execution:restrictedReadDefinition})).digest('hex');
- assert.equal(expected,'01079d5194fe7ed38f53a6d7fc5ff48a32e05f9b7c63bfb8defa8e3ad06e9ec1');
+ assert.equal(expected,'db6405f6ad373f8beef19b9e672de8fc637e1c4809619c2b3bfc776c7d40c50e');
  assert.deepEqual(hashes,[expected,expected]);
  for(const {options,threadOptions} of calls){
   assert.equal(options.env.CODEX_HOME,cfg.codexHome);assert.equal(options.env.PYTHONPATH,undefined);assert.equal(options.env.UV_CACHE_DIR,undefined);
@@ -158,4 +159,20 @@ test('restricted profile hashes stable reviewed policy and scoped registry witho
  const observation=JSON.stringify(store.db.prepare('SELECT payload FROM attempt_observations').all());
  for(const canary of ['SYNTHETIC_ENV_CANARY','assistant_restricted_read_',cfg.codexHome,'ASSISTANT_CAPABILITY'])assert.ok(!observation.includes(canary));
  assert.equal(service.capabilities.size,0);
+});
+
+
+test('deep research uses assigned workspace-write cwd, scoped tools and image-owned depth routing',async t=>{
+ const {cfg,agent,calls,workspace}=await fixture(t,{BROWSER_ENABLED:'true'});
+ const {randomUUID}=await import('node:crypto');const taskId=randomUUID();await fs.mkdir(path.join(workspace,'tasks',taskId),{recursive:true});
+ const skill=path.join(cfg.workspace,'.agents/skills/deep-research');await fs.mkdir(skill,{recursive:true});await fs.copyFile('shared-skill/deep-research/SKILL.md',path.join(skill,'SKILL.md'));
+ await agent.run('123','Research supplied sources','deep_research',[],undefined,undefined,undefined,false,{taskId,toolScope:'research',settings:cfg.profiles.deep_research});
+ const {threadOptions,options}=calls[0];assert.equal(threadOptions.sandboxMode,'workspace-write');assert.equal(threadOptions.workingDirectory,path.join(workspace,'tasks',taskId));assert.equal(threadOptions.webSearchMode,'live');
+ assert.ok(options.configOverrides.includes('features.apps=false'));assert.ok(options.configOverrides.includes('features.plugins=false'));assert.match(options.config.developer_instructions,/Call research_finish/);assert.match(options.config.developer_instructions,/# Assigned deep research workflow/);assert.ok(options.configOverrides.some(s=>s.includes('research_plan={approval_mode="approve"}')));assert.ok(!options.configOverrides.some(s=>s.includes('memory_save={approval_mode="approve"}')));assert.ok(options.configOverrides.some(s=>s.includes('ASSISTANT_TOOL_SCOPE="research"')));
+ assert.ok(options.configOverrides.some(s=>s.includes(path.join(workspace,'tasks',taskId,'browser'))));
+ await agent.run('123','Choose the appropriate research depth');assert.match(calls[1].options.config.developer_instructions,/regular research for focused questions/);assert.match(calls[1].options.config.developer_instructions,/ambiguity materially changes scope or effort/);
+});
+test('research draft verification is a separate internal read-only schema turn with web disabled',async t=>{
+ const {cfg,agent,calls}=await fixture(t);await agent.run('123','Review supplied source passages','research',[],undefined,undefined,undefined,'research-validation',{toolScope:'read',settings:cfg.profiles.review});
+ const {options,threadOptions,runOptions}=calls[0];assert.equal(runOptions.outputSchema,researchReviewSchema);assert.equal(threadOptions.sandboxMode,'read-only');assert.equal(threadOptions.webSearchMode,'disabled');assert.match(options.config.developer_instructions,/supplied research review schema/);assert.doesNotMatch(options.config.developer_instructions,/Call research_finish/);
 });

@@ -22,6 +22,8 @@ import {directOwner} from './owner-evidence.js';
 import { Profiles } from './profiles.js';
 import {budgetForSignal,bindBudgetSignal,terminalReason,BudgetError} from './observations.js';
 import { Artifacts } from './artifacts.js';
+import {Research} from './research.js';
+import {RESEARCH_HEADING} from './research-schema.js';
 import { AdmissionConflict } from './store.js';
 import {scheduleIntent,savedScheduleIntent,goalHash,occurrencePlan,listSchedule} from './scheduler.js';
 function requestKey(key,normalize=true) {
@@ -37,7 +39,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.research=new Research(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -73,6 +75,7 @@ export class Service {
     const tools=await fs.readFile(path.resolve('templates','TOOLS.md'),'utf8');
     if(!(await fs.readFile(instructions,'utf8')).includes('## Python, documents, and artifacts')) await fs.appendFile(instructions,'\n'+tools);
     if(!(await fs.readFile(instructions,'utf8')).includes('## Shared assistant workflows')) await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','SKILLS.md'),'utf8'));
+    if(!(await fs.readFile(instructions,'utf8')).includes(RESEARCH_HEADING))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','RESEARCH.md'),'utf8'));
     if(!(await fs.readFile(instructions,'utf8')).includes('## Telegram account reading'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','TELEGRAM-READ.md'),'utf8'));
     if(this.cfg.mail&&!(await fs.readFile(instructions,'utf8')).includes('## Agent messaging'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','MESSAGING.md'),'utf8'));
     const content=await fs.readFile(instructions,'utf8'),policy=await fs.readFile(path.resolve('templates','MEMORY.md'),'utf8');
@@ -181,6 +184,13 @@ export class Service {
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
     switch(name) {
+      case 'research_search': return this.research.search(args);
+      case 'research_read': return this.research.read(args);
+      case 'research_plan': return this.research.plan(cap,args);
+      case 'research_query': return this.research.query(cap,args);
+      case 'research_fetch': return this.research.fetch(cap,args,signal);
+      case 'research_claim': return this.research.claim(cap,args);
+      case 'research_finish': return this.research.finish(cap,args);
       case 'mail_agents': if(!this.mail)throw new Error('Messaging disabled');return this.mail.call('list',{},signal);
       case 'mail_send': if(!this.mail)throw new Error('Messaging disabled');return this.approvals.prepare(cap,args);
       case 'mail_commit': if(!this.mail)throw new Error('Messaging disabled');return this.approvals.commit(cap,args);
@@ -220,7 +230,7 @@ export class Service {
       }
       case 'task_status': return this.store.jobs(user,args.id);
       case 'create_task': {
-        if(!['worker','research','review'].includes(args.profile || 'worker')||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid task');
+        if(!['worker','research','review','deep_research'].includes(args.profile || 'worker')||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid task');
         if(args.title!==undefined&&(typeof args.title!=='string'||!args.title.trim()||args.title.length>160)) throw new Error('Invalid title');
         if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
         const settings=this.effectiveSettings(args.profile||'worker',args.settings,cap.toolScope);
@@ -233,6 +243,7 @@ export class Service {
           this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
           if(payload.title)this.store.set(`task-title:${id}`,payload.title);
           if(payload.acknowledgment)this.store.set(`task-acknowledgment:${id}`,payload.acknowledgment);
+          if(payload.profile==='deep_research')this.research.admit(id,payload.prompt,payload.title);
           return {id};
         });
       }
@@ -277,9 +288,10 @@ export class Service {
   }
   effectiveSettings(profile,overrides={},parentScope='conversation') {
     const conversation=this.cfg.conversationSettings||{};
-    const settings={...this.cfg.profiles[profile],timeout:profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout,toolScope:profile==='research'?'read':'conversation',...conversation,...overrides};
-    if(!overrides||typeof overrides!=='object'||Array.isArray(overrides)||Object.keys(overrides).some(k=>!['model','effort','timeout','toolScope'].includes(k))||!['minimal','low','medium','high','xhigh','max','ultra'].includes(settings.effort)||(settings.model!==undefined&&(typeof settings.model!=='string'||!settings.model.trim()||settings.model.length>100))||!Number.isInteger(settings.timeout)||settings.timeout<10||settings.timeout>(profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout)||!['conversation','read'].includes(settings.toolScope))throw new Error('Invalid execution settings');
+    const settings={...this.cfg.profiles[profile],timeout:profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout,toolScope:profile==='research'?'read':profile==='deep_research'?'research':'conversation',...conversation,...overrides};
+    if(!overrides||typeof overrides!=='object'||Array.isArray(overrides)||Object.keys(overrides).some(k=>!['model','effort','timeout','toolScope'].includes(k))||!['minimal','low','medium','high','xhigh','max','ultra'].includes(settings.effort)||(settings.model!==undefined&&(typeof settings.model!=='string'||!settings.model.trim()||settings.model.length>100))||!Number.isInteger(settings.timeout)||settings.timeout<10||settings.timeout>(profile==='main'?this.cfg.mainTimeout:this.cfg.workerTimeout)||!['conversation','read','research'].includes(settings.toolScope))throw new Error('Invalid execution settings');
     if((parentScope==='read'||profile==='research')&&settings.toolScope!=='read')throw new Error('Task cannot widen permissions');
+    if(profile==='deep_research'&&settings.toolScope!=='research'||profile!=='deep_research'&&settings.toolScope==='research')throw new Error('Invalid research execution scope');
     return settings;
   }
   cancelTask(user,id,actor=user) {
@@ -304,9 +316,12 @@ export class Service {
   }
   get activeWorkers(){return new Set([...this.controllers.keys()].filter(k=>k!=='main').concat(this.store.prepare("SELECT id FROM jobs WHERE $scope AND state='cancel_requested'").all().map(j=>j.id))).size;}
   get activeMain(){return this.mainBusy||Boolean(this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get());}
+  researchProgress(id) {
+    const dossier=this.research.read({id});return dossier?`; research: ${dossier.sources.length} sources, ${dossier.claims.length} claims${dossier.report?.review?', reviewed':dossier.report?', draft saved':''}`:'';
+  }
   statusText(user) {
     const jobs=this.store.jobs(user);
-    return (jobs.length?'Recent tasks:\n'+jobs.map(j=>`${j.id}: ${j.state} (${j.profile}); ${j.goal_outcome.authority}: ${j.goal_outcome.goal}; host_verified: false; ${j.goal_outcome.resume}${j.state==='cancel_requested'?'; execution exit unknown or pending':''}${this.store.get(`task-title:${j.id}`)?' — '+this.store.get(`task-title:${j.id}`):''}`).join('\n'):'No background tasks yet.')+(this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get()?'\nReply cancellation requested; execution exit unknown or pending.':'');
+    return (jobs.length?'Recent tasks:\n'+jobs.map(j=>`${j.id}: ${j.state} (${j.profile}); ${j.goal_outcome.authority}: ${j.goal_outcome.goal}; host_verified: false; ${j.goal_outcome.resume}${j.state==='cancel_requested'?'; execution exit unknown or pending':''}${this.store.get(`task-title:${j.id}`)?' — '+this.store.get(`task-title:${j.id}`):''}${j.profile==='deep_research'?this.researchProgress(j.id):''}`).join('\n'):'No background tasks yet.')+(this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='cancel_requested' LIMIT 1").get()?'\nReply cancellation requested; execution exit unknown or pending.':'');
   }
   ingest(update) {
     const message=update.message || (update.edited_message?.location?update.edited_message:null);
@@ -563,8 +578,14 @@ export class Service {
       if(this.memoryJob(job.id)) {await this.runMemoryJob(job,ctrl);return;}
       const dir=path.join(this.cfg.workspace,'tasks',job.id);await fs.mkdir(dir,{recursive:true});
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
-      const result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope});
+      if(job.profile==='deep_research')this.research.admit(job.id,job.prompt,this.store.get(`task-title:${job.id}`));
+      let result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope,taskSessionId:job.session_id});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
+      if(job.profile==='deep_research') {
+        const review=await this.agent.run(job.user,this.research.reviewPrompt(job.id),'research',[],ctrl.signal,()=>{},undefined,'research-validation',{taskId:job.id,actorId:job.actor_id||job.user,toolScope:'read',settings:{...this.cfg.profiles.review,toolScope:'read'},observationRun,taskSessionId:job.session_id});
+        ctrl.signal.throwIfAborted();this.research.applyReview(job.id,review);
+        result=await this.research.export(job.id,ctrl.signal);
+      }
       const goalOutcome=outcomeRecord(result);
       const scope={sessionId:job.session_id,actorId:job.actor_id};
       observationRun.outputStage=true;

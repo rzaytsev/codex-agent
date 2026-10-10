@@ -122,3 +122,20 @@ arbitrary pasted quote semantics remain unproved. Long resumed synthetic fixture
 verify assembly/cursors, not native compaction retention or cache/latency gains.
 See [runtime contracts](runtime-contracts.md) for pins, goldens and live gates.
 Empty MCP requests do not erase lower configured servers; see [action policy](action-policy.md).
+
+## Research depth and distribution
+
+Image-owned CORE and main role guidance distinguish regular from deep research
+and ask about depth only for material ambiguity. `templates/RESEARCH.md` appends
+`## Deep research v1` once to existing workspace AGENTS.md, preserving custom
+sections; seeds initialize missing files only. Deep role instructions require the
+assigned research tools and `research_finish`; final files come from service
+review/export. Internal research validation excludes editable profiles, native
+project instructions and web/browser tools and uses a dedicated schema. Tool
+permissions remain host enforced. See [research](research.md).
+
+Deep workers receive the selected workflow text in their assembled instructions,
+so native sandbox file access is not required to read the skill. The pinned Codex
+configuration explicitly approves only the effective research service tool names;
+the service still rechecks role, task and route on every operation. This fixes
+write-tool approval rejection under workspace-write plus approval_policy=never.

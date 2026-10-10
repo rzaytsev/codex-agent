@@ -230,7 +230,7 @@ Optional bounded final outcomes/checkpoints are durable and explicitly model-rep
 
 Source adds host known-quote metadata, bounded scoped terminal-result checkpoint
 context and stable browser instructions with volatile directories in turn input.
-One inventory covers eight owned skill mounts. Synthetic routing expectation checks
+One inventory covers nine owned skill mounts. Synthetic routing expectation checks
 and runtime goldens include actual registry schemas/authority metadata, pinned
 parser/supervisor and declared versions. No compactor, skill automation or
 dependency upgrade is added. Live compaction/semantic quality/cache gains/
@@ -245,3 +245,14 @@ audit remain intact. Incoming mail accept/reject uses the shared direct-owner ga
 Exact scoped `task_status({id})` exposes full older checkpoints beyond the default
 30-job list. Synthetic cross-version and transport regressions cover these paths;
 no live integration or full isolation acceptance follows.
+
+## Regular and deep research (2026-10-10)
+
+Implemented `deep_research` admission, task scope, public-source collection, durable
+search/source/claim/report records, scoped FTS recall, exact passage checks and
+service-owned separate review plus PDF/Markdown/CSV/evidence export. Regular
+research remains read-only. New guidance reaches existing custom AGENTS.md through
+an append-once section and image instructions; the ninth skill is mounted read-only.
+Synthetic tests cover boundaries, corrections, cancellation/restart, snapshots and
+immutable source-route delivery. Real runtime/report/delivery rollout evidence
+belongs in private receipts; owner quality acceptance is distinct. See [research](research.md).

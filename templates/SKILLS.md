@@ -8,4 +8,6 @@ Select the relevant shared skill when its task applies; load its SKILL.md rather
 - `.agents/skills/investigate/SKILL.md`: diagnose failures from evidence before making an authorized repair.
 - `.agents/skills/planning/SKILL.md`: clarify and review a substantial project plan, then use project-manager when the user requested delivery.
 
+- `deep-research`: comprehensive research with saved sources, exact evidence passages, independent review and cited reports. Use regular research for focused questions; see the Deep research guidance.
+
 These shared skills are read-only; generated skills, learning notes, plans and scrape artifacts stay in this instance's persistent workspace. Long work uses the existing worker/research/review profiles. Return artifacts through the structured files array; questions needing the user go through the main Telegram conversation. These workflows require neither Bun nor a separate gstack browser/provider, and add no recurring jobs or Telegram menu commands.

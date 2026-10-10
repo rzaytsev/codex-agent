@@ -11,7 +11,7 @@ export function config(env = process.env) {
     return value;
   };
   const profile = (prefix, fallback) => ({ model: env[`${prefix}_MODEL`] || undefined, effort: env[`${prefix}_REASONING`] || fallback });
-  const profiles = { main: profile('MAIN','low'), worker: profile('WORKER','high'), research: profile('RESEARCH','medium'), review: profile('REVIEW','high') };
+  const profiles = { main: profile('MAIN','low'), worker: profile('WORKER','high'), research: profile('RESEARCH','medium'), review: profile('REVIEW','high'), deep_research: profile('DEEP_RESEARCH','high') };
   for (const p of Object.values(profiles)) if (!['minimal','low','medium','high','xhigh','max','ultra'].includes(p.effort)) throw new Error('Invalid reasoning effort');
   const timezone = env.TIMEZONE || 'UTC';
   new Intl.DateTimeFormat('en', {timeZone: timezone});
@@ -42,6 +42,7 @@ export function config(env = process.env) {
     browserEnabled: env.BROWSER_ENABLED !== 'false', browserExecutable: env.BROWSER_EXECUTABLE || '/usr/bin/chromium',
     maxWorkers: integer('MAX_WORKERS',2,1,8), maxMainTurns:integer('MAX_MAIN_TURNS',2,1,8), maxExecutions:integer('MAX_EXECUTIONS',4,1,16), mainTimeout: integer('MAIN_TIMEOUT_SECONDS',180,10,3600), workerTimeout: integer('WORKER_TIMEOUT_SECONDS',1800,10,86400),
     runBudgets:{wallMs:integer('RUN_MAX_WALL_SECONDS',0,0,86400)*1000,tools:integer('RUN_MAX_SERVICE_TOOLS',0,0,100000),artifacts:integer('RUN_MAX_ARTIFACT_BYTES',0,0,1e12),tokens:integer('RUN_OBSERVED_TOKEN_ADMISSION',0,0,1e12)},
+    researchMaxSources:integer('RESEARCH_MAX_SOURCES',40,1,200),
     maxBytes: integer('MAX_ATTACHMENT_MB',20,1,20)*1024*1024,
     proactive: env.PROACTIVE_ENABLED !== 'false',
     reviews: {daily: cron('DAILY_REVIEW_CRON','0 19 * * *'), weekly: cron('WEEKLY_REVIEW_CRON','0 18 * * 0'), monthly: cron('MONTHLY_REVIEW_CRON','0 18 1 * *')},

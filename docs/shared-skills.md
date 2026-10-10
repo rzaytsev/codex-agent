@@ -10,7 +10,7 @@ interactive owner login. Its mount is read-only; session data remains private an
 per-instance. See [setup and verification](telegram-read.md). The discovery smoke
 below checks it alongside the other seven owned container skills.
 
-The Compose service mounts eight owned skills read-only into every
+The Compose service mounts nine owned skills read-only into every
 instance's `.agents/skills/` directory. Source is in `shared-skill/`; the five gstack-inspired adaptations'
 ORIGIN.md files record the pinned upstream revision and included MIT license. These
 are adaptations for this assistant, not an installation of the whole gstack suite.
@@ -24,6 +24,7 @@ are adaptations for this assistant, not an installation of the whole gstack suit
 | `project-manager` | Carry an authorized project through milestones and observable checks. |
 | `google-maps` | Use explicit/saved location and configured provider grants for places/routes. |
 | `telegram-read` | Read bounded owner-authorized user-account content; no sends. |
+| `deep-research` | Preserve a comprehensive investigation as sources, evidence, review and reports; see [research](research.md). |
 | `planning` | Combine office-hours discovery, product scope review, engineering review and relevant user-flow review into one plan. |
 
 Startup appends routing guidance to existing workspace AGENTS.md once, preserving
@@ -71,7 +72,7 @@ The helper uses the pinned Codex app-server `skills/list` metadata endpoint;
 it makes no model call and sends no Telegram message. Startup can contact cloud/
 model catalog and create local state; authenticated discovery requires separate
 operator authorization. Anonymous disposable checks use --anonymous; no real
-instance auth belongs in synthetic discovery. It must report all eight
+instance auth belongs in synthetic discovery. It must report all nine
 names enabled at their workspace mount paths. Behavior also needs a real task
 check; metadata alone proves availability, not correct decisions.
 

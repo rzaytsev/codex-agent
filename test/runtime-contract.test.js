@@ -11,16 +11,16 @@ test('declared installed pins, effective registry metadata, schemas and prompt t
   const before=digest(effectiveTools()),original=actionRegistry.get('history_read');
   try {actionRegistry.set('history_read',{...original,retry:'never'});assert.notEqual(digest(effectiveTools()),before);}finally{actionRegistry.set('history_read',original);}
 });
-test('exact eight owned skill sources, Compose read-only mounts and native discovery paths agree',async()=>{
-  assert.equal(sharedSkills.length,8);assert.equal(sharedSkills.some(s=>s.name==='agent-messaging'),false);
+test('exact nine owned skill sources, Compose read-only mounts and native discovery paths agree',async()=>{
+  assert.equal(sharedSkills.length,9);assert.equal(sharedSkills.some(s=>s.name==='agent-messaging'),false);
   const compose=await fs.readFile('compose.yaml','utf8');const discovered=[];
   for(const skill of sharedSkills){const source=await fs.readFile(skill.source,'utf8');assert.match(source,new RegExp(`name: ${skill.name}(?:\\s|$)`));assert.ok(compose.includes(`./shared-skill/${skill.name}:/workspace/.agents/skills/${skill.name}:ro`));discovered.push({name:skill.name,enabled:true,path:'/workspace/'+skill.nativePath});}
-  assert.equal((compose.match(/\.\/shared-skill\//g)||[]).length,8);
+  assert.equal((compose.match(/\.\/shared-skill\//g)||[]).length,9);
   assert.ok(skillDiscoveryStatus(discovered,'/workspace').every(s=>s.enabled));
   discovered[0].path='/foreign/SKILL.md';assert.equal(skillDiscoveryStatus(discovered,'/workspace')[0].enabled,false);
 });
 test('routing expectation harness rejects missing evidence, near misses, plan-only effects and unknown skills',async()=>{
-  const specs=JSON.parse(await fs.readFile('test/fixtures/skills-contracts.json','utf8'));assert.equal(specs.length,24);
+  const specs=JSON.parse(await fs.readFile('test/fixtures/skills-contracts.json','utf8'));assert.equal(specs.length,27);
   const result=await runSkillContracts();assert.ok(result.results.every(r=>r.passed));assert.equal(result.qualityEvidence,false);
   for(const spec of specs){assert.equal(scoreSkillRoute(spec,{skills:['unknown'],actions:[],evidence:spec.requiredEvidence}),false);if(spec.kind==='near_miss')assert.equal(scoreSkillRoute(spec,{skills:[spec.id.split('-near')[0]],actions:[],evidence:[]}),false);if(spec.requiredEvidence.length)assert.equal(scoreSkillRoute(spec,{skills:spec.expectedSkills,actions:[],evidence:[]}),false);}
   const plan=specs.find(s=>s.id==='planning-quality');assert.equal(scoreSkillRoute(plan,{skills:['planning'],actions:['file_write'],evidence:plan.requiredEvidence}),false);
