@@ -5,6 +5,12 @@ and operational history are private and are not public runtime evidence.
 
 ## Implemented
 
+- CPU video tooling: FFrames 1.2.0, Rust 1.98.0, explicit append-once CLI guidance for existing custom profiles, a CPU-default project generator,
+  headless review/render commands and a reusable 15-second 1080p benchmark.
+  The read-only fframes-video skill preserves ordinary worker/artifact routing.
+  Native image checks, actual render benchmarks and Telegram owner acceptance
+  are separate gates. See [video tooling](fframes.md).
+
 - Private Telegram topics follow BotFather threaded mode automatically. Chat/topic
   pairs keep independent model sessions, recent context, commands and durable
   worker/reminder/artifact destinations, including restart and late results.

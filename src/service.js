@@ -75,6 +75,7 @@ export class Service {
     const tools=await fs.readFile(path.resolve('templates','TOOLS.md'),'utf8');
     if(!(await fs.readFile(instructions,'utf8')).includes('## Python, documents, and artifacts')) await fs.appendFile(instructions,'\n'+tools);
     if(!(await fs.readFile(instructions,'utf8')).includes('## Shared assistant workflows')) await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','SKILLS.md'),'utf8'));
+    if(!(await fs.readFile(instructions,'utf8')).includes('## CPU video tooling v1'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','FFRAMES.md'),'utf8'));
     if(!(await fs.readFile(instructions,'utf8')).includes(RESEARCH_HEADING))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','RESEARCH.md'),'utf8'));
     if(!(await fs.readFile(instructions,'utf8')).includes('## Telegram account reading'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','TELEGRAM-READ.md'),'utf8'));
     if(this.cfg.mail&&!(await fs.readFile(instructions,'utf8')).includes('## Agent messaging'))await fs.appendFile(instructions,'\n'+await fs.readFile(path.resolve('templates','MESSAGING.md'),'utf8'));

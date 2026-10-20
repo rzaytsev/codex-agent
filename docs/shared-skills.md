@@ -8,9 +8,9 @@ The additional [telegram-read](../shared-skill/telegram-read/SKILL.md) skill use
 the image's pinned tdl CLI to read bounded Telegram user content after a separate
 interactive owner login. Its mount is read-only; session data remains private and
 per-instance. See [setup and verification](telegram-read.md). The discovery smoke
-below checks it alongside the other seven owned container skills.
+below checks it alongside the other nine owned container skills.
 
-The Compose service mounts nine owned skills read-only into every
+The Compose service mounts ten owned skills read-only into every
 instance's `.agents/skills/` directory. Source is in `shared-skill/`; the five gstack-inspired adaptations'
 ORIGIN.md files record the pinned upstream revision and included MIT license. These
 are adaptations for this assistant, not an installation of the whole gstack suite.
@@ -24,6 +24,7 @@ are adaptations for this assistant, not an installation of the whole gstack suit
 | `project-manager` | Carry an authorized project through milestones and observable checks. |
 | `google-maps` | Use explicit/saved location and configured provider grants for places/routes. |
 | `telegram-read` | Read bounded owner-authorized user-account content; no sends. |
+| `fframes-video` | Create and review Rust/SVG videos with the pinned CPU renderer; see [video tooling](fframes.md). |
 | `deep-research` | Preserve a comprehensive investigation as sources, evidence, review and reports; see [research](research.md). |
 | `planning` | Combine office-hours discovery, product scope review, engineering review and relevant user-flow review into one plan. |
 
@@ -38,7 +39,15 @@ $scrape Extract names, prices and URLs from this page: https://example.com/listi
 $skillify Save the extraction we just verified as a reusable skill.
 $investigate Find why the report generator is failing; diagnose before changing it.
 $planning Plan a weekly briefing workflow using my available sources.
+$fframes-video Make a 15-second 1080p animated explainer about this topic.
 ```
+
+The separate `CPU video tooling v1` section in `templates/FFRAMES.md` names the
+installed FFrames CLI and its terminal workflow. The updated initializer appends
+it once even when an existing workspace already has shared-workflows guidance.
+That initializer needs an authorized image rollout; operators can instead append
+the exact section once during an authorized tooling update. Custom instructions
+are preserved, and runtime instructions reload each turn.
 
 `planning` is the only combined planning skill name; office-hours and individual
 planning-review names are not separately installed. Plan-only requests end with
@@ -72,7 +81,7 @@ The helper uses the pinned Codex app-server `skills/list` metadata endpoint;
 it makes no model call and sends no Telegram message. Startup can contact cloud/
 model catalog and create local state; authenticated discovery requires separate
 operator authorization. Anonymous disposable checks use --anonymous; no real
-instance auth belongs in synthetic discovery. It must report all nine
+instance auth belongs in synthetic discovery. It must report all ten
 names enabled at their workspace mount paths. Behavior also needs a real task
 check; metadata alone proves availability, not correct decisions.
 

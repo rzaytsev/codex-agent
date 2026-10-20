@@ -59,6 +59,8 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
 - **[Reusable skills](docs/shared-skills.md):** includes learning, scraping,
   investigation, planning and project-management workflows, and can create private
   skills for repeated tasks.
+- **[CPU video production](docs/fframes.md):** creates programmatic Rust/SVG
+  videos with FFrames, including frame/contact-sheet review and MP4 output.
 - **Coding, data and document tools:** a persistent Python environment with `uv`,
   scientific and document libraries, Pandoc, LibreOffice and OCR tooling for
   analysis and artifact creation.

@@ -59,9 +59,11 @@ test('worker artifacts are uploaded without waiting for another model turn, with
   assert.equal(store.search('123').at(-1).text,'Artifacts ready');
 });
 test('existing custom AGENTS.md preserves content and gains tool and shared-skill guidance exactly once',async t=>{
-  const {dir,service}=await fixture(t);await fs.writeFile(path.join(dir,'AGENTS.md'),'Custom personality instructions\n');await service.init();await service.init();
+  const {dir,service}=await fixture(t);await fs.writeFile(path.join(dir,'AGENTS.md'),'Custom personality instructions\n## Shared assistant workflows\nLegacy workflow instructions.\n');await service.init();await service.init();
   const text=await fs.readFile(path.join(dir,'AGENTS.md'),'utf8');assert.match(text,/Custom personality instructions/);assert.equal(text.split('## Python, documents, and artifacts').length,2);assert.match(text,/\.agents\/skills\/project-manager\/SKILL.md/);
   assert.equal(text.split('## Shared assistant workflows').length,2);
+  assert.equal(text.split('## CPU video tooling v1').length,2);
+  assert.ok(text.includes(await fs.readFile('templates/FFRAMES.md','utf8')));
   assert.equal(text.split('## Telegram account reading').length,2);
   assert.match(text,/\.agents\/skills\/telegram-read\/SKILL.md/);
   assert.equal(text.split('## Durable memory v2').length,2);

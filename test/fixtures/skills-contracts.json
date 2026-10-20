@@ -339,5 +339,46 @@
       "review",
       "report"
     ]
+  },
+  {
+    "id": "fframes-video-should_trigger",
+    "kind": "should_trigger",
+    "request": "Create a 15-second 1080p CPU video and return the MP4.",
+    "expectedSkills": [
+      "fframes-video"
+    ],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "gpu_install"
+    ],
+    "requiredEvidence": []
+  },
+  {
+    "id": "fframes-video-near_miss",
+    "kind": "near_miss",
+    "request": "Summarize this video transcript without making a video.",
+    "expectedSkills": [],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "gpu_install"
+    ],
+    "requiredEvidence": []
+  },
+  {
+    "id": "fframes-video-quality",
+    "kind": "quality",
+    "request": "Create a 15-second 1080p CPU video and return the MP4.",
+    "expectedSkills": [
+      "fframes-video"
+    ],
+    "forbiddenActions": [
+      "unauthorized_external_effect",
+      "gpu_install"
+    ],
+    "requiredEvidence": [
+      "cpu_backend",
+      "video_metadata",
+      "contact_sheet"
+    ]
   }
 ]

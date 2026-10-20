@@ -6,6 +6,7 @@ Select the relevant shared skill when its task applies; load its SKILL.md rather
 - `.agents/skills/scrape/SKILL.md`: read website data with provenance and actual extraction checks using the existing browser/read tools.
 - `.agents/skills/skillify/SKILL.md`: turn a verified scrape into a reusable, tested instance-local skill when requested or part of the authorized task.
 - `.agents/skills/investigate/SKILL.md`: diagnose failures from evidence before making an authorized repair.
+- `.agents/skills/fframes-video/SKILL.md`: create and review programmatic videos using the installed CPU CLI and terminal tools.
 - `.agents/skills/planning/SKILL.md`: clarify and review a substantial project plan, then use project-manager when the user requested delivery.
 
 - `deep-research`: comprehensive research with saved sources, exact evidence passages, independent review and cited reports. Use regular research for focused questions; see the Deep research guidance.

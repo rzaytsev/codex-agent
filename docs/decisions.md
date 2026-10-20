@@ -1,5 +1,25 @@
 # Design decisions
 
+## CPU video tooling (2026-10-20)
+
+Use pinned FFrames 1.2.0 and Rust 1.98.0 for requested programmatic video
+artifacts. A thin project-generator wrapper selects CPU and rejects GPU backends;
+rendering uses the existing workspace, workers and artifact delivery. No GPU
+devices, window server, separate renderer service or provider credentials are
+added. Keep build caches in the writable home and benchmark compilation separately
+from rendering. Native extraction uses `--no-same-owner` under the existing
+dropped capabilities, including Cargo project environment configuration for
+filtered model subprocesses. Build uncached FFmpeg from source against the
+installed codec ABI and retain the private target cache. The Docker fframes-runtime target can extend a validated existing
+application image without rolling unrelated source changes into an instance.
+See [video tooling](fframes.md) for operations and acceptance limits.
+
+Existing custom workspace instructions receive a separate append-once CPU
+video section at startup. It identifies the installed CLI and terminal workflow
+so absence of a video-named MCP tool does not become a false capability refusal.
+A guidance-only operator update takes effect on the next turn, without resetting
+conversation sessions. Skill metadata alone does not establish model routing.
+
 ## Private Telegram topic conversations (2026-10-10)
 
 Follow BotFather's `getMe.has_topics_enabled` capability instead of introducing a

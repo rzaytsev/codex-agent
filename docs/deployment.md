@@ -226,6 +226,14 @@ Explicit Codex quota-exhaustion errors, including streamed `turn.failed` / `erro
 
 Changes require rebuilding and recreating the named containers; command registration runs at their next startup.
 
+## CPU video tooling
+
+The image includes pinned Rust/FFrames tools and a read-only fframes-video skill.
+The generator defaults to CPU; no GPU device grant is needed. Preserve the
+read-only root and use the persistent workspace for Cargo caches, projects and
+outputs. See [video tooling](fframes.md) for normal installation, the narrowly
+scoped existing-image target and the benchmark/acceptance procedure.
+
 ## Document/data tools and uv
 
 The image adds Pandoc, headless LibreOffice Writer/Calc/Impress, ripgrep, jq,
