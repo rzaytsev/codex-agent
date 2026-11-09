@@ -136,7 +136,10 @@ for(const interruption of ['none','cancel','timeout','budget'])test(`EOF before 
 
 for(const interruption of ['timeout','cancel'])test(`owned media EOF retains actual exit classification: ${interruption}`,async t=>{
  const {ownedExec}=await import('../src/owned-process.js');
- const f=await fixture(t,`const fs=require('node:fs');fs.writeFileSync(process.env.HOME+'/pid',String(process.pid));process.on('SIGTERM',()=>process.exit(0));process.stdout.end();setInterval(()=>{},1000);`),ctrl=new AbortController();
+ // Keep runtime startup outside this 200 ms classification test: Node startup
+ // can consume the deadline before the fixture even records its PID under load.
+ const f=await fixture(t,''),ctrl=new AbortController();
+ await fs.writeFile(f.binary,'#!/bin/sh\ntrap \'exit 0\' TERM\nprintf \'%s\' "$$" > "$HOME/pid"\nexec 1>&-\n/bin/sleep 30 &\nwait\n',{mode:0o700});
  const running=ownedExec(f.binary,[],{signal:ctrl.signal,env:f.options.env,timeout:interruption==='timeout'?200:5000});const rejected=assert.rejects(running,error=>{assert.equal(error.executionUnknown,undefined);assert.equal(error.message,interruption==='timeout'?'Media process failed':'This operation was aborted');return true;});
  await until(()=>fs.access(path.join(f.dir,'pid')).then(()=>true,()=>false));if(interruption==='cancel')ctrl.abort();await rejected;
  const pid=Number(await fs.readFile(path.join(f.dir,'pid'),'utf8'));assert.throws(()=>process.kill(pid,0),{code:'ESRCH'});

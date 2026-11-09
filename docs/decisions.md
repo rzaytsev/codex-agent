@@ -433,3 +433,7 @@ Use optional structured presentations with required readable text. Validate boun
 ## Conversation controls
 
 Use native private inline controls for task cancellation, saved-result reopening and focused clarification. Open result reuses immutable prepared text/presentation/artifact snapshots without another model call. Clarifications are one-shot events, never direct-owner approval. Main-only stream_reply supplies fresh answer fragments through the pinned SDK; native Stop binds to the exact owner/chat/topic/session/input/draft and preserves owned-process exit settlement.
+
+## Optional music tooling
+
+Keep heavy CPU music analysis and cached separation weights in an optional Python 3.11 layer, preserving the validated assistant base and subscription runtime. Only Telegram voice-note messages select automatic speech transcription; ordinary audio stays original source data. A standalone standard-library widget renderer creates five lesson types using the shared presentation/callback contract, with WAV/MIDI delivered separately. Pitch estimates and proposed harmonies never become claims about actual singers without evidence.

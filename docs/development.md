@@ -184,3 +184,12 @@ Run node --test test/presentation.test.js test/widgets.test.js test/telegram-top
 ## Conversation-control validation
 
 Run node --test test/controls.test.js test/reply-stream.test.js test/task-outcomes.test.js test/prompts.test.js test/integration.test.js, then full checks. Stop fixtures must include the actual decimal-string draft_id wire representation and malformed variants of an active ID. Verify no final output after cancellation and no typing timer left after preview settlement.
+
+## Music validation
+
+Run `node --test test/media.test.js test/music-widgets.test.js` and
+`python3 -m unittest discover -s test -p music_widgets.py`. The ordinary Python
+suite runs theory tests and skips unavailable audio dependencies. Use the optional
+Python 3.11 music environment for all `music_assistant.py` audio checks, and enable
+`MUSIC_WIDGET_BROWSER=1` only with Playwright and an installed compatible Chromium
+browser. Use synthetic audio, never personal recordings, for publication fixtures.

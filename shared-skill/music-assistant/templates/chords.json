@@ -1,0 +1,15 @@
+{
+  "type": "chords",
+  "lang": "en",
+  "evidence": "example",
+  "title": "See the tones inside a progression",
+  "context": "C major · I → IV → V → I · root-position teaching voicings",
+  "caption": "Synthetic I–IV–V–I in C major: C–E–G, F–A–C, G–B–D, then C–E–G. Step through the chord tones. These root-position voicings teach harmonic function; they are not an optimized voice-leading arrangement.",
+  "progression": [
+    {"label": "I · C major", "notes": ["C4", "E4", "G4"], "comment": "Tonic: C is the root, E the major third, and G the perfect fifth. These are three simultaneous chord tones."},
+    {"label": "IV · F major", "notes": ["F4", "A4", "C5"], "comment": "Subdominant: F–A–C. C is a shared pitch class with the tonic chord; its register can be changed when arranging."},
+    {"label": "V · G major", "notes": ["G4", "B4", "D5"], "comment": "Dominant: G–B–D. B can lead upward to C in a return to the tonic; actual voice movement depends on voicing."},
+    {"label": "I · C major", "notes": ["C4", "E4", "G4"], "comment": "Return to tonic. Audition alternate inversions in separate MIDI to explore smoother movement between voices."}
+  ],
+  "actions": [{"id": "explain_progression", "label": "Ask agent: explain I–IV–V–I", "prompt": "Explain the synthetic C-major progression I–IV–V–I using C–E–G, F–A–C and G–B–D. Explain chord tones and one possible smoother voicing without claiming these are detected chords in an owner's demo. Answer in the conversation language."}]
+}

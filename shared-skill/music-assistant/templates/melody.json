@@ -1,0 +1,16 @@
+{
+  "type": "melody",
+  "lang": "en",
+  "evidence": "example",
+  "title": "Follow a rising phrase",
+  "context": "C major · degrees 1–2–3–5 · time in beats",
+  "time_unit": "beats",
+  "caption": "Synthetic C-major phrase: C4–D4–E4–G4. It rises by two whole steps, then a minor third. Step through the contour; the diagram itself is silent.",
+  "notes": [
+    {"pitch": "C4", "start": 0, "end": 1, "comment": "C4 is degree 1, the tonic. This phrase begins at its tonal home."},
+    {"pitch": "D4", "start": 1, "end": 2, "comment": "C4 → D4 rises by two semitones: a major second. D is degree 2."},
+    {"pitch": "E4", "start": 2, "end": 3, "comment": "D4 → E4 is another major second. Degree 3 gives this example its major color."},
+    {"pitch": "G4", "start": 3, "end": 5, "comment": "E4 → G4 is a minor third. The longer final note is degree 5, not a return to the tonic."}
+  ],
+  "actions": [{"id": "explain_phrase", "label": "Ask agent: explain this phrase", "prompt": "Explain this synthetic C-major phrase: C4 for beat 0–1, D4 for 1–2, E4 for 2–3, G4 for 3–5. Explain its contour, degrees 1–2–3–5 and final minor-third leap. Do not claim it was transcribed from an owner's recording. Answer in the conversation language."}]
+}

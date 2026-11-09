@@ -1,5 +1,12 @@
 # Shared assistant skills
 
+The optional [music-assistant](../shared-skill/music-assistant/SKILL.md) skill
+provides bounded local music analysis, MIDI/WAV exercises and interactive lesson
+templates. It is not a default mount or image dependency. See [music deployment](music.md)
+for the isolated CPU environment, cached separation model and selected read-only
+mount. Portable standalone setup is supported; source availability is not runtime
+installation. Recordings, generated files and private lessons stay in the workspace.
+
 The optional [agent-messaging](../shared-skill/agent-messaging/SKILL.md) skill is
 installed separately on laptops and uses scripts over SSH. Container assistants
 use their existing tool bridge. See [agent messaging](agent-messaging.md).

@@ -433,3 +433,7 @@ Rebuild/recreate selected instances to distribute image-owned presentation guida
 ## Conversation-control rollouts
 
 Recreate idle instances serially and preserve SQLite, profiles, authentication, shared skills and route settings. The added control/draft tables are additive; unknown sends and interrupted executions are not replayed. Verify callback receipt, owned execution cancellation and device rendering independently from ready health. scripts/controls-demo.js is an opt-in visible owner-DM probe using the existing poller, without service recovery or another poller.
+
+## Optional music layer
+
+See [music deployment](music.md) for selecting a validated base image, adding the isolated Python/CPU tools and model cache, and mounting the skill read-only in selected instances. The default Compose mount inventory and default image dependencies do not change. Append the exact MUSIC section only during an authorized optional rollout, preserving custom profiles; verify enabled discovery and synthetic audio/artifact behavior separately from service health.

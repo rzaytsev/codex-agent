@@ -56,6 +56,9 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   formulas and collapsible details, with readable text fallback.
 - **[Conversation controls](docs/telegram-presentations.md#task-cards-choices-and-native-reply-previews):**
   native clarification choices and incremental private replies with Stop.
+- **[Optional music tools](docs/music.md):** local song and note analysis,
+  interval/harmony exercises, MIDI/WAV guides and five interactive music lessons.
+  Heavy CPU dependencies and model weights are installed only in the optional image.
 - **Browser automation:** isolated Chromium/Playwright sessions for browsing,
   screenshots and downloads. Browser cookies and logins do not persist between
   turns.
@@ -141,6 +144,7 @@ need Compose but no running daemon. Tests use synthetic data and no real bot.
 - [Backups](docs/backups.md): optional encrypted host backups and restore.
 - [Google services](docs/google-services.md): optional account connections.
 - [Research](docs/research.md): depth selection, collection, evidence, reports and retention.
+- [Music tools](docs/music.md): optional CPU analysis, listening guides and widget templates.
 - [Shared skills](docs/shared-skills.md): public and private skill behavior.
 - [Telegram user content](docs/telegram-read.md): tdl installation, separate owner login and reading skill.
 - [Learning](docs/learning.md): automatic adaptation, stable core, questions and rollback.

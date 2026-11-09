@@ -127,3 +127,11 @@ B and the DM are active. Test other-participant rejection, migration retry,
 revision conflicts, forgetting, account availability and bounded fair concurrency.
 Source tests, image tests, installed-state checks, isolated real-model tests and
 actual Telegram interactions are distinct stages of evidence.
+
+## Private interactive controls
+
+Widget actions, clarification choices and native reply Stop use the original
+private chat/topic and confirmed message or draft binding. They never redirect to
+the default chat. A clarification expires after free-form intake or session change;
+an old task card can reopen only its original saved result. Native Stop cannot
+cancel a different reply. See [controls](telegram-presentations.md#task-cards-choices-and-native-reply-previews).

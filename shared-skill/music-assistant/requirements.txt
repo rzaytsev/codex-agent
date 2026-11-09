@@ -1,0 +1,14 @@
+# CPU ONNX inference stack, tested with Python 3.11.
+# Install basic-pitch==0.4.0 separately with --no-deps; see references/tools.md.
+numpy==1.26.4
+scipy==1.17.1
+librosa==0.11.0
+soundfile==0.13.1
+matplotlib==3.11.2
+pretty-midi==0.2.11
+onnxruntime==1.31.1
+resampy==0.4.2
+mir-eval==0.8.2
+scikit-learn==1.9.1
+typing-extensions==4.16.0
+setuptools==80.9.0
