@@ -71,7 +71,7 @@ export class Conversations {
     this.username=identity.username;
     const enabled=identity.has_topics_enabled===true,changed=enabled!==this.topicsEnabled;
     this.topicsEnabled=enabled;
-    if(changed&&enabled)for(const service of this.services.values())if(service.cfg.topic)service.store.onEnqueue?.();
+    if(changed&&enabled)for(const service of this.services.values())if(service.cfg.topic){service.widgets.recover();service.store.onEnqueue?.();}
   }
   available(service) {return service===this.dm||service.cfg.group?.state==='active'||Boolean(this.topicsEnabled&&service.cfg.topic?.state==='active');}
   async topic(update,message) {
@@ -97,6 +97,7 @@ export class Conversations {
     return service.ingest({...update,...(update.message?{message}:{edited_message:message})});
   }
   async ingest(update) {
+    if(update.widget_query)return this.dm.widgets.query(update,this);
     const message=update.message||update.edited_message;
     if(update.my_chat_member) {
       const change=update.my_chat_member,row=this.find(change.chat?.id);

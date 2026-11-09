@@ -13,6 +13,8 @@ import { authorized, quiet } from './config.js';
 import { prepare, voice } from './media.js';
 import { readUsage, formatUsage, isUsageLimit } from './usage.js';
 import { chunks } from './telegram.js';
+import {responsePayloads} from './presentation.js';
+import {Widgets} from './widgets.js';
 import { Locations, LOCATION_HEADING } from './location.js';
 import { pythonEnvironment } from './python.js';
 import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
@@ -39,7 +41,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.research=new Research(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.widgets=new Widgets(this);this.research=new Research(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -55,7 +57,7 @@ export class Service {
         this.mail=Object.create(this.mail);this.mail.store=this.store;
         this.approvals=new ActionApprovals(this.cfg,this.store,this.mail);
       }
-      this.store.recover();return;
+      this.store.recover();this.widgets.recover();return;
     }
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
@@ -95,7 +97,7 @@ export class Service {
     if(this.cfg.pythonBase) this.cfg.pythonEnv=await pythonEnvironment(this.cfg.workspace,this.cfg.pythonBase);
     const skill=path.join(this.cfg.workspace,'skills');
     try { await fs.symlink('.agents/skills',skill); } catch(e) { if(e.code!=='EEXIST') throw e; }
-    this.store.recover();
+    this.store.recover();this.widgets.recover();
     this.cleanupPrompt=await fs.readFile(path.resolve('templates','CLEANUP.md'),'utf8');
     const owner=this.cfg.owner;
     const cleanup=this.store.prepare("SELECT * FROM schedules WHERE $scope AND unique_key='maintenance:cleanup'").get();
@@ -184,6 +186,8 @@ export class Service {
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
     switch(name) {
+      case 'widget_read': return this.widgets.read(args);
+      case 'widget_update': return this.widgets.update(args);
       case 'research_search': return this.research.search(args);
       case 'research_read': return this.research.read(args);
       case 'research_plan': return this.research.plan(cap,args);
@@ -460,7 +464,7 @@ export class Service {
       catch(error) {if(error.executionUnknown)throw error;budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
     // Construct the envelope here; model results cannot choose delivery modes.
-    for(const part of chunks(text))payloads.push({text:part});
+    payloads.push(...responsePayloads({...result,text},{widgets:!this.cfg.group}));
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
     signal?.throwIfAborted();
     // Commit the complete prepared response together; cancellation during preparation publishes nothing.
@@ -506,11 +510,15 @@ export class Service {
     const stopTyping=this.cfg.allowed.has(input.user)?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
     controller.signal.addEventListener('abort',stopTyping,{once:true});
     const settings=this.effectiveSettings('main');
-    const observationRun=this.store.observations.run(this.cfg.runBudgets,controller);let outcome='completed';
+    const observationRun=this.store.observations.run(this.cfg.runBudgets,controller);let outcome='completed',widgetReply='';
     const timeout=setTimeout(()=>controller.abort(Object.assign(new Error('Execution deadline'),{code:'timeout'})),settings.timeout*1000);
     try {
       if(!this.cfg.allowed.has(input.user)||this.cfg.group&&input.actor_id!==this.cfg.owner) { outcome='cancelled';this.store.prepare("UPDATE inputs SET state='rejected' WHERE $scope AND id=?").run(input.id);return; }
       const message=JSON.parse(input.payload);
+      if(message.widgetId) {
+        if(!this.widgets.currentInput(input)){outcome='cancelled';this.store.prepare("UPDATE inputs SET state='rejected' WHERE $scope AND id=?").run(input.id);return;}
+        this.widgets.progress(input);
+      }
       this.mainActor=input.actor_id||input.user;
       const command=message.text?.trim();
       if(command==='/usage') {await this.output(input.user,{text:await this.usageText(),files:[]},false,controller.signal);}
@@ -524,7 +532,7 @@ export class Service {
         this.store.ownerHistory(this.cfg,message,prepared.text);
         const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,settings,toolScope:settings.toolScope,observationRun});
         if(controller.signal.aborted) throw new Error('Turn interrupted');
-        await this.output(input.user,result,false,controller.signal);
+        await this.output(input.user,result,false,controller.signal);widgetReply=result.text;
       }
       this.store.observations.boundary(observationRun);
       if(controller.signal.aborted) throw new Error('Turn interrupted');
@@ -537,7 +545,7 @@ export class Service {
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
-    } finally {this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
+    } finally {try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
@@ -610,7 +618,7 @@ export class Service {
           for(const part of chunks(result.text)) this.store.enqueue(job.user,{text:part},true);
           if(result.text) this.store.history(job.user,'reflection',result.text);
         } else {
-          for(const part of chunks(result.text))this.store.enqueue(job.user,{text:part},false,{sessionId:job.session_id,actorId:job.actor_id});
+          for(const payload of responsePayloads(result,{widgets:!this.cfg.group}))this.store.enqueue(job.user,payload,false,{sessionId:job.session_id,actorId:job.actor_id});
           // Deliver without another main-model pass or waiting for a busy main
           // conversation. Retain current-session results for subsequent recall.
           if(result.text&&(!job.session_id||job.session_id===this.store.get('main-session')))this.store.history(job.user,'assistant',result.text,job.actor_id||job.user);
@@ -771,12 +779,16 @@ export class Service {
           } else if(payload.type==='tdl-auth') {
             payload=this.tdlAuth?.payload(payload.attempt,payload.version);
             if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
+          } else if(payload.type==='widget-state') {
+            payload=this.widgets.statePayload(row,payload);
+            if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(['photo','voice','file'].includes(payload.type)) {
             payload=await this.artifacts.load(row,payload);
             // Indicators are optional feedback, never a prerequisite for delivery.
             void Promise.resolve().then(()=>this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':'upload_document')).catch(()=>{});
           }
-          await this.telegram.sendPart(row.user,payload);this.store.prepare("UPDATE outbox SET state='sent' WHERE $scope AND id=?").run(row.id);
+          const sent=await this.telegram.sendPart(row.user,payload);
+          this.store.transaction(()=>{if(payload.type==='widget')this.widgets.register(row,payload,sent);this.store.prepare("UPDATE outbox SET state='sent' WHERE $scope AND id=?").run(row.id);});
         }
         catch(e) {
           const retry=e.code===429 || (typeof e.code==='number'&&e.code>=500);

@@ -9,13 +9,15 @@ const localWrites=new Set(['memory_save','memory_forget','learning_feedback','pr
 const mailReads=new Set(['mail_agents','mail_inbox','mail_read','mail_status']);
 export const actionRegistry=new Map();
 function tool(name,description,shape,refinement) {
- const read=reads.has(name)||mailReads.has(name)||researchReads.has(name)||name==='list_schedules';
- const category=name==='mail_commit'?'external_send':name==='mail_send'?'prepare':read?'read':name==='send_voice'?'delivery':localWrites.has(name)||researchWrites.has(name)?'local_modify':null;
+ const read=reads.has(name)||mailReads.has(name)||researchReads.has(name)||name==='list_schedules'||name==='widget_read';
+ const category=name==='mail_commit'?'external_send':name==='mail_send'?'prepare':read?'read':['send_voice','widget_update'].includes(name)?'delivery':localWrites.has(name)||researchWrites.has(name)?'local_modify':null;
  if(!category)throw new Error('Unreviewed action metadata');
- const roles=researchWrites.has(name)?['worker']:researchReads.has(name)?['main','worker']:reads.has(name)?['main','worker','curator']:name==='memory_save'?['main','worker']:['main'];
+ const roles=name.startsWith('widget_')?['main']:researchWrites.has(name)?['worker']:researchReads.has(name)?['main','worker']:reads.has(name)?['main','worker','curator']:name==='memory_save'?['main','worker']:['main'];
  const schema=z.strictObject(shape);
- actionRegistry.set(name,Object.freeze({name,description,schema:refinement?schema.refine(refinement):schema,roles:Object.freeze(roles),scopes:Object.freeze(researchWrites.has(name)?['research']:researchReads.has(name)?['conversation','read','research']:read&&!mailReads.has(name)?['conversation','read','research']:['conversation']),category,timeoutMs:name==='send_voice'?150000:name==='research_fetch'?90000:15000,resultLimitBytes:4*1024*1024,retry:category==='read'?'safe':name==='mail_commit'?'committed_identity':name==='schedule'||name==='create_task'?'request_key':'never',dmOnly:name.startsWith('mail_')}));
+ actionRegistry.set(name,Object.freeze({name,description,schema:refinement?schema.refine(refinement):schema,roles:Object.freeze(roles),scopes:Object.freeze(researchWrites.has(name)?['research']:researchReads.has(name)?['conversation','read','research']:read&&!mailReads.has(name)?['conversation','read','research']:['conversation']),category,timeoutMs:name==='send_voice'?150000:name==='research_fetch'?90000:15000,resultLimitBytes:4*1024*1024,retry:category==='read'?'safe':name==='mail_commit'?'committed_identity':name==='schedule'||name==='create_task'?'request_key':'never',dmOnly:name.startsWith('mail_')||name.startsWith('widget_')}));
 }
+tool('widget_read','Read a delivered widget and current revision/state in this private conversation/session. Omit id to list the latest ten. Callback requests include their widget ID. Unavailable in workers and internal reviews.',{id:z.string().uuid().optional()});
+tool('widget_update','Queue live JSON state for a delivered widget in this private conversation/session. State must be a JSON object encoded as a string within 600 UTF-8 bytes. Supply expected_revision from widget_read. Host revision/status/reply remain service-owned. Queued is not delivered. Unavailable in workers and read-only scope.',{id:z.string().uuid(),state:z.string().max(600),expected_revision:z.number().int().nonnegative()});
 const memoryTime=z.iso.datetime({offset:true}).max(40);
 const memoryTag=z.string().min(1).max(160);
 const memoryFilters={entity:memoryTag.optional(),project:memoryTag.optional(),as_of:memoryTime.optional()};
