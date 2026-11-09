@@ -144,3 +144,8 @@ write-tool approval rejection under workspace-write plus approval_policy=never.
 ## Telegram presentation guidance
 
 Every ordinary turn loads image-owned templates/PRESENTATION.md alongside its role instructions. It encourages widgets and rich messages when they improve an explanation, with required readable text. Workers can return widgets; only advertised main tools can read/update live state. Read-only mains can read but cannot mutate state. Internal reviews receive no presentation guidance.
+
+
+## Conversation-control guidance
+
+Image-owned templates/CONTROLS.md reaches each ordinary private main turn. It asks for focused choice buttons and genuinely new user-facing fragments, with complete final text retained for durable delivery. Workers, groups and read-only turns receive an unavailable-tools statement; internal reviews receive no control guidance. Queued cards need no duplicated final message.

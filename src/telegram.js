@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 const mimeTypes={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.pdf':'application/pdf','.docx':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','.pptx':'application/vnd.openxmlformats-officedocument.presentationml.presentation','.zip':'application/zip','.txt':'text/plain','.md':'text/markdown','.csv':'text/csv','.html':'text/html','.svg':'image/svg+xml','.mp4':'video/mp4','.mp3':'audio/mpeg','.ogg':'audio/ogg'};
 export const mimeType=file=>mimeTypes[path.extname(file).toLowerCase()]||'application/octet-stream';
-export const telegramUpdates=['message','edited_message','my_chat_member','widget_query'];
+export const telegramUpdates=['message','edited_message','my_chat_member','widget_query','callback_query','stopped_message_generation'];
 export class TelegramError extends Error {
   constructor(code,retryAfter=0) { super(`Telegram request failed (${code})`); this.code=code; this.retryAfter=retryAfter; }
 }
@@ -13,7 +13,7 @@ export function format(text) {
     .replace(/\*\*([^\n*]+)\*\*/g,'<b>$1</b>').replace(/`([^\n`]+)`/g,'<code>$1</code>');
 }
 export class Telegram {
-  constructor(token,fetcher=fetch) { this.token=token; this.fetch=fetcher; }
+  constructor(token,fetcher=fetch) { this.token=token; this.fetch=fetcher;this.supportsControls=true; }
   async call(method,body,timeoutMs=70000,signal) {
     signal?.throwIfAborted();
     const deadline=AbortSignal.timeout(timeoutMs);
@@ -29,6 +29,9 @@ export class Telegram {
     }
     signal?.throwIfAborted();
     return data.result;
+  }
+  async draft(user,id,text,signal,messageThreadId) {
+    return this.call('sendMessageDraft',{chat_id:user,draft_id:id,text,can_stop:true,keep_on_stop:false,...(messageThreadId!==undefined?{message_thread_id:messageThreadId}:{})},5000,signal);
   }
   async action(user,action='typing',messageThreadId) {
     try {await this.call('sendChatAction',{chat_id:user,action,...(messageThreadId!==undefined?{message_thread_id:messageThreadId}:{})},5000);return true;} catch {return false;}
@@ -101,6 +104,8 @@ export class Telegram {
       }
     }
     // Literal envelopes are created by the service, never copied from model results.
+    if(payload.type==='control-message')return this.call('sendMessage',{...route,text:payload.text,reply_markup:payload.replyMarkup});
+    if(payload.type==='control-edit')return this.call('editMessageText',{chat_id:user,message_id:payload.messageId,text:payload.text,reply_markup:payload.replyMarkup});
     if(payload.plainText===true)return this.call('sendMessage',{...route,text:payload.text});
     if(payload.type==='widget-state')return this.call('editMessageWidgetData',{chat_id:user,message_id:payload.messageId,chat_data:payload.state});
     if(payload.type==='widget'||payload.type==='rich') {

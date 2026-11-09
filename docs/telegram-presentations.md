@@ -88,8 +88,8 @@ limits and rollout restrictions were checked against the live primary sources.
 | --- | --- |
 | 10.4 HTML widgets | Implement local interactive explanations with captions; production private chats only, protected against forwarding |
 | 10.1–10.3 rich messages | Implement rich Markdown delivery, including tables, formulas and details; preserve ordinary text as fallback |
-| 10.3 rich buttons | URL links can be included in rich content; callback buttons need a separately authorized intake/interaction design |
-| 10.3 stoppable message drafts | Deferred: the pinned SDK emits the completed structured answer, and draft stop events need binding to owned executions; existing typing and `/stop` remain available |
+| 10.3 rich buttons | URL links can be included in rich content; native callback buttons now serve bound task and clarification controls |
+| 10.3 stoppable message drafts | Implemented: main-only `stream_reply` emits fresh answer fragments into native drafts with Stop; exact draft/input/session binding cancels owned execution |
 | 10.2–10.4 ephemeral messages | Deferred: one-owner linked groups currently use ordinary durable replies; ephemeral delivery requires a separate visibility/receipt policy |
 | Private topic deep links | Telegram now supports them; existing private-topic routing already carries thread IDs. Automatic topic creation/renaming remains outside this change |
 | Widget queries and private live state | Implemented: source-bound action admission, acknowledgment, revisioned state edits, main tools and interrupted-input recovery |
@@ -116,3 +116,37 @@ existing owner DM, without initializing another service, recovering execution or
 starting a poller. Press an offered button in Telegram. `node scripts/widget-demo.js
 --status UUID` reports only binding/state/admission/edit metadata for that widget.
 The helper sends real messages; ordinary unit tests do not.
+
+## Task cards, choices and native reply previews
+
+Private task cards are durable, owner/conversation/job/session-bound native inline
+keyboards. Cancel uses the existing settlement path: running work stays Stopping
+until owned execution exits. Completed cards offer Open result, resending immutable
+prepared text/presentation/artifact snapshots without another model call. Cards
+remain bound to the original task after a new session. Unknown sends are never
+replayed after restart; recovery refreshes only confirmed message receipts.
+
+Main-only `ask_clarification` queues one question and 2–6 native options. A choice
+is consumed once as an event, never direct-owner approval or an owner fact.
+Free-form intake expires pending questions; session changes invalidate them.
+Forged, foreign, stale and wrong-topic callbacks are rejected before persistence.
+
+Main-only `stream_reply` appends genuinely new user-facing fragments, with sequence
+idempotency and a bounded temporary preview. This is paragraph streaming through
+the existing pinned SDK, not a token-delta guarantee or timed playback. Telegram
+`sendMessageDraft` uses native Stop and discards the stopped preview. A Stop event
+must match the exact active private chat/topic/session/input/draft; it aborts the
+owned execution and suppresses late output. Draft failure leaves final durable
+response delivery available. Restarts interrupt drafts without replay. Neither
+service tool is advertised to workers, internal reviews, groups or read-only turns.
+Image-owned `templates/CONTROLS.md` reaches existing instances each turn without
+replacing custom workspace profiles. See `test/controls.test.js` and
+`test/reply-stream.test.js`; live API/device acceptance is recorded privately.
+
+The native Stop parser accepts the exact decimal-string `draft_id` returned by
+[Telegram's serializer](https://github.com/tdlib/telegram-bot-api/blob/master/telegram-bot-api/Client.cpp#L3943),
+as well as numeric IDs. The reference labels this field Integer, but the serializer
+writes `td::to_string`. Only canonical safe IDs issued by this service can match;
+whitespace, exponents, leading zeros, rounding and foreign/stale IDs are rejected.
+Native drafts own the progress indicator. Plain typing starts only after draft
+failure and is stopped on pause, cancellation or completion.

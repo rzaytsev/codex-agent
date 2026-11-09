@@ -179,3 +179,8 @@ acceptance. See [research](research.md).
 ## Presentation validation
 
 Run node --test test/presentation.test.js test/widgets.test.js test/telegram-topics.test.js test/prompts.test.js test/integration.test.js first, then the standard full checks. Fixtures use synthetic data and intercepted transports. Opt-in model/delivery probes and real client rendering are separate from these tests.
+
+
+## Conversation-control validation
+
+Run node --test test/controls.test.js test/reply-stream.test.js test/task-outcomes.test.js test/prompts.test.js test/integration.test.js, then full checks. Stop fixtures must include the actual decimal-string draft_id wire representation and malformed variants of an active ID. Verify no final output after cancellation and no typing timer left after preview settlement.

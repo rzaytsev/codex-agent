@@ -48,7 +48,7 @@ export class Conversations {
     const cfg={...this.dm.cfg,workspace,...(topic?{topic:row}:{group:row}),conversation:{id:row.id,chatId:row.chat_id,messageThreadId:row.message_thread_id,kind:row.kind,title:row.title,sessionId:row.session_id},conversationSettings:JSON.parse(row.settings),proactive:false,cleanupEnabled:false};
     const store=new Store(this.dm.store.file);
     const thread=topic?row.message_thread_id:undefined;
-    const telegram={download:(...args)=>this.dm.telegram.download(...args),startTyping:()=>this.dm.telegram.startTyping?.(row.chat_id,thread)||(()=>{}),action:(_,action)=>this.dm.telegram.action?.(row.chat_id,action,thread),sendPart:async(_,payload)=>{
+    const telegram={supportsControls:this.dm.telegram.supportsControls,draft:this.dm.telegram.draft?(_,id,text,signal)=>this.dm.telegram.draft(row.chat_id,id,text,signal,thread):undefined,download:(...args)=>this.dm.telegram.download(...args),startTyping:()=>this.dm.telegram.startTyping?.(row.chat_id,thread)||(()=>{}),action:(_,action)=>this.dm.telegram.action?.(row.chat_id,action,thread),sendPart:async(_,payload)=>{
       if(row.state!=='active'||topic&&!this.topicsEnabled)throw new Error('Conversation unavailable');
       if(payload.path)await workspaceFile(workspace,payload.path);
       return this.dm.telegram.sendPart(row.chat_id,payload,thread);
@@ -71,7 +71,7 @@ export class Conversations {
     this.username=identity.username;
     const enabled=identity.has_topics_enabled===true,changed=enabled!==this.topicsEnabled;
     this.topicsEnabled=enabled;
-    if(changed&&enabled)for(const service of this.services.values())if(service.cfg.topic){service.widgets.recover();service.store.onEnqueue?.();}
+    if(changed&&enabled)for(const service of this.services.values())if(service.cfg.topic){service.widgets.recover();service.controls.recover();service.store.onEnqueue?.();}
   }
   available(service) {return service===this.dm||service.cfg.group?.state==='active'||Boolean(this.topicsEnabled&&service.cfg.topic?.state==='active');}
   async topic(update,message) {
@@ -97,6 +97,8 @@ export class Conversations {
     return service.ingest({...update,...(update.message?{message}:{edited_message:message})});
   }
   async ingest(update) {
+    if(update.callback_query)return this.dm.controls.query(update,this);
+    if(update.stopped_message_generation)return this.dm.streams.stop(update,this);
     if(update.widget_query)return this.dm.widgets.query(update,this);
     const message=update.message||update.edited_message;
     if(update.my_chat_member) {

@@ -68,7 +68,7 @@ private until explicitly shared.
 
 A worker receives objective, relevant context, model/reasoning profile, workspace ownership, permitted resources, budget/timeout, and observable completion criteria.
 
-The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, cancel_requested, completed, failed, cancelled and interrupted states. Completed execution does not establish goal achievement; optional outcomes/checkpoints remain model-reported. See [task outcomes and cancellation settlement](task-outcomes.md). The main agent supplies a short `create_task` acknowledgment in the current request’s language; the service sends it unchanged when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
+The worker reads sources, uses tools, creates code/artifacts, executes appropriate validation, and reports results, evidence, unresolved issues, and artifact paths. Application task records track queued, running, cancel_requested, completed, failed, cancelled and interrupted states. Completed execution does not establish goal achievement; optional outcomes/checkpoints remain model-reported. See [task outcomes and cancellation settlement](task-outcomes.md). The main agent supplies a short `create_task` acknowledgment in the current request’s language; private chats receive a live Cancel/Open result card, while other transports receive the supplied acknowledgment when the worker starts. It omits task IDs and technical status wording. IDs and descriptive titles remain in /status. Tasks without a supplied acknowledgment start quietly.
 
 Task creation commits the job, effective settings, source actor, title, acknowledgment
 and admission record in one SQLite transaction. Prefer `create_task.request_key`:
@@ -273,3 +273,5 @@ claims; the service reviews and exports after the worker turn, then delivers on
 the source route. `/status` includes collection/review progress. Recall saved
 dossiers for follow-ups; cancellation and restart retain evidence without replay.
 See [research](research.md) for the complete contract.
+
+Private choices and native reply Stop use the [conversation controls](telegram-presentations.md#task-cards-choices-and-native-reply-previews) contract. A choice is an event, not approval; Stop cancels only the exact active generation.

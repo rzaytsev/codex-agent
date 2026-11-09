@@ -428,3 +428,8 @@ write-tool approval rejection under workspace-write plus approval_policy=never.
 ## Telegram presentations
 
 Use optional structured presentations with required readable text. Validate bounded HTML/rich Markdown before durable enqueueing, preserve source routes and immutable artifact rules, and fall back only after a definite API rejection. Widgets are private, owner-bound and action-allowlisted; callback choices are events, never direct-owner approval. Main-only revisioned state tools update confirmed message receipts without mutating widget HTML.
+
+
+## Conversation controls
+
+Use native private inline controls for task cancellation, saved-result reopening and focused clarification. Open result reuses immutable prepared text/presentation/artifact snapshots without another model call. Clarifications are one-shot events, never direct-owner approval. Main-only stream_reply supplies fresh answer fragments through the pinned SDK; native Stop binds to the exact owner/chat/topic/session/input/draft and preserves owned-process exit settlement.

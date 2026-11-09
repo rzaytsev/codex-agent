@@ -42,7 +42,8 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   a comprehensive investigation, retaining source evidence and delivering reviewed
   PDF/Markdown reports through Telegram.
 - **Background tasks:** delegates research and other work to bounded workers,
-  with progress/status commands, cancellation and saved completion files.
+  with private task cards offering Cancel and Open result, status commands,
+  cancellation settlement and saved completion files.
 - **[Plugins and MCP integrations](docs/configuration.md):** per-instance plugin
   configuration and installation after login, plus optional connected services
   such as Google. Availability depends on the account and separate provider grants.
@@ -53,6 +54,8 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
 - **[Interactive Telegram explanations](docs/telegram-presentations.md):** private
   HTML widgets with offered agent requests and live state, plus rich tables,
   formulas and collapsible details, with readable text fallback.
+- **[Conversation controls](docs/telegram-presentations.md#task-cards-choices-and-native-reply-previews):**
+  native clarification choices and incremental private replies with Stop.
 - **Browser automation:** isolated Chromium/Playwright sessions for browsing,
   screenshots and downloads. Browser cookies and logins do not persist between
   turns.
