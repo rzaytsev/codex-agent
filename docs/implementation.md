@@ -261,3 +261,8 @@ belongs in private receipts; owner quality acceptance is distinct. See [research
 ## Telegram presentations
 
 Implemented optional private HTML widgets and rich messages, source-bound callbacks and revisioned live state. Image-owned PRESENTATION guidance reaches existing ordinary main/worker/read-only turns without replacing custom profiles; internal reviews exclude it. Synthetic tests cover validation, fallback, uncertainty, routing, duplicate/stale callbacks and recovery. API acceptance and actual client rendering are separate acceptance stages.
+
+
+## Conversation controls
+
+Implemented private task cards, clarification buttons and incremental native drafts with Stop. Tests cover owner/topic/session checks, duplicate/stale actions, immutable replay, receipt races, restart and suppressed late output. The Stop parser handles Telegram’s canonical decimal-string draft IDs as well as numeric IDs; malformed and stale IDs are denied. Native drafts own the progress indicator, with ordinary typing only as a failure fallback.

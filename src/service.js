@@ -15,6 +15,8 @@ import { readUsage, formatUsage, isUsageLimit } from './usage.js';
 import { chunks } from './telegram.js';
 import {responsePayloads} from './presentation.js';
 import {Widgets} from './widgets.js';
+import {Controls} from './controls.js';
+import {ReplyStreams} from './reply-stream.js';
 import { Locations, LOCATION_HEADING } from './location.js';
 import { pythonEnvironment } from './python.js';
 import { Memory, MemoryConflict, MEMORY_HEADING } from './memory.js';
@@ -41,7 +43,7 @@ export function dueTime(args,timezone) {
   const due=Date.parse(args.due); if(!Number.isFinite(due)||due<=Date.now()) throw new Error('Due must be in the future'); return due;
 }
 export class Service {
-  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.widgets=new Widgets(this);this.research=new Research(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
+  constructor(cfg,store,telegram,agent,usageReader=readUsage,shared) { this.usageReader=usageReader; this.cfg=cfg;this.store=store;if(cfg.owner)store.bindConversation(cfg.owner,cfg.conversation);this.telegram=telegram;this.agent=agent;this.artifacts=new Artifacts(cfg,store);this.widgets=new Widgets(this);this.controls=new Controls(this);this.streams=new ReplyStreams(this);this.research=new Research(cfg,store);this.controllers=new Map();this.mainBusy=false;this.capabilities=new Map();this.state='setup';this.stopping=false;this.shared=shared;this.profiles=shared?.profiles||new Profiles(cfg.workspace);this.locations=shared?.locations||new Locations(cfg.workspace);this.memory=shared&&!cfg.topic?shared.memory:new Memory(cfg.workspace,store,cfg.owner);this.learning=shared&&!cfg.topic?shared.learning:new Learning(cfg.workspace,store,cfg.owner); }
   capability(user,worker,memoryReview=false,signal,scope={}) {
     const token=randomUUID(),controller=new AbortController();
     this.capabilities.set(token,{...scope,user,owner:this.cfg.owner,conversationId:this.store.get('conversation-id'),sessionId:this.store.get('main-session'),worker,memoryReview,controller,signal:signal?AbortSignal.any([signal,controller.signal]):controller.signal});
@@ -57,7 +59,7 @@ export class Service {
         this.mail=Object.create(this.mail);this.mail.store=this.store;
         this.approvals=new ActionApprovals(this.cfg,this.store,this.mail);
       }
-      this.store.recover();this.widgets.recover();return;
+      this.store.recover();this.widgets.recover();this.controls.recover();this.streams.recover();return;
     }
     for(const dir of ['inbox','projects','tasks','memory','outputs','state','state/home','.agents/skills']) await fs.mkdir(path.join(this.cfg.workspace,dir),{recursive:true});
     this.memory.migrate();
@@ -97,7 +99,7 @@ export class Service {
     if(this.cfg.pythonBase) this.cfg.pythonEnv=await pythonEnvironment(this.cfg.workspace,this.cfg.pythonBase);
     const skill=path.join(this.cfg.workspace,'skills');
     try { await fs.symlink('.agents/skills',skill); } catch(e) { if(e.code!=='EEXIST') throw e; }
-    this.store.recover();this.widgets.recover();
+    this.store.recover();this.widgets.recover();this.controls.recover();this.streams.recover();
     this.cleanupPrompt=await fs.readFile(path.resolve('templates','CLEANUP.md'),'utf8');
     const owner=this.cfg.owner;
     const cleanup=this.store.prepare("SELECT * FROM schedules WHERE $scope AND unique_key='maintenance:cleanup'").get();
@@ -186,6 +188,8 @@ export class Service {
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
     switch(name) {
+      case 'stream_reply': return this.streams.append(cap,args);
+      case 'ask_clarification': await this.streams.pause();return this.controls.clarify(args);
       case 'widget_read': return this.widgets.read(args);
       case 'widget_update': return this.widgets.update(args);
       case 'research_search': return this.research.search(args);
@@ -234,6 +238,7 @@ export class Service {
       }
       case 'task_status': return this.store.jobs(user,args.id);
       case 'create_task': {
+        await this.streams.pause();
         if(!['worker','research','review','deep_research'].includes(args.profile || 'worker')||typeof args.prompt!=='string'||!args.prompt.trim()||args.prompt.length>30000) throw new Error('Invalid task');
         if(args.title!==undefined&&(typeof args.title!=='string'||!args.title.trim()||args.title.length>160)) throw new Error('Invalid title');
         if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
@@ -248,6 +253,7 @@ export class Service {
           if(payload.title)this.store.set(`task-title:${id}`,payload.title);
           if(payload.acknowledgment)this.store.set(`task-acknowledgment:${id}`,payload.acknowledgment);
           if(payload.profile==='deep_research')this.research.admit(id,payload.prompt,payload.title);
+          this.controls.task(this.store.prepare('SELECT * FROM jobs WHERE $scope AND id=?').get(id));
           return {id};
         });
       }
@@ -304,6 +310,7 @@ export class Service {
     const state=owned.state==='queued'?'cancelled':'cancel_requested';
     this.store.prepare('UPDATE jobs SET state=?,goal_outcome=coalesce(goal_outcome,?) WHERE $scope AND id=?').run(state,JSON.stringify(interruptedOutcome()),id);
     const controller=this.controllers.get(id);if(controller){controller.ownerCancellation=true;controller.abort();}
+    this.controls.refreshTask(id);
     return {cancelled:state==='cancelled',requested:state==='cancel_requested',state};
   }
   cancelText(result){return result.requested?'Cancellation requested; execution has not yet been confirmed stopped.':result.cancelled?'Cancelled the queued background task.':'No queued or running task with that ID belongs to you.';}
@@ -338,6 +345,7 @@ export class Service {
       // Control commands never enter model history; discard any unsolicited secret arguments.
       const added=this.store.ingest(update.update_id,user,tdlCommand?{message_id:message.message_id,text:['/tdl_auth','/tdl_auth status','/tdl_auth cancel'].includes(message.text.trim())?message.text.trim():'/tdl_auth invalid'}:message);
       if(!added) return false;
+      if(!message.text?.trim().startsWith('/'))this.controls.expireQuestions();
       this.store.prepare('UPDATE inputs SET actor_id=? WHERE $scope AND id=?').run(String(message.from.id),update.update_id);
       const command=message.text?.trim();
       if(this.cfg.group&&/^\/(auth|tdl_auth|mail|group|approve|learning_outcome|schedule_done)(?:\s|$)/.test(command||'')) {
@@ -507,7 +515,7 @@ export class Service {
     this.store.prepare("UPDATE inputs SET state='processing' WHERE $scope AND id=?").run(input.id);
     const controller=new AbortController();this.controllers.set('main',controller);
     controller.signal.addEventListener('abort',()=>{this.store.prepare("UPDATE inputs SET state='cancel_requested' WHERE $scope AND id=? AND state='processing'").run(input.id);},{once:true});
-    const stopTyping=this.cfg.allowed.has(input.user)?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
+    const stopTyping=this.cfg.allowed.has(input.user)&&(this.cfg.group||typeof this.telegram.draft!=='function')?this.telegram.startTyping?.(input.user)||(()=>{}):()=>{};
     controller.signal.addEventListener('abort',stopTyping,{once:true});
     const settings=this.effectiveSettings('main');
     const observationRun=this.store.observations.run(this.cfg.runBudgets,controller);let outcome='completed',widgetReply='';
@@ -523,15 +531,17 @@ export class Service {
       const command=message.text?.trim();
       if(command==='/usage') {await this.output(input.user,{text:await this.usageText(),files:[]},false,controller.signal);}
       else if(command==='/status') {await this.output(input.user,{text:this.statusText(input.user),files:[]},false,controller.signal);}
-      else if(command==='/new') {this.store.rotateSession(input.user);await this.output(input.user,{text:'Started a fresh model thread. Your profile, files and history are preserved.',files:[]},false,controller.signal);}
+      else if(command==='/new') {this.controls.expireQuestions();this.store.rotateSession(input.user);await this.output(input.user,{text:'Started a fresh model thread. Your profile, files and history are preserved.',files:[]},false,controller.signal);}
       else if(command?.startsWith('/cancel ')) {const result=await this.tool({user:input.user,worker:false},'cancel_task',{id:command.slice(8).trim()});await this.output(input.user,{text:this.cancelText(result),files:[]},false,controller.signal);}
       else {
         const prepared=message.event?{text:message.text,images:[]}:await prepare(message,input.id,this.cfg,this.telegram,controller.signal);
         if(this.cfg.group&&!message.event)prepared.text=`Telegram participant ${input.actor_id} (source author):\n${prepared.text}`;
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         this.store.ownerHistory(this.cfg,message,prepared.text);
-        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,settings,toolScope:settings.toolScope,observationRun});
+        this.streams.begin(input,controller.signal);
+        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,inputId:input.id,settings,toolScope:settings.toolScope,observationRun});
         if(controller.signal.aborted) throw new Error('Turn interrupted');
+        await this.streams.pause(input.id);
         await this.output(input.user,result,false,controller.signal);widgetReply=result.text;
       }
       this.store.observations.boundary(observationRun);
@@ -545,7 +555,7 @@ export class Service {
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
-    } finally {try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
+    } finally {try {await this.streams.end(input);}catch {console.error('Reply preview settlement failed; details suppressed');}try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
@@ -567,9 +577,10 @@ export class Service {
       if(this.idleMaintenance(job)&&!allowMaintenance)continue;
       if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='pending' LIMIT 1").get())) continue;
       if(!this.cfg.allowed.has(job.user)||this.cfg.group&&job.actor_id!==this.cfg.owner||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=?").run(job.id);continue;}
-      this.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(job.id);
+      if(!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]'))this.controls.task(job);
+      this.store.prepare("UPDATE jobs SET state='running' WHERE $scope AND id=?").run(job.id);this.controls.refreshTask(job.id);
       const acknowledgment=this.store.get(`task-acknowledgment:${job.id}`);
-      if(acknowledgment&&!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]')) this.store.enqueue(job.user,{text:acknowledgment});
+      if(acknowledgment&&(!this.telegram.supportsControls||this.cfg.group)&&!this.idleMaintenance(job)&&!job.prompt.startsWith('[REFLECTION]')) this.store.enqueue(job.user,{text:acknowledgment});
       const ctrl=new AbortController();this.controllers.set(job.id,ctrl);
       this.workerRuns??=new Map();const run=this.runJob(job,ctrl);this.workerRuns.set(job.id,run);void run.finally(()=>this.workerRuns.delete(job.id));
       if(--slots===0||this.idleMaintenance(job)) break;
@@ -606,6 +617,7 @@ export class Service {
       this.store.observations.boundary(observationRun);
       this.store.transaction(()=>{
         this.store.prepare("UPDATE jobs SET state='completed',result=?,goal_outcome=? WHERE $scope AND id=?").run(JSON.stringify(result),JSON.stringify(goalOutcome),job.id);
+        this.controls.completed(job,result,files);
         const maintenance=job.prompt.startsWith('[CLEANUP]');
         for(const payload of files) this.store.enqueue(job.user,payload,maintenance||job.prompt.startsWith('[REFLECTION]'),{sessionId:job.session_id,actorId:job.actor_id});
         if(maintenance) {
@@ -639,7 +651,7 @@ export class Service {
         this.store.prepare("UPDATE jobs SET state='failed',result=? WHERE $scope AND id=?").run(isUsageLimit(e)?'Codex usage limit reached; automatic retry disabled.':'Execution failed or timed out; automatic retry disabled.',job.id);
         this.store.enqueue(job.user,{text:isUsageLimit(e)?`Task ${job.id}: ${await this.usageText(true)}`:`Task ${job.id} failed or timed out. Ask me to inspect it before retrying actions.`},this.idleMaintenance(job));
       }
-    } finally {this.store.observations.finishRun(observationRun,outcome);clearTimeout(timer);this.controllers.delete(job.id);}
+    } finally {try {this.controls.refreshTask(job.id);}catch {console.error('Task card update failed; details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timer);this.controllers.delete(job.id);}
   }
   async runMemoryJob(job,ctrl) {
     const {period,target}=this.memoryJob(job.id);let processed=0,changes=0,batches=0,truncated=0;
@@ -772,8 +784,11 @@ export class Service {
         if(row.proactive&&quiet(this.cfg)) continue;
         this.store.prepare("UPDATE outbox SET state='sending' WHERE $scope AND id=?").run(row.id);
         try {
-          let payload=JSON.parse(row.payload);
-          if(payload.type==='auth') {
+          let payload=JSON.parse(row.payload);const originalPayload=payload;
+          if(['control','control-edit'].includes(payload.type)) {
+            payload=this.controls.prepare(row,payload);
+            if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
+          } else if(payload.type==='auth') {
             payload=this.auth?.payload(payload.attempt);
             if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(payload.type==='tdl-auth') {
@@ -788,7 +803,7 @@ export class Service {
             void Promise.resolve().then(()=>this.telegram.action?.(row.user,payload.type==='photo'?'upload_photo':payload.type==='voice'?'upload_voice':'upload_document')).catch(()=>{});
           }
           const sent=await this.telegram.sendPart(row.user,payload);
-          this.store.transaction(()=>{if(payload.type==='widget')this.widgets.register(row,payload,sent);this.store.prepare("UPDATE outbox SET state='sent' WHERE $scope AND id=?").run(row.id);});
+          this.store.transaction(()=>{this.controls.register(row,originalPayload,sent,payload.controlRevision);if(payload.type==='widget')this.widgets.register(row,payload,sent);this.store.prepare("UPDATE outbox SET state='sent' WHERE $scope AND id=?").run(row.id);});
         }
         catch(e) {
           const retry=e.code===429 || (typeof e.code==='number'&&e.code>=500);

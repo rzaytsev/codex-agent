@@ -428,3 +428,8 @@ and pending output before returning to a prior image. See [research](research.md
 ## Presentation rollouts
 
 Rebuild/recreate selected instances to distribute image-owned presentation guidance; preserve workspace profiles and instance data. Verify the supported Bot API methods and private-topic routing on the candidate. Keep unknown sends uncertain rather than retrying them as ordinary text. Use scripts/presentation-smoke.js only for an explicitly authorized real-model smoke; scripts/widget-demo.js --send queues a visible owner-DM demo and --status ID prints only receipt metadata. Neither helper starts a poller or runs service recovery.
+
+
+## Conversation-control rollouts
+
+Recreate idle instances serially and preserve SQLite, profiles, authentication, shared skills and route settings. The added control/draft tables are additive; unknown sends and interrupted executions are not replayed. Verify callback receipt, owned execution cancellation and device rendering independently from ready health. scripts/controls-demo.js is an opt-in visible owner-DM probe using the existing poller, without service recovery or another poller.
