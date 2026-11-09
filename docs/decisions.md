@@ -423,3 +423,8 @@ so native sandbox file access is not required to read the skill. The pinned Code
 configuration explicitly approves only the effective research service tool names;
 the service still rechecks role, task and route on every operation. This fixes
 write-tool approval rejection under workspace-write plus approval_policy=never.
+
+
+## Telegram presentations
+
+Use optional structured presentations with required readable text. Validate bounded HTML/rich Markdown before durable enqueueing, preserve source routes and immutable artifact rules, and fall back only after a definite API rejection. Widgets are private, owner-bound and action-allowlisted; callback choices are events, never direct-owner approval. Main-only revisioned state tools update confirmed message receipts without mutating widget HTML.

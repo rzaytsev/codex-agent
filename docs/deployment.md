@@ -423,3 +423,8 @@ SQLite, workspace/profile/auth state first. Validate real public collection,
 independent review, PDF rendering, source-route outbox sending and preserved state;
 keep receipts private. Health is not owner acceptance. Reconcile active deep jobs
 and pending output before returning to a prior image. See [research](research.md).
+
+
+## Presentation rollouts
+
+Rebuild/recreate selected instances to distribute image-owned presentation guidance; preserve workspace profiles and instance data. Verify the supported Bot API methods and private-topic routing on the candidate. Keep unknown sends uncertain rather than retrying them as ordinary text. Use scripts/presentation-smoke.js only for an explicitly authorized real-model smoke; scripts/widget-demo.js --send queues a visible owner-DM demo and --status ID prints only receipt metadata. Neither helper starts a poller or runs service recovery.

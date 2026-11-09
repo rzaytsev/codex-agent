@@ -50,6 +50,9 @@ checkout. See [deployment](docs/deployment.md) and [privacy](docs/privacy.md).
   documents and voice messages, with transcription, text extraction and OCR tools.
 - **Files and voice replies:** returns generated documents, photos and other
   deliverables through Telegram, with optional synthetic speech replies.
+- **[Interactive Telegram explanations](docs/telegram-presentations.md):** private
+  HTML widgets with offered agent requests and live state, plus rich tables,
+  formulas and collapsible details, with readable text fallback.
 - **Browser automation:** isolated Chromium/Playwright sessions for browsing,
   screenshots and downloads. Browser cookies and logins do not persist between
   turns.

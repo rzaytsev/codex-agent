@@ -174,3 +174,8 @@ subscription-backed check in a disposable workspace with intercepted Telegram
 delivery and no poller. Inspect its real rendered PDF as well as receipt counts.
 Verify deployed delivery separately; none of these establish owner quality
 acceptance. See [research](research.md).
+
+
+## Presentation validation
+
+Run node --test test/presentation.test.js test/widgets.test.js test/telegram-topics.test.js test/prompts.test.js test/integration.test.js first, then the standard full checks. Fixtures use synthetic data and intercepted transports. Opt-in model/delivery probes and real client rendering are separate from these tests.

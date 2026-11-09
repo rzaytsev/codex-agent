@@ -139,3 +139,8 @@ so native sandbox file access is not required to read the skill. The pinned Code
 configuration explicitly approves only the effective research service tool names;
 the service still rechecks role, task and route on every operation. This fixes
 write-tool approval rejection under workspace-write plus approval_policy=never.
+
+
+## Telegram presentation guidance
+
+Every ordinary turn loads image-owned templates/PRESENTATION.md alongside its role instructions. It encourages widgets and rich messages when they improve an explanation, with required readable text. Workers can return widgets; only advertised main tools can read/update live state. Read-only mains can read but cannot mutate state. Internal reviews receive no presentation guidance.

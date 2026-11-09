@@ -256,3 +256,8 @@ an append-once section and image instructions; the ninth skill is mounted read-o
 Synthetic tests cover boundaries, corrections, cancellation/restart, snapshots and
 immutable source-route delivery. Real runtime/report/delivery rollout evidence
 belongs in private receipts; owner quality acceptance is distinct. See [research](research.md).
+
+
+## Telegram presentations
+
+Implemented optional private HTML widgets and rich messages, source-bound callbacks and revisioned live state. Image-owned PRESENTATION guidance reaches existing ordinary main/worker/read-only turns without replacing custom profiles; internal reviews exclude it. Synthetic tests cover validation, fallback, uncertainty, routing, duplicate/stale callbacks and recovery. API acceptance and actual client rendering are separate acceptance stages.

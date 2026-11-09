@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from './config.js';
 import { Store } from './store.js';
-import { Telegram } from './telegram.js';
+import { Telegram,telegramUpdates } from './telegram.js';
 import { Agent } from './agent.js';
 import { Service } from './service.js';
 import { Auth } from './auth.js';
@@ -54,7 +54,7 @@ while(!service.stopping) {
     const identity=await telegram.call('getMe',{});
     if(typeof identity?.username!=='string')throw new Error('Telegram identity unavailable');
     conversations.setIdentity(identity);
-    const updates=await telegram.call('getUpdates',{offset:Number(store.get('offset')||0),timeout:30,allowed_updates:['message','edited_message','my_chat_member']});
+    const updates=await telegram.call('getUpdates',{offset:Number(store.get('offset')||0),timeout:30,allowed_updates:telegramUpdates});
     for(const update of updates) {await conversations.ingest(update);store.set('offset',update.update_id+1);}
     service.state=service.auth.health;lastPoll=Date.now();
   } catch {service.state='degraded:telegram';console.error('Telegram polling failed; private error details suppressed');await new Promise(r=>setTimeout(r,5000));}
