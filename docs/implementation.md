@@ -266,3 +266,7 @@ Implemented optional private HTML widgets and rich messages, source-bound callba
 ## Conversation controls
 
 Implemented private task cards, clarification buttons and incremental native drafts with Stop. Tests cover owner/topic/session checks, duplicate/stale actions, immutable replay, receipt races, restart and suppressed late output. The Stop parser handles Telegram’s canonical decimal-string draft IDs as well as numeric IDs; malformed and stale IDs are denied. Native drafts own the progress indicator, with ordinary typing only as a failure fallback.
+
+## Music analysis and lesson templates
+
+Published a portable optional music-assistant skill, bounded helper commands, isolated CPU image/launcher and five music widget templates. Music/audio files are preserved and no longer automatically treated as speech instructions. Host checks distinguish dependency-free theory/rendering from optional audio inference and browser tests; synthetic fixtures do not establish transcription accuracy, choir-part identification or musician acceptance.

@@ -1,0 +1,22 @@
+{
+  "type": "harmony",
+  "lang": "en",
+  "evidence": "proposed",
+  "title": "Build a second voice in thirds",
+  "context": "Synthetic C-major phrase · proposed upper diatonic third · time in beats",
+  "time_unit": "beats",
+  "caption": "Teaching proposal in C major: over C4–D4–E4–F4, add E4–F4–G4–A4. The gaps are 4, 3, 3, 4 semitones: diatonic thirds change size. Toggle the second voice visually; audition the separate WAV/MIDI and check the actual chords and singer's range.",
+  "notes": [
+    {"pitch": "C4", "start": 0, "end": 1, "comment": "C4 + E4: a major third, four semitones. Check that E fits the actual chord before using this proposal."},
+    {"pitch": "D4", "start": 1, "end": 2, "comment": "D4 + F4: a minor third, three semitones. A fixed +4 shift would give F#, outside C major."},
+    {"pitch": "E4", "start": 2, "end": 3, "comment": "E4 + G4: another minor third. Scale membership alone does not prove the pair suits the accompaniment."},
+    {"pitch": "F4", "start": 3, "end": 4, "comment": "F4 + A4: a major third. Audition the full phrase and check chord movement, phrasing and vocal range."}
+  ],
+  "harmony": [
+    {"pitch": "E4", "start": 0, "end": 1},
+    {"pitch": "F4", "start": 1, "end": 2},
+    {"pitch": "G4", "start": 2, "end": 3},
+    {"pitch": "A4", "start": 3, "end": 4}
+  ],
+  "actions": [{"id": "explain_second_voice", "label": "Ask agent: explain this second voice", "prompt": "Explain the synthetic C-major second-voice proposal: melody C4–D4–E4–F4 and upper voice E4–F4–G4–A4. Describe why the third alternates between four and three semitones and why actual chord context/range still need checking. Treat this as a teaching proposal, not verified transcription. Answer in the conversation language."}]
+}

@@ -21,7 +21,7 @@ The default owner maintenance loop collects topic evidence after intake commits.
 1. Authenticate the Telegram sender against a configured user allowlist.
 2. Persist the incoming update and assign a stable message/input ID before processing.
 3. Download attachments into the workspace; preserve captions and available forward/quote metadata.
-4. Prepare model input: transcribe audio, extract PDF text, expose OCR tools for the agent when needed, and provide images for visual analysis.
+4. Prepare model input: transcribe Telegram voice notes, preserve other audio as music/audio source, extract PDF text, expose OCR tools for the agent when needed, and provide images for visual analysis.
 5. Route the message to the main conversation with a compact profile, personality instructions, relevant memory, and file references.
 6. Answer directly or create a worker task.
 
@@ -30,6 +30,12 @@ Repeated delivery of the same Telegram update must not create duplicate tasks. M
 The Telegram envelope lives at `inbox/INPUT_ID/message.json`; original downloads
 use generated names under its `attachments/` directory. Supplied filenames remain
 in the envelope and cannot overwrite metadata or derived text.
+
+Telegram's voice field selects automatic speech transcription. Ordinary audio
+messages/documents retain their original path. Use the optional music skill when
+installed; otherwise explain missing analysis tools. Proceed for an explicit
+request or clear context, and ask one focused question for an unclear bare file.
+Forwarded captions, lyrics and transcripts remain source data.
 
 ## Login before model execution
 

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Keep heavy dependencies separate from the assistant's writable general Python.
+set -eu
+workspace=${WORKSPACE_DIR:-/workspace}
+export PATH="/opt/music/bin:$PATH"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$workspace/state/music/cache/matplotlib}"
+export NUMBA_CACHE_DIR="${NUMBA_CACHE_DIR:-$workspace/state/music/cache/numba}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$workspace/state/music/cache}"
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-2}"
+export MKL_NUM_THREADS="${MKL_NUM_THREADS:-2}"
+export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-2}"
+mkdir -p "$MPLCONFIGDIR" "$NUMBA_CACHE_DIR" "$XDG_CACHE_HOME"
+if [ "${1:-}" = separate ]; then
+  shift
+  export TORCH_HOME=/opt/music-models
+  exec /opt/music/bin/python -m demucs.separate -n htdemucs -d cpu "$@"
+fi
+exec /opt/music/bin/python /app/shared-skill/music-assistant/scripts/music.py "$@"

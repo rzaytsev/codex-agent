@@ -1,0 +1,16 @@
+{
+  "type": "intervals",
+  "lang": "en",
+  "evidence": "example",
+  "title": "Compare thirds, fourths and fifths",
+  "context": "Same lower note: C4 · equal temperament · A4 = 440 Hz",
+  "caption": "From C4: Eb4 makes a minor third (3 semitones), E4 a major third (4), F4 a perfect fourth (5), G4 a perfect fifth (7), and C5 an octave (12). These are synthetic references, not identified choir parts.",
+  "pairs": [
+    {"lower": "C4", "upper": "Eb4", "label": "Minor third", "comment": "C4–Eb4 spans three semitones. Eb is the correct spelling for this third, rather than D#."},
+    {"lower": "C4", "upper": "E4", "label": "Major third", "comment": "C4–E4 spans four semitones: one chromatic step wider than the minor third."},
+    {"lower": "C4", "upper": "F4", "label": "Perfect fourth", "comment": "C4–F4 spans five semitones. Compare its width with the thirds, then audition the separate reference audio."},
+    {"lower": "C4", "upper": "G4", "label": "Perfect fifth", "comment": "C4–G4 spans seven semitones. In recorded vocals, check two fundamentals; a harmonic peak alone is not a second singer."},
+    {"lower": "C4", "upper": "C5", "label": "Octave", "comment": "C4–C5 spans twelve semitones and doubles frequency. The notes share a pitch class but have different registers."}
+  ],
+  "actions": [{"id": "explain_thirds", "label": "Ask agent: compare the two thirds", "prompt": "Explain the difference between the synthetic reference intervals C4–Eb4 and C4–E4: spelling, 3 versus 4 semitones, and why a third above a melody need not be a constant four-semitone shift. Answer in the conversation language. Do not start a new recording analysis."}]
+}

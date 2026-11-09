@@ -1,0 +1,24 @@
+# Optional CPU tooling layer. Select an already validated assistant image.
+ARG ASSISTANT_BASE_IMAGE=codex-personal-assistant:0.1.0
+FROM debian:bookworm-slim AS music-tools
+COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates libsndfile1 && rm -rf /var/lib/apt/lists/*
+COPY shared-skill/music-assistant/requirements.txt /opt/music-requirements.txt
+RUN uv venv --python /usr/bin/python3 /opt/music && uv pip install --python /opt/music/bin/python --no-cache -r /opt/music-requirements.txt && uv pip install --python /opt/music/bin/python --no-cache --no-deps basic-pitch==0.4.0
+RUN uv pip install --python /opt/music/bin/python --no-cache essentia==2.1b6.dev1389
+# CPU wheels avoid CUDA libraries on CPU-only assistant hosts.
+RUN uv pip install --python /opt/music/bin/python --no-cache --index-url https://download.pytorch.org/whl/cpu torch==2.5.1+cpu torchaudio==2.5.1+cpu
+RUN uv pip install --python /opt/music/bin/python --no-cache demucs==4.0.1
+RUN TORCH_HOME=/opt/music-models /opt/music/bin/python -c "from demucs.pretrained import get_model; get_model('htdemucs')"
+
+FROM ${ASSISTANT_BASE_IMAGE} AS music-runtime
+RUN python3 -c 'import sys; assert sys.version_info[:2] == (3, 11)'
+RUN apt-get update && apt-get install -y --no-install-recommends sox rubberband-cli libsndfile1 && rm -rf /var/lib/apt/lists/*
+COPY --from=music-tools /opt/music /opt/music
+COPY --from=music-tools /opt/music-models /opt/music-models
+COPY shared-skill/music-assistant /app/shared-skill/music-assistant
+COPY test/music_assistant.py /app/test/music_assistant.py
+COPY templates/MUSIC.md /app/templates/MUSIC.md
+COPY src/media.js /app/src/media.js
+COPY test/media.test.js /app/test/media.test.js
+COPY --chmod=0755 scripts/music /usr/local/bin/music

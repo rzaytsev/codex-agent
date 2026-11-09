@@ -157,3 +157,22 @@ deep workers have task research-write tools; existing regular research stays
 read-only. The service runs a separate read-only passage review, exports reports
 with existing document tools and uses the same immutable outbox/source route.
 Research corpus data stays separate from personal-fact memory.
+
+## Presentation and control lifecycle
+
+Structured final responses may carry a validated presentation alongside readable
+text and artifact paths. The durable outbox keeps the original owner/conversation/
+session route; confirmed widget receipts bind offered callbacks and revisioned
+state. Task and clarification cards use native inline controls. Choices enter the
+main queue as events rather than direct-owner approval. Saved task results reuse
+prepared immutable delivery snapshots.
+
+Native reply drafts are temporary previews, separate from durable final delivery.
+Only the active private main turn can append user-facing fragments. Stop must
+match the exact issued draft and active route/session/input, then uses the existing
+owned-execution cancellation settlement. See [presentation contracts](telegram-presentations.md).
+
+The optional [music layer](music.md) adds an isolated CPU environment and a selected
+read-only skill mount. Its helper writes private audio/data artifacts; its
+standard-library lesson renderer produces presentation data for the same service
+path. It neither starts another poller nor sends Telegram messages directly.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Music Assistant"
+  short_description: "Analyze songs, intervals and vocal harmonies"
+  default_prompt: "Use $music-assistant to analyze this demo and suggest a harmony I can audition."

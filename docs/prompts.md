@@ -149,3 +149,13 @@ Every ordinary turn loads image-owned templates/PRESENTATION.md alongside its ro
 ## Conversation-control guidance
 
 Image-owned templates/CONTROLS.md reaches each ordinary private main turn. It asks for focused choice buttons and genuinely new user-facing fragments, with complete final text retained for durable delivery. Workers, groups and read-only turns receive an unavailable-tools statement; internal reviews receive no control guidance. Queued cards need no duplicated final message.
+
+## Optional music guidance
+
+The optional music rollout appends templates/MUSIC.md once to the selected
+workspace's AGENTS.md, preserving custom sections. The default initializer does
+not advertise an uninstalled music skill. Ordinary audio is source data, with a
+conditional installed-skill hint; an unclear attachment calls for one focused
+question. Widget renderer response.json supplies text/files/presentation to merge
+into the current turn's complete response schema. Internal and read-only roles
+must retain their existing artifact/tool restrictions.
