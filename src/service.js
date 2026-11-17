@@ -26,6 +26,7 @@ import {directOwner} from './owner-evidence.js';
 import { Profiles } from './profiles.js';
 import {budgetForSignal,bindBudgetSignal,terminalReason,BudgetError} from './observations.js';
 import { Artifacts } from './artifacts.js';
+import {taskFileLimit} from './task-file-handoff.js';
 import {Research} from './research.js';
 import {RESEARCH_HEADING} from './research-schema.js';
 import { AdmissionConflict } from './store.js';
@@ -244,10 +245,14 @@ export class Service {
         if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
         const settings=this.effectiveSettings(args.profile||'worker',args.settings,cap.toolScope);
         if(settings.model)settings.model=settings.model.trim();
-        const payload={user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',prompt:args.prompt.trim(),profile:args.profile||'worker',settings,title:args.title?.trim(),acknowledgment:args.acknowledgment?.trim()};
+        if(args.execution&&(!this.cfg.isolatedWorkerFiles||(args.profile||'worker')!=='worker'))throw new Error('Offline worker unavailable');
+        if(args.use_attachment&&(!args.execution||!cap.attachment||cap.inputId===undefined))throw new Error('No current task attachment');
+        const taskFiles=args.execution?{attachment:args.use_attachment?cap.attachment:null}:undefined;
+        const payload={...(taskFiles?{taskFiles}:{}),user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',prompt:args.prompt.trim(),profile:args.profile||'worker',settings,title:args.title?.trim(),acknowledgment:args.acknowledgment?.trim()};
         return this.store.admit(this.cfg.owner||user,'task',args.request_key===undefined?undefined:requestKey(args.request_key),payload,()=>{
           const id=this.store.job(user,payload.prompt,payload.profile);
           this.store.set(`task-settings:${id}`,JSON.stringify(settings));
+          if(taskFiles)this.store.set(`task-files:${id}`,JSON.stringify(taskFiles));
           if(cap.observationRun)this.store.set(`task-parent-run:${id}`,cap.observationRun.id);
           this.store.prepare('UPDATE jobs SET actor_id=? WHERE $scope AND id=?').run(payload.actor,id);
           if(payload.title)this.store.set(`task-title:${id}`,payload.title);
@@ -539,7 +544,7 @@ export class Service {
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         this.store.ownerHistory(this.cfg,message,prepared.text);
         this.streams.begin(input,controller.signal);
-        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,inputId:input.id,settings,toolScope:settings.toolScope,observationRun});
+        const result=await this.agent.run(input.user,prepared.text,'main',prepared.images,controller.signal,undefined,undefined,false,{actorId:this.mainActor,inputId:input.id,attachment:prepared.attachment,settings,toolScope:settings.toolScope,observationRun});
         if(controller.signal.aborted) throw new Error('Turn interrupted');
         await this.streams.pause(input.id);
         await this.output(input.user,result,false,controller.signal);widgetReply=result.text;
@@ -598,7 +603,18 @@ export class Service {
       const dir=path.join(this.cfg.workspace,'tasks',job.id);await fs.mkdir(dir,{recursive:true});
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
       if(job.profile==='deep_research')this.research.admit(job.id,job.prompt,this.store.get(`task-title:${job.id}`));
-      let result=await this.agent.run(job.user,`Task ID: ${job.id}; owned directory: ${dir}\n${job.prompt}`,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope,taskSessionId:job.session_id});
+      const scope={sessionId:job.session_id,actorId:job.actor_id};
+      const assignment=JSON.parse(this.store.get(`task-files:${job.id}`)||'null');
+      const captured=[];
+      const taskFiles=assignment?{
+        input:assignment.attachment?{
+          name:'attachment'+path.extname(assignment.attachment),
+          bytes:(await this.artifacts.readSource(assignment.attachment,ctrl.signal,taskFileLimit)).bytes,
+        }:undefined,
+        capture:async(name,bytes)=>captured.push(await this.artifacts.snapshotTaskFile(job.user,name,bytes,scope,ctrl.signal)),
+      }:undefined;
+      const prompt=`Task ID: ${job.id}; owned directory: ${taskFiles?'/workspace':dir}\n${job.prompt}`;
+      let result=await this.agent.run(job.user,prompt,job.profile,[],ctrl.signal,id=>this.store.prepare('UPDATE jobs SET thread=? WHERE $scope AND id=?').run(id,job.id),undefined,false,{taskId:job.id,actorId:job.actor_id||job.user,settings,toolScope:settings.toolScope,taskSessionId:job.session_id,taskFiles});
       if(ctrl.signal.aborted) throw new Error('Cancelled');
       if(job.profile==='deep_research') {
         const review=await this.agent.run(job.user,this.research.reviewPrompt(job.id),'research',[],ctrl.signal,()=>{},undefined,'research-validation',{taskId:job.id,actorId:job.actor_id||job.user,toolScope:'read',settings:{...this.cfg.profiles.review,toolScope:'read'},observationRun,taskSessionId:job.session_id});
@@ -606,9 +622,8 @@ export class Service {
         result=await this.research.export(job.id,ctrl.signal);
       }
       const goalOutcome=outcomeRecord(result);
-      const scope={sessionId:job.session_id,actorId:job.actor_id};
       observationRun.outputStage=true;
-      const files=await this.filePayloads(result.files,job.user,scope,ctrl.signal);
+      const files=taskFiles?captured:await this.filePayloads(result.files,job.user,scope,ctrl.signal);
       if(result.voice&&result.text&&!job.prompt.startsWith('[CLEANUP]')&&!job.prompt.startsWith('[REFLECTION]')) {
         try {files.unshift(await this.artifacts.snapshot(job.user,{type:'voice',path:await voice(result.text.slice(0,12000),this.cfg,ctrl.signal)},scope,ctrl.signal));}
         catch(error) {if(error.executionUnknown)throw error;observationRun.outputFailed=true;ctrl.signal.throwIfAborted();result.text+='\nVoice generation failed; sending text instead.';}

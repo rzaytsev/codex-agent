@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {startTaskFileHandoff} from './task-file-handoff.js';
 
 const home = '/run/codex-research';
 const authDirectory = '/run/codex-research-auth';
@@ -39,7 +40,8 @@ export async function prepareResearchAuth(authLink, source) {
   if (await fs.readlink(authLink) !== source) throw new Error('Isolated research login unavailable');
 }
 
-export async function isolationOptions(token) {
+export async function isolationOptions(token, taskFiles, signal) {
+  let taskHome, handoff;
   try {
     const mountinfo = await fs.readFile('/proc/self/mountinfo', 'utf8');
     const envFile = path.join(home, 'environments.toml');
@@ -51,15 +53,25 @@ export async function isolationOptions(token) {
     if (await fs.readFile(configFile, 'utf8') !== configText) throw Error();
     const endpoint = await fs.lstat(socket);
     if (!endpoint.isSocket() || endpoint.uid !== 0 || (endpoint.mode & 0o777) !== 0o600) throw Error();
-    await prepareResearchAuth(path.join(home, 'auth.json'), path.join(authDirectory, 'auth.json'));
+    if (taskFiles) {
+      taskHome = await fs.mkdtemp(path.join(home,'worker-'));
+      handoff = await startTaskFileHandoff(taskHome,socket,taskFiles.input,signal);
+      await fs.writeFile(path.join(taskHome,'environments.toml'),executorEnvironment(process.execPath,connector,handoff.endpoint),{mode:0o600,flag:'wx'});
+      await fs.symlink(configFile,path.join(taskHome,'config.toml'));
+    }
+    await prepareResearchAuth(path.join(taskHome||home, 'auth.json'), path.join(authDirectory, 'auth.json'));
     const url = 'http://127.0.0.1:8765/mcp';
     const http_headers = {Authorization: `Bearer ${token}`};
     return {
-      home, assistant: {url, http_headers, startup_timeout_sec:30, required:true},
+      home:taskHome||home, ...(handoff?{handoff,dispose:async()=>{
+        handoff.close();await fs.rm(taskHome,{recursive:true,force:true});
+      }}:{}), assistant: {url, http_headers, startup_timeout_sec:30, required:true},
       override: `mcp_servers.assistant={url=${JSON.stringify(url)},http_headers={Authorization=${JSON.stringify(http_headers.Authorization)}},startup_timeout_sec=30,required=true}`,
       shellPolicy: 'shell_environment_policy={inherit="none",ignore_default_excludes=true,exclude=[],include_only=["PATH","LANG"],experimental_use_profile=false,set={PATH="/usr/bin:/bin",LANG="C.UTF-8"}}',
     };
   } catch {
+    handoff?.close();
+    if (taskHome) await fs.rm(taskHome,{recursive:true,force:true});
     throw new Error('Isolated research executor configuration unavailable');
   }
 }

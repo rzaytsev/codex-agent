@@ -3,6 +3,7 @@ services:
   assistant:
     environment:
       ISOLATED_RESEARCH_EXECUTOR: "true"
+      ISOLATED_WORKER_FILES: ${ISOLATED_WORKER_FILES:-false}
       ISOLATED_INTERNAL_REVIEWS: ${ISOLATED_INTERNAL_REVIEWS:-false}
     tmpfs:
       - /run/codex-research:size=256m,mode=0700

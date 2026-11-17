@@ -90,6 +90,32 @@ test('worker result keeps original session after /new rotates main session',asyn
   assert.equal(f.sent.find(p=>p.artifactId).bytes.toString(),'original');
   const artifact=f.store.db.prepare('SELECT * FROM artifacts').get();assert.equal(artifact.session_id,job.session_id);assert.notEqual(artifact.session_id,f.store.get('main-session'));
 });
+test('offline worker receives only its current attachment grant and delivers captured bytes',async t=>{
+  const f=await setup(t);
+  f.cfg.isolatedWorkerFiles=true;
+  const cap={user:'123',worker:false,actorId:'123',inputId:1,attachment:f.file};
+  const args={profile:'worker',prompt:'Process this option',execution:'offline',use_attachment:true,request_key:'offline-fixture'};
+  await assert.rejects(f.service.tool({...cap,attachment:undefined},'create_task',args),/No current task attachment/);
+  await assert.rejects(f.service.tool(cap,'create_task',{...args,profile:'research'}),/Offline worker unavailable/);
+  const {id}=await f.service.tool(cap,'create_task',args);
+  assert.equal((await f.service.tool(cap,'create_task',args)).id,id);
+  await assert.rejects(f.service.tool({...cap,attachment:f.file+'.other'},'create_task',args),/conflict/i);
+  f.store.db.prepare("UPDATE jobs SET state='running' WHERE id=?").run(id);
+  const job=f.store.db.prepare('SELECT * FROM jobs WHERE id=?').get(id);
+  f.service.agent={run:async(...runArgs)=>{
+    const handoff=runArgs.at(-1).taskFiles;
+    assert.equal(handoff.input.name,'attachment.txt');
+    assert.equal(handoff.input.bytes.toString(),'original');
+    await assert.rejects(handoff.capture('auth.json',Buffer.from('unsafe')));
+    await handoff.capture('result.txt',Buffer.from([0,7,255]));
+    return {text:'Ready',files:['/workspace/output/result.txt']};
+  }};
+  await f.service.runJob(job,new AbortController());
+  await f.service.deliver();
+  const delivered=f.sent.find(p=>p.artifactId);
+  assert.equal(delivered.filename,'result.txt');
+  assert.deepEqual(delivered.bytes,Buffer.from([0,7,255]));
+});
 test('verified buffered bytes, original filename and MIME survive photo fallback without reopening',async t=>{
   const f=await setup(t),photo=path.join(f.dir,'outputs','preview.png');await fs.writeFile(photo,'original photo');
   await f.service.output('123',{text:'',files:[photo]});const p=JSON.parse(f.store.db.prepare('SELECT payload FROM outbox').get().payload);

@@ -11,3 +11,4 @@
 - Added a disposable authenticated acceptance check for a model-initiated scoped bridge read and shell call through the offline executor.
 - Added an opt-in isolated route for regular research with a remote-only executor and a read-scoped bridge on trusted loopback HTTP.
 - Added a separate opt-in to run memory, learning, and research-draft reviews in the offline executor while preserving their schema-only results.
+- Added an opt-in ordinary worker route that copies an assigned attachment into the offline executor and delivers named outputs through the immutable artifact outbox.
