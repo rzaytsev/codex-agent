@@ -17,7 +17,7 @@
     "FROM node:24-bookworm-slim",
     "COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/"
   ],
-  "promptAssemblyHash": "7ebe2ae4a47e34accce9b99767f9625066d2e0b9eb8791c2e38885452d27cb65",
+  "promptAssemblyHash": "920a576ac81d2355d78fc8433433c1042c1bb08d9639ffb0b7e1f7a01af150cd",
   "schemaHash": "ddd0e11c8bc82a7ca940351727f3526870fba6b8681ff1bbc88564b4715be2e8",
   "toolsHash": "457fc14e22f89dbc4f8937708df0bc6934d3f20ee3d7390f6c56e587b92a9aaa",
   "promptTemplatesHash": "c67117d614425db43857bad7fdd474cbdf3d3eddccb3a03c8dff3c0dae7fe1a6",

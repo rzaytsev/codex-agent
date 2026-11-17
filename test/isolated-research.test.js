@@ -49,3 +49,13 @@ test('internal review isolation is opt-in and limited to the existing read-only 
   assert.equal(usesIsolatedResearch(both,'review',false),false);
   assert.equal(usesIsolatedResearch(both,'review','future-mode'),false);
 });
+
+test('deep collection has its own opt-in and does not authorize internal reviewer roles', () => {
+  const deep=config({ISOLATED_DEEP_RESEARCH:'true'});
+  assert.equal(usesIsolatedResearch(deep,'deep_research',false),true);
+  assert.equal(usesIsolatedResearch(deep,'deep_research','research-validation'),false);
+  for(const profile of ['main','worker','research','review']) {
+    assert.equal(usesIsolatedResearch(deep,profile,false),false);
+    assert.equal(usesIsolatedResearch(deep,profile,'research-validation'),false);
+  }
+});
