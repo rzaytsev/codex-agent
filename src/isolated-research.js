@@ -11,6 +11,12 @@ export const isolatedResearchDefinition = Object.freeze({
   bridge: 'loopback_http', thread: 'fresh',
 });
 
+export function usesIsolatedResearch(cfg, profile, review) {
+  if (!review) return profile === 'research' && cfg.isolatedResearchExecutor === true;
+  return cfg.isolatedInternalReviews === true && ['research', 'review'].includes(profile) &&
+    [true, 'learning', 'learning-validation', 'research-validation'].includes(review);
+}
+
 export function executorEnvironment(node, connector, socket) {
   return [
     'default="isolated-worker"', 'include_local=false', '[[environments]]', 'id="isolated-worker"',
