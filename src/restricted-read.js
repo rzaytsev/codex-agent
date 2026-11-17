@@ -2,15 +2,27 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 
 // Fixed reviewed metadata only: runtime paths, random selection IDs and SDK
 // credentials/config are deliberately excluded from observation bundle hashes.
-export const restrictedReadDefinition=Object.freeze({version:2,mode:'restricted_read_prototype',filesystem:'minimal_and_exact_runtime',applicationInputs:false,network:false,shellEnvironment:'verified_fixed_path_lang_plus_runtime_thread_id',mcp:'verified_assistant_only',configuration:'bounded_pinned_effective_config_preflight',thread:'fresh_every_attempt'});
+export const restrictedReadDefinition=Object.freeze({version:3,mode:'restricted_read_prototype',filesystem:'minimal_and_exact_runtime',applicationInputs:false,network:false,shellEnvironment:'verified_fixed_path_lang_plus_runtime_thread_id',mcp:'verified_assistant_only',configuration:'bounded_pinned_effective_config_preflight',thread:'fresh_every_attempt'});
 export const restrictedShellEnvironment=Object.freeze({PATH:'/usr/bin:/bin',LANG:'C.UTF-8'});
+const require=createRequire(import.meta.url);
+
+async function linuxCodexRuntime() {
+ const targets={x64:'x86_64-unknown-linux-musl',arm64:'aarch64-unknown-linux-musl'};
+ const triple=targets[process.arch];
+ if(!triple)throw new Error('Unsupported restricted Codex runtime');
+ const manifest=require.resolve(`@openai/codex-linux-${process.arch}/package.json`);
+ return fs.realpath(path.join(path.dirname(manifest),'vendor',triple,'bin','codex'));
+}
 
 export async function restrictedReadOverrides() {
  const runtime=await fs.realpath(process.execPath);
  const filesystem={':minimal':'read',[runtime]:'read',...(process.platform==='darwin'?{'/System/Library/OpenSSL/openssl.cnf':'read'}:{})};
+ // Bubblewrap re-executes the pinned native CLI inside its filesystem view.
+ if(process.platform==='linux')filesystem[await linuxCodexRuntime()]='read';
  // Fresh names avoid merging a lower configured same-name profile or resuming
  // a persisted privileged selection. There is no operator-supplied root list.
  const name=`assistant_restricted_read_${randomUUID().replaceAll('-','')}`;

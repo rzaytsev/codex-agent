@@ -135,8 +135,9 @@ comes through the host's bounded history/memory and scoped service read broker.
 Fresh restricted IDs may be retained in audit/jobs, but are never auto-resumed.
 
 The selected profile grants `:minimal` plus the canonical exact Node executable
-(`realpath(process.execPath)`), and on macOS the exact public runtime dependency
-`/System/Library/OpenSSL/openssl.cnf`. It sets network.enabled=false for raw shell
+(`realpath(process.execPath)`). On Linux it also grants the exact pinned native
+Codex executable for Bubblewrap's re-exec. On macOS it grants the exact public
+runtime dependency `/System/Library/OpenSSL/openssl.cnf`. It sets network.enabled=false for raw shell
 execution, disables web search/browser/apps/plugins/hooks/subagents, and keeps only
 the read-scoped assistant MCP bridge after a bounded effective-config preflight.
 Shell environment policy inherits none, disables profile/login-shell loading,
@@ -166,7 +167,7 @@ owned process group on every exit. Errors are fixed content-free text. Analytics
 all three native OTEL exporters, apps/plugins/hooks/native agents and remote control
 are disabled through reviewed scalar overrides before startup; RUST_LOG=off and
 the reviewed internal remote-control-disable environment flag are supplied. Those
-restrictions also apply to the selected SDK child. Permission metadata version 2
+restrictions also apply to the selected SDK child. Permission metadata version 3
 and the stable reviewed bundle hash describe this checked contract; raw effective
 config, paths, profile IDs, capability tokens and environment values never enter it.
 
