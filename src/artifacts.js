@@ -17,9 +17,9 @@ async function walk(root,file) {
   if(await fs.realpath(file)!==file)throw new ArtifactError();return entries;
 }
 async function unchanged(entries) {for(const [file,before] of entries){const after=await fs.lstat(file,{bigint:true});if(after.isSymbolicLink()||after.dev!==before.dev||after.ino!==before.ino)throw new ArtifactError();}}
-async function boundedRead(handle) {
+async function boundedRead(handle,max=MAX) {
   const parts=[];let size=0;
-  while(true) {const part=Buffer.alloc(Math.min(1024*1024,MAX+1-size));const {bytesRead}=await handle.read(part,0,part.length,null);if(!bytesRead)break;size+=bytesRead;if(size>MAX)throw new ArtifactError();parts.push(part.subarray(0,bytesRead));}
+  while(true) {const part=Buffer.alloc(Math.min(1024*1024,max+1-size));const {bytesRead}=await handle.read(part,0,part.length,null);if(!bytesRead)break;size+=bytesRead;if(size>max)throw new ArtifactError();parts.push(part.subarray(0,bytesRead));}
   return Buffer.concat(parts,size);
 }
 export class Artifacts {
@@ -38,16 +38,35 @@ export class Artifacts {
     if(parts.some(p=>p.startsWith('.')||/^(state|private|profiles|credentials|auth|codex|backups)$/i.test(p))||/^(agents|soul|user|core|playbook)\.md$/i.test(name)||/^(auth\.json|credentials(?:\.json)?|secrets?(?:\.json)?|tokens?(?:\.json)?|id_rsa|id_ed25519)$/i.test(name)||/\.(sqlite(?:-wal|-shm)?|db(?:-wal|-shm)?|pem|key|p12|pfx|env)$/i.test(name)||file===rebase(this.store.file))throw new ArtifactError();
     if(this.cfg.codexHome){const home=rebase(this.cfg.codexHome);if(file===home||file.startsWith(home+path.sep))throw new ArtifactError();}
   }
-  async snapshot(user,payload,{sessionId,actorId}={},signal) {
-    signal?.throwIfAborted();if(user!==this.cfg.owner)throw new ArtifactError();
-    const root=await this.root(),logical=path.resolve(this.cfg.workspace),requested=path.resolve(logical,payload.path);
+  async readSource(requestedPath,signal,max=MAX) {
+    signal?.throwIfAborted();
+    const root=await this.root(),logical=path.resolve(this.cfg.workspace),requested=path.resolve(logical,requestedPath);
     const file=requested.startsWith(root+path.sep)?requested:path.resolve(root,path.relative(logical,requested));this.safeSource(root,file);
-    const entries=await walk(root,file);let source,dest;
+    const entries=await walk(root,file);let source;
     try {
       source=await fs.open(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW|fs.constants.O_NONBLOCK);
-      const before=await source.stat({bigint:true});if(!before.isFile()||before.nlink!==1n||before.size>BigInt(MAX)||!same(before,entries.at(-1)[1]))throw new ArtifactError();
-      const bytes=await boundedRead(source);signal?.throwIfAborted();
-      if(bytes.length>MAX||!same(before,await source.stat({bigint:true})))throw new ArtifactError();await unchanged(entries);
+      const before=await source.stat({bigint:true});if(!before.isFile()||before.nlink!==1n||before.size>BigInt(max)||!same(before,entries.at(-1)[1]))throw new ArtifactError();
+      const bytes=await boundedRead(source,max);signal?.throwIfAborted();
+      if(!same(before,await source.stat({bigint:true})))throw new ArtifactError();await unchanged(entries);
+      return {root,file,bytes};
+    } finally {await source?.close();}
+  }
+  async snapshot(user,payload,scope={},signal) {
+    if(user!==this.cfg.owner)throw new ArtifactError();
+    const {root,file,bytes}=await this.readSource(payload.path,signal);
+    return this.storeBytes(root,user,payload,path.basename(file),bytes,scope,signal);
+  }
+  async snapshotTaskFile(user,name,bytes,scope,signal) {
+    if(user!==this.cfg.owner||path.basename(name)!==name||!Buffer.isBuffer(bytes)||bytes.length>MAX)throw new ArtifactError();
+    const root=await this.root();
+    this.safeSource(root,path.join(root,name));
+    const type=/\.(png|jpe?g)$/i.test(name)&&bytes.length<=10*1024*1024?'photo':'file';
+    return this.storeBytes(root,user,{type},name,bytes,scope,signal);
+  }
+  async storeBytes(root,user,payload,filename,bytes,{sessionId,actorId}={},signal) {
+    signal?.throwIfAborted();
+    let dest;
+    try {
       const budget=budgetForSignal(signal);budget?.o.artifact(budget.r,bytes.length);
       const dir=await this.storage(root),id=randomUUID(),snapshot=path.join(dir,id);
       dest=await fs.open(snapshot,fs.constants.O_WRONLY|fs.constants.O_CREAT|fs.constants.O_EXCL|fs.constants.O_NOFOLLOW,0o600);
@@ -55,10 +74,10 @@ export class Artifacts {
       // Flush directory entry before committing a durable SQLite reference.
       for(const directoryPath of [dir,path.dirname(dir),root]) {const directory=await fs.open(directoryPath,fs.constants.O_RDONLY);try{await directory.sync();}finally{await directory.close();}}
       await walk(root,snapshot);signal?.throwIfAborted();
-      const artifact={id,sha256:hash(bytes),size:bytes.length,mime:payload.type==='voice'?'audio/ogg':mimeType(file),filename:path.basename(file),owner:user,conversation_id:this.store.get('conversation-id')||null,session_id:sessionId||this.store.get('main-session')||null,actor_id:actorId||user,created:Date.now()};
+      const artifact={id,sha256:hash(bytes),size:bytes.length,mime:payload.type==='voice'?'audio/ogg':mimeType(filename),filename,owner:user,conversation_id:this.store.get('conversation-id')||null,session_id:sessionId||this.store.get('main-session')||null,actor_id:actorId||user,created:Date.now()};
       this.store.recordArtifact(artifact);
       return {...payload,path:snapshot,artifactId:id};
-    } finally {await source?.close();await dest?.close();}
+    } finally {await dest?.close();}
   }
   async load(row,payload) {
     try {

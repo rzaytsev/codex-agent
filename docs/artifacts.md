@@ -38,6 +38,26 @@ such isolation. Explicit service-owned `/auth` and `/tdl_auth` challenge payload
 retain their privileged validation/expiration lifecycle and do not enter ordinary
 artifact inventory.
 
+## Offline worker files
+
+With `ISOLATED_WORKER_FILES=true` and the protected executor overlay installed,
+`create_task` accepts `execution: "offline"` for the ordinary worker profile.
+`use_attachment: true` copies the current message's prepared attachment, up to
+8 MiB, into the worker's `/workspace/input`. The current turn supplies the input
+grant. The tool accepts no source path. Tasks created without this option keep
+their existing execution profile.
+
+The host copies bytes through the pinned executor's file RPCs on the same private
+connection that runs the worker. Both directories live on the disposable
+executor's tmpfs. The worker writes deliverables directly under
+`/workspace/output` and names up to four regular files, totaling at most 8 MiB,
+in its final response. The host rejects symlinks, unsafe names and paths outside
+that directory. Returned bytes go through the ordinary immutable snapshot,
+delivery budget, source route and outbox checks. A failed handoff stops the
+worker result before its delivery transaction. Closing or cancelling the turn
+closes the relay and its executor connection. Use the existing worker route for
+tasks that need other persistent files, a browser or live network access.
+
 ## Migration and operator gate
 
 Startup adds `artifacts`, nullable `outbox.artifact_id` and `legacy_state`. Existing pending,
