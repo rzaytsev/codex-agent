@@ -13,3 +13,4 @@
 - Added a separate opt-in to run memory, learning, and research-draft reviews in the offline executor while preserving their schema-only results.
 - Added an opt-in ordinary worker route that copies an assigned attachment into the offline executor and delivers named outputs through the immutable artifact outbox.
 - Added an opt-in offline executor for deep research collection with public-source fetching and report export handled by the service.
+- Added an optional public-source hostname allowlist, enforced before DNS at every hop, and denied additional reserved network ranges.

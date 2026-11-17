@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { actionPolicy } from './action-policy.js';
 import { CronExpressionParser } from 'cron-parser';
+import { researchAllowedHosts } from './research-fetch.js';
 export function config(env = process.env) {
   const allowed = new Set((env.TELEGRAM_ALLOWED_USER_IDS || '').split(',').map(s => s.trim()).filter(Boolean));
   if ([...allowed].some(s => !/^[1-9]\d*$/.test(s))) throw new Error('Allowed Telegram users must be numeric positive IDs');
@@ -47,6 +48,7 @@ export function config(env = process.env) {
     maxWorkers: integer('MAX_WORKERS',2,1,8), maxMainTurns:integer('MAX_MAIN_TURNS',2,1,8), maxExecutions:integer('MAX_EXECUTIONS',4,1,16), mainTimeout: integer('MAIN_TIMEOUT_SECONDS',180,10,3600), workerTimeout: integer('WORKER_TIMEOUT_SECONDS',1800,10,86400),
     runBudgets:{wallMs:integer('RUN_MAX_WALL_SECONDS',0,0,86400)*1000,tools:integer('RUN_MAX_SERVICE_TOOLS',0,0,100000),artifacts:integer('RUN_MAX_ARTIFACT_BYTES',0,0,1e12),tokens:integer('RUN_OBSERVED_TOKEN_ADMISSION',0,0,1e12)},
     researchMaxSources:integer('RESEARCH_MAX_SOURCES',40,1,200),
+    researchAllowedHosts:researchAllowedHosts(env.RESEARCH_ALLOWED_HOSTS),
     maxBytes: integer('MAX_ATTACHMENT_MB',20,1,20)*1024*1024,
     proactive: env.PROACTIVE_ENABLED !== 'false',
     reviews: {daily: cron('DAILY_REVIEW_CRON','0 19 * * *'), weekly: cron('WEEKLY_REVIEW_CRON','0 18 * * 0'), monthly: cron('MONTHLY_REVIEW_CRON','0 18 1 * *')},
