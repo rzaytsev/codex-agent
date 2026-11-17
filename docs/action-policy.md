@@ -314,6 +314,35 @@ systemd also reconciles the worker for that invocation by exact name and label.
 The unit example has no live callers by default. Reconciliation after host or
 Docker daemon failure remains a deployment requirement.
 
+### Authenticated acceptance
+
+The authenticated executor check uses the pinned SDK and real assistant service
+bridge with synthetic history. The SDK connects to the bridge over trusted
+loopback HTTP. Tool commands run in the offline executor, which has neither the
+bridge's network path nor a login mount. The remote-only environment has no
+local execution fallback. The older stdio MCP configuration is unsuitable for
+this route because its helper could not reach the required bridge from the
+remote execution context.
+
+For an authorized test, stage the exact candidate from a protected disposable
+directory and qualify its Unix socket first with the anonymous check. Create a
+fresh mode-0700 `/tmp/codex-auth-proof.XXXXXXXX/home` in a private mount
+namespace. Bind only the selected bot's existing `auth.json` into that directory
+read-only. The login stays in the trusted harness. Keep the executor and the
+synthetic service free of live bot mounts, history and Telegram polling.
+
+```sh
+env -i PATH=/usr/bin:/bin node scripts/authenticated-executor-proof.js \
+  /absolute/path/to/stdio.sock /tmp/codex-auth-proof.INSTANCE/home MODEL
+```
+
+The check uses one authenticated model turn. Its receipt requires an observed
+history read, the exact synthetic marker in the result, an executor shell event,
+and capability revocation. A completed turn or the model's text alone is
+insufficient. The operator must separately confirm worker cleanup and remove the
+disposable harness. This check does not install a live integration or change any
+bot's default tool routing.
+
 ## Migration, backup and rollback
 
 Startup adds action_approvals without rewriting existing tasks, schedules or
