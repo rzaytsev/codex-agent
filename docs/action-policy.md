@@ -201,6 +201,28 @@ standard executables/devices and selected system services. Review the pinned
 and exact target roots/content before opting in. No real system credentials or
 host services were inspected. Allowed system content and IPC remain limits.
 
+### Target Linux release check
+
+Run the restricted profile against the candidate image on the target Linux host
+before enabling it. Use the exact candidate image ID. Keep the container's
+production security settings and boot only the probe, with no mounted workspace,
+account credentials, service database or network access.
+
+```sh
+docker run --rm --pull never --network none --read-only --init \
+  --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 \
+  --tmpfs /tmp:size=512m,exec --entrypoint node IMAGE_ID \
+  scripts/isolation-probe.js --require-protected
+```
+
+The command prints one bounded JSON receipt. Exit 0 requires the existing
+positive controls and denial checks to pass in restricted mode. Exit 1 means
+the probe reported `bypass` or `unavailable`. A sandbox startup failure blocks
+the rollout as surely as a failed denial check. Keep the restricted profile disabled and
+investigate the target runner before retrying. A passing receipt covers only
+these fixtures. Authenticated Codex and MCP compatibility, browser/native tool
+containment and network policy need their own acceptance checks.
+
 ### Disposable actual-CLI canary
 
 Run `node scripts/isolation-probe.js --mode=builtin` (also the default) or
@@ -231,10 +253,13 @@ CODEX_HOME presence check; accepting absent or exact disposable paths reflects t
 profile's inherit-none behavior. It was rerun successfully. No raw diagnostics were
 persisted. This does not prove all process-memory/proc/IPC/native filesystem routes.
 
-Full compatible isolation remains **INCOMPLETE AND BLOCKING**. Linux target-image
-shell/native canaries, process-env/proc/native filesystem/skills/tool review and
-opt-in authenticated ChatGPT+MCP compatibility remain unverified; no Docker daemon
-is available locally. Ordinary main/worker code keeps existing danger grants and
+Full compatible isolation remains **INCOMPLETE AND BLOCKING**. An isolated Linux
+run of both profiles under the deployment container settings returned
+`unavailable` with CLI exit 1. A minimal synthetic startup check classified the
+error as involving Bubblewrap and user namespaces. Linux shell/native canaries,
+process-env/proc/native filesystem/skills/tool review and opt-in authenticated
+ChatGPT+MCP compatibility remain unverified. Ordinary main/worker code keeps
+existing danger grants and
 can modify other task files. Same-grant outside writers can replace a permitted
 pathname after validation; removing runtime application-input grants avoids that
 particular grant, not mutual worker isolation. Do not expand autonomy or enable this
