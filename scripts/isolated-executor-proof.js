@@ -3,19 +3,26 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { AccountClient } from '../src/codex-account.js';
 
-const [binary, image, launcher] = process.argv.slice(2);
-if (!path.isAbsolute(binary || '') || !/^sha256:[0-9a-f]{64}$/.test(image || '') || !path.isAbsolute(launcher || '')) {
-  throw new Error('Expected absolute Codex and launcher paths and an immutable Docker image ID');
+const [binary, launcherMode, destination] = process.argv.slice(2);
+const viaSocket = launcherMode === '--socket';
+if (process.argv.length !== 5 || !path.isAbsolute(binary || '') || !path.isAbsolute(destination || '') ||
+    (!viaSocket && !/^sha256:[a-f0-9]{64}$/.test(launcherMode || ''))) {
+  throw new Error('Expected an absolute Codex path followed by IMAGE_ID LAUNCHER or --socket SOCKET');
 }
 // The harness is anonymous. The caller must start it with a clean environment.
 const root = await mkdtemp('/tmp/runner-proof-');
 const quoted = JSON.stringify;
 const hostFixture = path.join(root, 'local-control');
+const program = viaSocket ? process.execPath : '/usr/bin/sudo';
+const args = viaSocket
+  ? [fileURLToPath(new URL('./isolated-executor-stdio.js', import.meta.url)), destination]
+  : ['-n', destination, launcherMode];
 const config = [
   'default = "isolated-worker"', 'include_local = false', '[[environments]]', 'id = "isolated-worker"',
-  'program = "/usr/bin/sudo"', `args = ${quoted(['-n', launcher, image])}`,
+  `program = ${quoted(program)}`, `args = ${quoted(args)}`,
 ].join('\n');
 let client;
 let requests=0;

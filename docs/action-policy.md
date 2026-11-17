@@ -303,6 +303,17 @@ configuration, orphan reconciliation, scoped data transfer, and authenticated
 Codex and assistant bridge acceptance. Never grant an ordinary agent operator
 access to the launcher or Docker.
 
+The `codex-agent-executor.socket` and `codex-agent-executor@.service` units are
+operator-owned definitions for a root-only Unix socket. The service reads one
+immutable image ID from `CODEX_AGENT_EXECUTOR_IMAGE` in its protected environment
+file, and never accepts a caller-supplied image or Docker options. Mount the socket
+only into the trusted harness. Use the stdio connector with an absolute socket
+path. After staging the socket, the same synthetic acceptance check accepts
+`/absolute/path/to/codex --socket /absolute/path/to/stdio.sock`. On service exit,
+systemd also reconciles the worker for that invocation by exact name and label.
+The unit example has no live callers by default. Reconciliation after host or
+Docker daemon failure remains a deployment requirement.
+
 ## Migration, backup and rollback
 
 Startup adds action_approvals without rewriting existing tasks, schedules or
