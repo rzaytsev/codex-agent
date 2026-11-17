@@ -3,6 +3,22 @@
 set -eu
 umask 077
 
+valid_invocation() { [ "${#1}" -eq 32 ] && printf '%s\n' "$1" | /usr/bin/grep -Eq '^[a-f0-9]{32}$'; }
+docker() { /usr/bin/timeout -k 2s 15s /usr/bin/docker --host unix:///var/run/docker.sock --config "$scratch" "$@"; }
+
+# systemd calls this after an unhandled exit. Resolve only the exact named,
+# labelled worker for this invocation and remove it by immutable container ID.
+if [ "$#" -eq 2 ] && [ "$1" = --cleanup-invocation ]; then
+    if ! valid_invocation "$2"; then exit 2; fi
+    scratch=$(/usr/bin/mktemp -d /tmp/codex-agent-executor.XXXXXXXX)
+    trap '/bin/rm -rf -- "$scratch"' EXIT
+    id=$(docker ps -aq --no-trunc --filter "name=^/codex-agent-executor\.$2\$" --filter label=codex-agent=isolated-executor)
+    if [ -z "$id" ]; then exit 0; fi
+    if ! printf '%s\n' "$id" | /usr/bin/grep -Eq '^[a-f0-9]{64}$'; then exit 1; fi
+    docker rm -f "$id" >/dev/null
+    exit 0
+fi
+
 if [ "$#" -ne 1 ] || ! printf '%s\n' "$1" | /usr/bin/grep -Eq '^sha256:[a-f0-9]{64}$'; then
     printf '%s\n' 'Expected one immutable assistant image ID' >&2
     exit 2
@@ -10,10 +26,9 @@ fi
 image=$1
 scratch=$(/usr/bin/mktemp -d /tmp/codex-agent-executor.XXXXXXXX)
 name=${scratch##*/}
+if valid_invocation "${INVOCATION_ID:-}"; then name=codex-agent-executor.$INVOCATION_ID; fi
 created=false
 attach_pid=
-
-docker() { /usr/bin/timeout -k 2s 15s /usr/bin/docker --host unix:///var/run/docker.sock --config "$scratch" "$@"; }
 
 cleanup() {
     result=$?

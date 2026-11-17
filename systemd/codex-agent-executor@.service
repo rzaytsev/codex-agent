@@ -1,0 +1,18 @@
+[Unit]
+Description=Disposable Codex executor connection
+CollectMode=inactive-or-failed
+
+[Service]
+EnvironmentFile=/etc/codex-agent-executor.env
+ExecStart=/usr/local/libexec/codex-agent-executor ${CODEX_AGENT_EXECUTOR_IMAGE}
+ExecStopPost=/usr/local/libexec/codex-agent-executor --cleanup-invocation ${INVOCATION_ID}
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RuntimeMaxSec=330s
+TimeoutStopSec=25s
