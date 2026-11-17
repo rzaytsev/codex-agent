@@ -1,5 +1,6 @@
 import {ContractDenial} from './contract-denial.js';
 import { z } from 'zod';
+import {mainBrokers,mainBrokerTools} from './main-brokers.js';
 import {researchTools} from './research-schema.js';
 const researchReads=new Set(['research_search','research_read']);
 const researchWrites=new Set(researchTools.map(t=>t[0]).filter(n=>!researchReads.has(n)));
@@ -9,13 +10,14 @@ const localWrites=new Set(['memory_save','memory_forget','learning_feedback','pr
 const mailReads=new Set(['mail_agents','mail_inbox','mail_read','mail_status']);
 export const actionRegistry=new Map();
 function tool(name,description,shape,refinement) {
- const read=reads.has(name)||mailReads.has(name)||researchReads.has(name)||name==='list_schedules'||name==='widget_read';
- const category=name==='mail_commit'?'external_send':name==='mail_send'?'prepare':read?'read':['send_voice','widget_update','ask_clarification','stream_reply'].includes(name)?'delivery':localWrites.has(name)||researchWrites.has(name)?'local_modify':null;
+ const read=reads.has(name)||mailReads.has(name)||researchReads.has(name)||mainBrokers.has(name)&&!['browser_download_pdf','browser_screenshot'].includes(name)||name==='list_schedules'||name==='widget_read';
+ const category=name==='mail_commit'?'external_send':name==='mail_send'?'prepare':read?'read':['send_voice','widget_update','ask_clarification','stream_reply','browser_download_pdf','browser_screenshot'].includes(name)?'delivery':localWrites.has(name)||researchWrites.has(name)?'local_modify':null;
  if(!category)throw new Error('Unreviewed action metadata');
  const roles=name.startsWith('widget_')?['main']:researchWrites.has(name)?['worker']:researchReads.has(name)?['main','worker']:reads.has(name)?['main','worker','curator']:name==='memory_save'?['main','worker']:['main'];
  const schema=z.strictObject(shape);
- actionRegistry.set(name,Object.freeze({name,description,schema:refinement?schema.refine(refinement):schema,roles:Object.freeze(roles),scopes:Object.freeze(researchWrites.has(name)?['research']:researchReads.has(name)?['conversation','read','research']:read&&!mailReads.has(name)?['conversation','read','research']:['conversation']),category,timeoutMs:name==='send_voice'?150000:name==='research_fetch'?90000:15000,resultLimitBytes:4*1024*1024,retry:category==='read'?'safe':name==='mail_commit'?'committed_identity':name==='schedule'||name==='create_task'?'request_key':'never',dmOnly:name.startsWith('mail_')||name.startsWith('widget_')||['ask_clarification','stream_reply'].includes(name)}));
+ actionRegistry.set(name,Object.freeze({name,description,schema:refinement?schema.refine(refinement):schema,roles:Object.freeze(roles),scopes:Object.freeze(researchWrites.has(name)?['research']:researchReads.has(name)?['conversation','read','research']:read&&!mailReads.has(name)&&!mainBrokers.has(name)?['conversation','read','research']:['conversation']),category,timeoutMs:name==='send_voice'?150000:['research_fetch','browser_read','browser_download_pdf','browser_render','browser_screenshot'].includes(name)?90000:15000,resultLimitBytes:4*1024*1024,retry:category==='read'?'safe':name==='mail_commit'?'committed_identity':name==='schedule'||name==='create_task'?'request_key':'never',dmOnly:mainBrokers.has(name)||name.startsWith('mail_')||name.startsWith('widget_')||['ask_clarification','stream_reply'].includes(name)}));
 }
+for(const [name,description,shape] of mainBrokerTools)tool(name,description,shape);
 tool('widget_read','Read a delivered widget and current revision/state in this private conversation/session. Omit id to list the latest ten. Callback requests include their widget ID. Unavailable in workers and internal reviews.',{id:z.string().uuid().optional()});
 tool('widget_update','Queue live JSON state for a delivered widget in this private conversation/session. State must be a JSON object encoded as a string within 600 UTF-8 bytes. Supply expected_revision from widget_read. Host revision/status/reply remain service-owned. Queued is not delivered. Unavailable in workers and read-only scope.',{id:z.string().uuid(),state:z.string().max(600),expected_revision:z.number().int().nonnegative()});
 tool('ask_clarification','Queue one focused private-chat question with 2–6 native choice buttons. Stop the preview, return promptly with empty final text, and wait for the next user turn. Choices are events, not approval or new authority; the owner can type a free-form answer instead. Success means queued.',{question:z.string().trim().min(1).max(2000),options:z.array(z.strictObject({label:z.string().trim().min(1).max(80),value:z.string().trim().min(1).max(1000)})).min(2).max(6)});
@@ -57,6 +59,10 @@ tool('profile_write','Replace a shared profile from explicit owner facts/prefere
 tool('schedule','Persist a reminder or worker task. Supply offset due timestamp or five-field cron/IANA timezone. Immutable key retries return original admission; changed intent conflicts. Change by cancelling and creating a new key. Omitted policies retain queue overlap and one overdue occurrence then advance. Explicit overlap: skip active work, coalesce latest queued occurrence without changing running work, or queue. Explicit misfire: skip, coalesce latest, or catch_up with required limit 1–100; grace defaults to 60 seconds. Optional task objective/done_condition describe requested goals; only authenticated owner /schedule_done ID JOB_ID HASH after completed occurrence confirms achievement. Never infer goals, deadlines or max_runs for endless reminders. Bounds stop admission, not proof of achievement. Use list_schedules for policy/state/hash.',{kind:z.enum(['reminder','task']),prompt:z.string().min(1).max(30000),due:z.string().optional(),cron:z.string().optional(),timezone:z.string().optional(),key:z.string().min(1).max(200),overlap:z.enum(['skip','coalesce','queue']).optional(),misfire:z.enum(['skip','coalesce','catch_up']).optional(),catch_up_limit:z.number().int().min(1).max(100).optional(),misfire_grace_seconds:z.number().int().min(0).max(86400).optional(),objective:z.string().trim().min(1).max(4000).optional(),done_condition:z.string().trim().min(1).max(4000).optional(),deadline:z.iso.datetime({offset:true}).max(40).optional(),max_runs:z.number().int().min(1).max(10000).optional()},a=>(a.misfire==='catch_up')===(a.catch_up_limit!==undefined)&&(a.misfire_grace_seconds===undefined||a.misfire!==undefined)&&(!a.done_condition||Boolean(a.objective))&&(a.kind==='task'||a.objective===undefined&&a.done_condition===undefined));
 tool('list_schedules','List current and disabled user schedules with effective policies, optional goals, occurrence counts and completion/exhaustion state. goal_hash and last_completed_job bind direct owner /schedule_done ID JOB_ID HASH.',{});
 tool('cancel_schedule','Disable a user schedule.',{id:z.string()});
+export function actionAvailable(name,{maps=false,browser=false,icloud=false,renderer=false}={}) {
+ const kind=mainBrokers.get(name)?.kind;
+ return kind==='maps'?maps:kind==='browser'?browser:kind==='icloud'?icloud:kind==='renderer'?renderer:true;
+}
 export function validateAction(cap,name,args) {
  const action=actionRegistry.get(name),role=cap.memoryReview?'curator':cap.worker?'worker':'main';
  if(!action||!action.roles.includes(role))throw new ContractDenial('action_denied');
@@ -65,7 +71,7 @@ export function validateAction(cap,name,args) {
  return {action,args:parsed.data};
 }
 
-export function reviewedActionBundle({worker=false,memoryReview=false,toolScope='conversation',group=false}={}) {
+export function reviewedActionBundle({worker=false,memoryReview=false,toolScope='conversation',group=false,brokers}={}) {
  const role=memoryReview?'curator':worker?'worker':'main';
- return [...actionRegistry.values()].filter(action=>action.roles.includes(role)&&action.scopes.includes(toolScope)&&!(group&&action.dmOnly)).map(({schema,...metadata})=>({...metadata,schema:z.toJSONSchema(schema)}));
+ return [...actionRegistry.values()].filter(action=>action.roles.includes(role)&&action.scopes.includes(toolScope)&&!(group&&action.dmOnly)&&actionAvailable(action.name,brokers)).map(({schema,...metadata})=>({...metadata,schema:z.toJSONSchema(schema)}));
 }

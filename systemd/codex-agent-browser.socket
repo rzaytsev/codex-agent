@@ -1,0 +1,13 @@
+[Unit]
+Description=Private socket for disposable browser renders
+
+[Socket]
+ListenStream=/run/codex-agent-browser/stdio.sock
+Accept=yes
+SocketMode=0600
+DirectoryMode=0700
+MaxConnections=2
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

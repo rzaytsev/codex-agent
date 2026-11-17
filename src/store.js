@@ -113,7 +113,7 @@ export class Store {
     const row=this.db.prepare('SELECT origin,known_quote,provenance_version FROM history_origins WHERE history_id=? AND owner=?').get(id,owner);
     return trustedHistoryOrigin(row);
   }
-  search(user,query='',since=0,{all=false}={}) { return this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND created>=? AND instr(lower(text),lower(?))>0 ORDER BY id DESC LIMIT 100`).all(user,since,query).reverse(); }
+  search(user,query='',since=0,{all=false,currentSession=false}={}) { return this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND created>=? AND instr(lower(text),lower(?))>0${currentSession?' AND session_id IS ?':''} ORDER BY id DESC LIMIT 100`).all(user,since,query,...(currentSession?[this.get('main-session')||null]:[])).reverse(); }
   historyPage(user,{after=0,since=0,until=Date.now(),limit=50,all=false}={}) {
     if(!Number.isSafeInteger(after)||after<0||!Number.isInteger(limit)||limit<1||limit>50||!Number.isFinite(since)||!Number.isFinite(until)) throw new Error('Invalid history page');
     const rows=this.prepare(`SELECT id,role,text,created,conversation_id FROM history WHERE ${all?'1':'$scope'} AND user=? AND id>? AND created>=? AND created<=? ORDER BY id LIMIT ?`).all(user,after,since,until,limit+1);
