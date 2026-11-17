@@ -8,3 +8,4 @@
 - Added a synthetic check that routes a pinned Codex tool turn to a separate Docker executor over stdio, without model credentials or a live bot.
 - Added a host launcher for one networkless executor with fixed resource limits and container cleanup on normal exit or cancellation.
 - Added a private Unix socket route for trusted harnesses to reach the executor launcher without direct Docker access, with per-connection cleanup after a launcher crash.
+- Added a disposable authenticated acceptance check for a model-initiated scoped bridge read and shell call through the offline executor.
