@@ -273,6 +273,34 @@ particular grant, not mutual worker isolation. Do not expand autonomy or enable 
 option as production acceptance. The next gate is synthetic target-image validation,
 then separately authorized authenticated compatibility.
 
+### Separate executor check
+
+The pinned app server can select a separate stdio executor with its local
+environment disabled. `scripts/isolated-executor-proof.js` exercises this route
+from a Linux host with an anonymous app-server home and a fixed loopback model
+fixture. Run it with a clean process environment, the absolute path to the
+matching native Codex CLI, and an immutable local assistant image ID:
+
+```sh
+env -i PATH=/usr/bin:/bin node scripts/isolated-executor-proof.js \
+  /absolute/path/to/codex sha256:IMAGE_ID
+```
+
+The operator needs non-interactive Docker access through `sudo`. The fixture
+launches one unprivileged, networkless container with a read-only image, bounded
+tmpfs workspace, no host mounts and no Docker socket. It checks that the real
+app server selects the remote workspace, the local environment is unavailable,
+and a fixed shell tool returns a result from the executor without seeing the
+harness's synthetic local file. A separate mock provider fixture supplies the
+tool request and receives its result. No production bot, account token or model
+endpoint participates.
+
+This check qualifies the synthetic stdio route only. Production activation
+requires a dedicated launcher with an enforced image, per-run process and storage
+limits, verified executor cleanup, scoped data transfer, and authenticated
+Codex and assistant bridge acceptance. The proof launcher must stay out of
+ordinary agent capabilities.
+
 ## Migration, backup and rollback
 
 Startup adds action_approvals without rewriting existing tasks, schedules or
