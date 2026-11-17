@@ -34,6 +34,7 @@ export function config(env = process.env) {
     isolatedResearchExecutor:env.ISOLATED_RESEARCH_EXECUTOR==='true',
     isolatedInternalReviews:env.ISOLATED_INTERNAL_REVIEWS==='true',
     isolatedWorkerFiles:env.ISOLATED_WORKER_FILES==='true',
+    isolatedDeepResearch:env.ISOLATED_DEEP_RESEARCH==='true',
     workspace: path.resolve(env.WORKSPACE_DIR || './workspace'), codexHome: path.resolve(env.CODEX_HOME || './.codex-data'),
     seedDir: env.SEED_DIR ? path.resolve(env.SEED_DIR) : undefined,
     pluginsFile: env.PLUGINS_FILE ? path.resolve(env.PLUGINS_FILE) : env.SEED_DIR ? path.resolve(env.SEED_DIR,'plugins.json') : undefined,

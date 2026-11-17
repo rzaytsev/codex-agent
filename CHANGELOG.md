@@ -12,3 +12,4 @@
 - Added an opt-in isolated route for regular research with a remote-only executor and a read-scoped bridge on trusted loopback HTTP.
 - Added a separate opt-in to run memory, learning, and research-draft reviews in the offline executor while preserving their schema-only results.
 - Added an opt-in ordinary worker route that copies an assigned attachment into the offline executor and delivers named outputs through the immutable artifact outbox.
+- Added an opt-in offline executor for deep research collection with public-source fetching and report export handled by the service.

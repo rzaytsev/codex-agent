@@ -13,7 +13,8 @@ export const isolatedResearchDefinition = Object.freeze({
 });
 
 export function usesIsolatedResearch(cfg, profile, review) {
-  if (!review) return profile === 'research' && cfg.isolatedResearchExecutor === true;
+  if (!review) return profile === 'research' && cfg.isolatedResearchExecutor === true ||
+    profile === 'deep_research' && cfg.isolatedDeepResearch === true;
   return cfg.isolatedInternalReviews === true && ['research', 'review'].includes(profile) &&
     [true, 'learning', 'learning-validation', 'research-validation'].includes(review);
 }

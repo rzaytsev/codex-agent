@@ -97,6 +97,14 @@ Existing worker concurrency, timeout and logical-run budgets apply to collection
 review and export. Review uses the review model/reasoning settings. No API billing
 or alternate model-provider fallback is introduced.
 
+`ISOLATED_DEEP_RESEARCH=true` uses the protected remote executor for deep
+research collection. Cached search supplies discovery and the existing
+`research_fetch` service tool fetches public source evidence without browser
+cookies or worker credentials. The service owns evidence storage, review and
+report export. Browser tools and direct worker network access are unavailable
+on this route. Keep the existing route for deployments that need browser
+discovery.
+
 Pandoc, LibreOffice and Poppler already in the image produce and check PDFs.
 Reports preserve request language; document layout needs visual inspection during
 rollout. `templates/RESEARCH.md` appends a uniquely headed section to existing
