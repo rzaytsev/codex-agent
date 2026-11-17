@@ -146,7 +146,7 @@ test('restricted profile hashes stable reviewed policy and scoped registry witho
  for(let i=0;i<2;i++)await agent.run('123','Synthetic research','research');
  const hashes=store.db.prepare('SELECT payload FROM attempt_observations').all().map(row=>JSON.parse(row.payload).toolsHash);
  const expected=createHash('sha256').update(JSON.stringify({assistant:reviewedActionBundle({worker:true,memoryReview:false,toolScope:'read',group:false}),browser:false,policyVersion:cfg.actionPolicy.version,execution:restrictedReadDefinition})).digest('hex');
- assert.equal(expected,'db6405f6ad373f8beef19b9e672de8fc637e1c4809619c2b3bfc776c7d40c50e');
+ assert.equal(expected,'69e7b2c7aada83f91536dfdc65b92ab605c77d9e9d003668cd0ce0861deb8c3b');
  assert.deepEqual(hashes,[expected,expected]);
  for(const {options,threadOptions} of calls){
   assert.equal(options.env.CODEX_HOME,cfg.codexHome);assert.equal(options.env.PYTHONPATH,undefined);assert.equal(options.env.UV_CACHE_DIR,undefined);
