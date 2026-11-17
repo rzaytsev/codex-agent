@@ -224,6 +224,12 @@ investigate the target runner before retrying. A passing receipt covers only
 these fixtures. Authenticated Codex and MCP compatibility, browser/native tool
 containment and network policy need their own acceptance checks.
 
+Linux runs a POSIX shell fixture. An offline Debian guest using the pinned
+runtime passed the restricted shell fixture, with the built-in read-only profile
+as a negative control. An equivalent sandboxed Node command did not produce
+output in that guest. This result covers the Linux shell fixture. The deployment
+container still requires its own passing check before activating the profile.
+
 ### Disposable actual-CLI canary
 
 Run `node scripts/isolation-probe.js --mode=builtin` (also the default) or
