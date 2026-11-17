@@ -1,5 +1,15 @@
 # Design decisions
 
+## Main conversation isolation preview
+
+Reuse the offline executor for each main turn and let the service supply the
+active session's recent context. Keep delivery and durable history with the
+service. Use typed owner-turn brokers for static public text and fixed provider
+lookups. Keep this mode disabled on live instances that still depend on
+interactive or authenticated tools without an equivalent broker. Verify normal
+replies, follow-ups, resets, and active delivery surfaces before cutover. See
+[conversations](conversations.md#experimental-isolated-main-chat).
+
 ## Private Telegram topic conversations (2026-10-10)
 
 Follow BotFather's `getMe.has_topics_enabled` capability instead of introducing a

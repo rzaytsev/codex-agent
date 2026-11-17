@@ -30,7 +30,11 @@ export function config(env = process.env) {
     if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/'||!env.MAILBOX_TOKEN||env.MAILBOX_TOKEN.length<32||!/^[a-z][a-z0-9-]{0,63}$/.test(env.MAILBOX_ID||'')||allowed.size!==1)throw new Error('Invalid mailbox configuration');
     mail={url:url.origin,token:env.MAILBOX_TOKEN,id:env.MAILBOX_ID};
   }
-  return { token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
+  const isolatedMainChat=env.ISOLATED_MAIN_CHAT==='true';
+  if(isolatedMainChat&&['ISOLATED_WORKER_FILES','ISOLATED_RESEARCH_EXECUTOR','ISOLATED_INTERNAL_REVIEWS','ISOLATED_DEEP_RESEARCH'].some(key=>env[key]!=='true'))throw new Error('Isolated main chat requires isolated workers and reviews');
+  const mapsBroker=env.BROKER_GOOGLE_MAPS==='true';
+  if(mapsBroker&&!env.GOOGLE_MAPS_API_KEY)throw new Error('Maps broker credential unavailable');
+  return { isolatedMainChat, mapsBroker, mapsKey:mapsBroker?env.GOOGLE_MAPS_API_KEY:undefined, token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
     actionPolicy:actionPolicy(env.ACTION_POLICY,integer('ACTION_APPROVAL_TTL_SECONDS',600,30,3600)), readOnlyWorkspacePrototype:env.READ_ONLY_WORKSPACE_PROTOTYPE==='true', restrictedReadProfilePrototype:env.RESTRICTED_READ_PROFILE_PROTOTYPE==='true',
     isolatedResearchExecutor:env.ISOLATED_RESEARCH_EXECUTOR==='true',
     isolatedInternalReviews:env.ISOLATED_INTERNAL_REVIEWS==='true',
@@ -41,7 +45,7 @@ export function config(env = process.env) {
     pluginsFile: env.PLUGINS_FILE ? path.resolve(env.PLUGINS_FILE) : env.SEED_DIR ? path.resolve(env.SEED_DIR,'plugins.json') : undefined,
     pluginsFileRequired: Boolean(env.PLUGINS_FILE),
     pythonBase: env.WORKSPACE_PYTHON_BASE || '',
-    cleanupEnabled: env.CLEANUP_ENABLED !== 'false', cleanupCron: cron('CLEANUP_CRON','0 3 * * *'),
+    cleanupEnabled: !isolatedMainChat && env.CLEANUP_ENABLED !== 'false', cleanupCron: cron('CLEANUP_CRON','0 3 * * *'),
     memoryEnabled: env.MEMORY_ENABLED !== 'false', memoryCrons:{daily:cron('MEMORY_DAILY_CRON','15 3 * * *'),weekly:cron('MEMORY_WEEKLY_CRON','45 3 * * 0')}, memoryMaxBatches:integer('MEMORY_MAX_BATCHES',4,1,20),
     learningEnabled: env.LEARNING_ENABLED !== 'false', learningCron:cron('LEARNING_CRON','30 3 * * *'), learningMaxBatches:integer('LEARNING_MAX_BATCHES',2,1,10),
     browserEnabled: env.BROWSER_ENABLED !== 'false', browserExecutable: env.BROWSER_EXECUTABLE || '/usr/bin/chromium',

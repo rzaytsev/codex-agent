@@ -4,7 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { validateAction } from './action-registry.js';
+import {mainBrokers,mapsLookup,readPublicPage} from './main-brokers.js';
+import { actionAvailable, validateAction } from './action-registry.js';
 import { ActionApprovals } from './action-policy.js';
 import { assistantMcp } from './mcp-tools.js';
 import { randomUUID } from 'node:crypto';
@@ -144,6 +145,7 @@ export class Service {
   learningJob(id) {return JSON.parse(this.store.get(`learning-job:${id}`)||'null');}
   memoryJob(id) {return JSON.parse(this.store.get(`memory-job:${id}`)||'null');}
   idleMaintenance(job) {return job.prompt.startsWith('[CLEANUP]')||Boolean(this.memoryJob(job.id))||Boolean(this.learningJob(job.id));}
+  mainBrokers() {const privateChat=!this.cfg.group&&!this.cfg.topic;return {maps:privateChat&&this.cfg.mapsBroker===true,browser:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserEnabled!==false};}
   async listen(port=8765) {
     this.server=http.createServer(async(req,res)=>{
       res.setHeader('content-type','application/json');
@@ -154,7 +156,7 @@ export class Service {
         let body='';for await(const part of req) {body+=part;if(body.length>100000) throw new Error('Request too large');}
         const parsed=JSON.parse(body),token=req.headers.authorization?.replace(/^Bearer /,'');const target=this.conversations?.routes?.get(token)||this;
         if(req.url==='/mcp') {
-          const server=assistantMcp({group:Boolean(target.cfg.group),worker:cap.worker,memoryReview:cap.memoryReview,toolScope:cap.toolScope,invoke:(name,args)=>{
+          const server=assistantMcp({group:Boolean(target.cfg.group),worker:cap.worker,memoryReview:cap.memoryReview,toolScope:cap.toolScope,brokers:target.mainBrokers(),invoke:(name,args)=>{
             if(this.capabilities.get(token)!==cap)throw new Error('Capability revoked');return target.tool(cap,name,args);
           }});
           const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
@@ -169,7 +171,7 @@ export class Service {
   }
   async tool(cap,name,args={}) {
     const checked=validateAction(cap,name,args),action=checked.action;
-    if(this.cfg.group&&action.dmOnly||this.cfg.actionPolicy?.matrix[action.category]==='deny')throw new Error('Policy denied');
+    if(!actionAvailable(name,this.mainBrokers())||this.cfg.group&&action.dmOnly||this.cfg.actionPolicy?.matrix[action.category]==='deny')throw new Error('Policy denied');
     const operationSignal=cap.signal?AbortSignal.any([cap.signal,AbortSignal.timeout(action.timeoutMs)]):AbortSignal.timeout(action.timeoutMs);
     bindBudgetSignal(operationSignal,this.store.observations,cap.observationRun);
     const result=await this.invokeTool(cap,name,checked.args,operationSignal);
@@ -188,6 +190,13 @@ export class Service {
     if(this.cfg.topic&&(!this.conversations?.topicsEnabled||this.cfg.topic.state!=='active'||cap.actorId!==this.cfg.owner))throw new Error('Owner topic capability unavailable');
     cap.toolCounts??={};cap.toolCounts.total=(cap.toolCounts.total||0)+1;
     this.store.observations.tool(cap.observationRun,name);
+    const broker=mainBrokers.get(name);
+    if(broker) {
+      if(cap.worker||cap.memoryReview||!this.mainBusy||cap.inputId===undefined||cap.inputId!==this.mainInput||cap.actorId!==this.cfg.owner||!cap.owner||!cap.conversationId||!actionAvailable(name,this.mainBrokers())||!this.store.prepare("SELECT id FROM inputs WHERE $scope AND id=? AND user=? AND state='processing'").get(cap.inputId,user))throw new Error('Active private chat required');
+      cap.toolCounts[name]=(cap.toolCounts[name]||0)+1;
+      if(cap.toolCounts[name]>broker.limit)throw new Error('Lookup limit for this reply');
+      return broker.kind==='maps'?mapsLookup(name,args,this.cfg.mapsKey,signal):readPublicPage(args.url,signal,{allowedHosts:this.cfg.researchAllowedHosts});
+    }
     switch(name) {
       case 'stream_reply': return this.streams.append(cap,args);
       case 'ask_clarification': await this.streams.pause();return this.controls.clarify(args);
@@ -245,9 +254,11 @@ export class Service {
         if(args.acknowledgment!==undefined&&(typeof args.acknowledgment!=='string'||!args.acknowledgment.trim()||args.acknowledgment.length>240)) throw new Error('Invalid acknowledgment');
         const settings=this.effectiveSettings(args.profile||'worker',args.settings,cap.toolScope);
         if(settings.model)settings.model=settings.model.trim();
-        if(args.execution&&(!this.cfg.isolatedWorkerFiles||(args.profile||'worker')!=='worker'))throw new Error('Offline worker unavailable');
-        if(args.use_attachment&&(!args.execution||!cap.attachment||cap.inputId===undefined))throw new Error('No current task attachment');
-        const taskFiles=args.execution?{attachment:args.use_attachment?cap.attachment:null}:undefined;
+        const profile=args.profile||'worker';
+        const offline=Boolean(args.execution)||this.cfg.isolatedMainChat&&profile==='worker';
+        if(offline&&(!this.cfg.isolatedWorkerFiles||(args.profile||'worker')!=='worker'))throw new Error('Offline worker unavailable');
+        if(args.use_attachment&&(!offline||!cap.attachment||cap.inputId===undefined))throw new Error('No current task attachment');
+        const taskFiles=offline?{attachment:args.use_attachment?cap.attachment:null}:undefined;
         const payload={...(taskFiles?{taskFiles}:{}),user,actor:cap.actorId||user,parentScope:cap.toolScope||'conversation',prompt:args.prompt.trim(),profile:args.profile||'worker',settings,title:args.title?.trim(),acknowledgment:args.acknowledgment?.trim()};
         return this.store.admit(this.cfg.owner||user,'task',args.request_key===undefined?undefined:requestKey(args.request_key),payload,()=>{
           const id=this.store.job(user,payload.prompt,payload.profile);
@@ -560,7 +571,7 @@ export class Service {
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
-    } finally {try {await this.streams.end(input);}catch {console.error('Reply preview settlement failed; details suppressed');}try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;}
+    } finally {try {await this.streams.end(input);}catch {console.error('Reply preview settlement failed; details suppressed');}try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;this.mainInput=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;
@@ -579,6 +590,7 @@ export class Service {
           });continue;
         }
       }
+      if(this.cfg.isolatedMainChat&&job.prompt.startsWith('[CLEANUP]')) {this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=? AND state='queued'").run(job.id);continue;}
       if(this.idleMaintenance(job)&&!allowMaintenance)continue;
       if(this.idleMaintenance(job)&&(this.mainBusy||this.controllers.size||this.store.prepare("SELECT id FROM inputs WHERE $scope AND state='pending' LIMIT 1").get())) continue;
       if(!this.cfg.allowed.has(job.user)||this.cfg.group&&job.actor_id!==this.cfg.owner||(this.learningJob(job.id)&&!this.cfg.learningEnabled)||(!this.cfg.proactive&&this.store.get(`review-coverage:${job.id}`))) {this.store.prepare("UPDATE jobs SET state='cancelled' WHERE $scope AND id=?").run(job.id);continue;}
@@ -604,7 +616,7 @@ export class Service {
       if(this.cfg.group&&!(await fs.realpath(dir)).startsWith(await fs.realpath(this.cfg.workspace)+path.sep))throw new Error('Task directory escaped conversation');
       if(job.profile==='deep_research')this.research.admit(job.id,job.prompt,this.store.get(`task-title:${job.id}`));
       const scope={sessionId:job.session_id,actorId:job.actor_id};
-      const assignment=JSON.parse(this.store.get(`task-files:${job.id}`)||'null');
+      const assignment=JSON.parse(this.store.get(`task-files:${job.id}`)||'null')||(this.cfg.isolatedMainChat&&job.profile==='worker'?{}:null);
       const captured=[];
       const taskFiles=assignment?{
         input:assignment.attachment?{

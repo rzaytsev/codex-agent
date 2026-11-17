@@ -40,6 +40,14 @@ directories. Public skills are read-only; private learning remains in the select
 instance. The source-access helper grants only container-root read/search access,
 preserves other effective ACL permissions and requires a private rollback snapshot.
 
+The experimental main-chat brokers require the active private root conversation,
+its owner actor, and its current session and processing input. They are absent
+from worker, review and read-only turns. The Maps broker uses fixed provider
+endpoints and a bounded response. Static page reading uses the public research
+fetch policy, including redirect checks and the optional host allowlist. It does
+not run scripts, load cookies or grant a browser session. Full main-chat cutover
+still needs compatibility checks for interactive and authenticated workflows.
+
 ## Failure and cancellation contracts
 
 Inputs, jobs, schedules and outgoing messages are durable SQLite records. On

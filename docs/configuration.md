@@ -44,8 +44,15 @@ by chat/topic while sharing owner knowledge and workspace. See
 | MEMORY_MAX_BATCHES | 4; range 1–20 per maintenance pass |
 | WHISPER_MODEL / WHISPER_LANGUAGE | base / automatic language; first download needs network |
 | TTS_VOICE | en; eSpeak voice, e.g. en/es/ru; synthetic speech |
+| ISOLATED_MAIN_CHAT | false; experimental. Requires `ISOLATED_WORKER_FILES`, `ISOLATED_RESEARCH_EXECUTOR`, `ISOLATED_INTERNAL_REVIEWS`, and `ISOLATED_DEEP_RESEARCH` to be true |
+| BROKER_GOOGLE_MAPS | false; requires `GOOGLE_MAPS_API_KEY`. Moves Maps lookups to the service and omits the key from model subprocess environments |
 | GOOGLE_MAPS_API_KEY | Empty; optional Google Places/Routes, separately billed |
 | BROWSER_ENABLED / BROWSER_EXECUTABLE | true / /usr/bin/chromium |
+
+Keep `ISOLATED_MAIN_CHAT` off on instances that need interactive browsing,
+credentialed shell tools, or ordinary workers with live network or shared workspace
+access. The isolated route also pauses automatic workspace cleanup. See
+[experimental isolated main chat](conversations.md#experimental-isolated-main-chat).
 
 Reasoning parser accepts minimal, low, medium, high, xhigh, max and ultra; that is
 not proof every model supports every level. Boolean flags are disabled by the

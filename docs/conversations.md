@@ -41,6 +41,21 @@ bot owners remains. Normal model code retains the instance's granted filesystem
 and account access; conversation routing is not a filesystem security boundary.
 Authentication challenges and mailbox acceptance remain in the owner DM.
 
+## Experimental isolated main chat
+
+`ISOLATED_MAIN_CHAT=true` runs each main turn in a fresh offline executor. The
+service supplies a bounded tail from the active session and continues delivering
+replies and task artifacts through its existing outbox. Resetting the session
+clears the automatic tail. An assigned attachment can be passed to an offline
+worker through the existing task handoff. Ordinary workers on this route have no
+live network or shared workspace access; automatic workspace cleanup is paused.
+
+In the private root chat, `BROKER_GOOGLE_MAPS=true` enables typed nearby and route
+lookups using a service-held key. The isolated route offers `browser_read` for
+static public text when browsing is enabled. Rendered pages, browser actions,
+and authenticated browsing require a separate route. Test those workflows and
+any private application integrations before enabling isolation on an instance.
+
 ## Private Telegram topics
 
 Enable Threaded Mode in BotFather for the bot. Telegram clients present private
