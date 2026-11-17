@@ -9,7 +9,9 @@ Scripts are beside this file in `scripts/`. In the Docker agents this skill is m
 
 ## Google places and travel times
 
-Use `scripts/google_nearby.py` for Google ratings, review counts, opening hours and real route estimates. It reads `GOOGLE_MAPS_API_KEY` from the environment; never print the key or read instance env/auth files. The key needs Google Places API (New) and Routes API enabled. Requests use the Google account's API billing, separately from Codex subscription usage. Each invocation performs one places request and up to `--limit` route requests; keep limits proportional to the user's request.
+When `maps_nearby` and `maps_route` are available, use those tools. Pass `center`, `radius_m` and optional `types` and `limit` to `maps_nearby`; pass `origin`, `destination` and `mode` to `maps_route` only for shortlisted places. Coordinates are objects with `latitude` and `longitude`. The service supplies the credential. Filter the returned places by the user’s criteria and build directions links from the selected place and coordinates. If the tools report an error, explain the limitation without looking for the key or working around the broker.
+
+On the legacy route with direct Maps access, use `scripts/google_nearby.py` for Google ratings, review counts, opening hours and real route estimates. It reads `GOOGLE_MAPS_API_KEY` from the environment; never print the key or read instance env/auth files. The key needs Google Places API (New) and Routes API enabled. Requests use the Google account's API billing, separately from Codex subscription usage. Each invocation performs one places request and up to `--limit` route requests; keep limits proportional to the user's request.
 
 ```sh
 python3 /workspace/.agents/skills/google-maps/scripts/google_nearby.py 40.4168 -3.7038 cafe --radius 1500 --limit 5 --mode WALK --open-now --language es
@@ -17,13 +19,13 @@ python3 /workspace/.agents/skills/google-maps/scripts/google_nearby.py 40.4168 -
 
 Arguments: latitude, longitude, Google place type; optional `--radius` (meters, up to 50000), `--limit` (1–10), `--mode` (`WALK`, `DRIVE`, `BICYCLE`, `TRANSIT`), `--open-now`, `--min-rating`, `--min-reviews`, `--language`, `--region`.
 
-An explicit place in the current request takes precedence. Otherwise use assistant MCP `location_get`: it selects the user's temporary Telegram location for 12 hours, then the default location. Mention when using the default; if neither exists, ask. Never use older Telegram pins from history/inbox as a current-location fallback. Use `location_set_default` only when explicitly asked to change the usual location. Geocode ambiguous addresses with the open-data helper and disambiguate before searching. The current ranking favors open venues, then a rating score weighted by review count; it is not a shortest-route ranking. Keep hours and availability qualified by retrieval time. Do not claim bookings, live transit departures or guaranteed accessibility from these results.
+An explicit place in the current request takes precedence. Otherwise use assistant MCP `location_get`: it selects the user's temporary Telegram location for 12 hours, then the default location. Mention when using the default; if neither exists, ask. Never use older Telegram pins from history/inbox as a current-location fallback. Use `location_set_default` only when explicitly asked to change the usual location. If an address needs geocoding, use the open-data helper only on a route where networked shell access is expected. Otherwise ask for a map pin or coordinates. Disambiguate before searching. The legacy helper ranks open venues first, then uses a rating score weighted by review count. Keep hours and availability qualified by retrieval time. Do not claim bookings, live transit departures or guaranteed accessibility from these results.
 
 Present concise options with rating/review count, hours when known, travel estimate with mode, and clickable Maps/directions links from the returned JSON. Distinguish road travel estimates from straight-line distances.
 
 ## Open-data helper
 
-If Google access is unavailable, report that limitation and use `scripts/maps_client.py` for OpenStreetMap/Nominatim geocoding and Overpass POIs. These are open-data results with Google Maps links, not Google Places ratings or reviews.
+If Google access is unavailable, report that limitation. On a route with networked shell access, use `scripts/maps_client.py` for OpenStreetMap/Nominatim geocoding and Overpass POIs. These are open-data results with Google Maps links, not Google Places ratings or reviews.
 
 ```sh
 python3 /workspace/.agents/skills/google-maps/scripts/maps_client.py search "Puerta del Sol, Madrid, Spain"
