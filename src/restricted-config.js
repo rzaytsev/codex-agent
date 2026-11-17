@@ -28,7 +28,8 @@ export function validateRestrictedConfiguration(config,assistant) {
  const policy=config?.shell_environment_policy;
  if(!exact(policy,{inherit:'none',set:restrictedShellEnvironment,ignore_default_excludes:true,exclude:[],include_only:['PATH','LANG'],experimental_use_profile:false},{filters:null}))throw rejected();
  if(!object(config.mcp_servers)||!isDeepStrictEqual(Object.keys(config.mcp_servers),['assistant']))throw rejected();
- if(!exact(config.mcp_servers.assistant,assistant,reviewedMcpDefaults))throw rejected();
+ const defaults=assistant.url?{environment_id:'local',enabled:true,tool_timeout_sec:null}:reviewedMcpDefaults;
+ if(!exact(config.mcp_servers.assistant,assistant,defaults))throw rejected();
  if(config.analytics?.enabled!==false||!object(config.otel)||['exporter','trace_exporter','metrics_exporter'].some(k=>config.otel[k]!=='none'))throw rejected();
  for(const key of ['apps','plugins','hooks','multi_agent','multi_agent_v2','remote_control'])if(config.features?.[key]!==false)throw rejected();
  if(config.agents?.enabled!==false||config.allow_login_shell!==false)throw rejected();

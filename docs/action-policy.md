@@ -343,6 +343,40 @@ insufficient. The operator must separately confirm worker cleanup and remove the
 disposable harness. This check does not install a live integration or change any
 bot's default tool routing.
 
+### Opt-in regular research
+
+`compose.isolated-research.yaml` selects the executor for regular research only.
+Main chats, ordinary workers, deep research and internal reviews retain their
+current routes. The original Codex home stays in place for login and ordinary
+chat continuity. Research uses a separate tmpfs Codex home and a symlink to the
+current login through a read-only directory mount. A login file replaced by the
+existing authentication flow is visible on the next research turn. Rotation has
+no file-copy step. A substituted login link fails the research request.
+
+The operator supplies immutable `config.toml` and `environments.toml` files in
+`RESEARCH_EXECUTOR_ROUTING_DIR`. `config.toml` contains exactly the line
+`# Operator-owned isolated research config` followed by a newline. For the
+standard Linux image, `environments.toml` contains the following. Keep the final
+newline and verify the image's Node path before staging.
+
+```toml
+default="isolated-worker"
+include_local=false
+[[environments]]
+id="isolated-worker"
+program="/usr/local/bin/node"
+args=["/app/scripts/isolated-executor-stdio.js","/run/codex-agent-executor/stdio.sock"]
+```
+
+The route requires read-only mounts for both configuration files, the login
+directory and the executor socket directory. It checks the exact configuration
+and the pinned CLI's effective shell environment and HTTP MCP configuration.
+It starts fresh threads without a local execution fallback. The scoped bridge
+is held on the service's loopback endpoint. Research can return text; files and
+presentations from the offline executor do not enter the host artifact flow.
+Missing mounts, a rejected configuration or unavailable executor fail the
+research turn. Remove the optional overlay to roll back the route.
+
 ## Migration, backup and rollback
 
 Startup adds action_approvals without rewriting existing tasks, schedules or

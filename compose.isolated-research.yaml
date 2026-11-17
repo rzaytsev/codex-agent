@@ -1,0 +1,28 @@
+# Optional operator overlay. Keep each protected source outside the workspace.
+services:
+  assistant:
+    environment:
+      ISOLATED_RESEARCH_EXECUTOR: "true"
+    tmpfs:
+      - /run/codex-research:size=256m,mode=0700
+    volumes:
+      - type: bind
+        source: ${RESEARCH_EXECUTOR_ROUTING_DIR:?Set protected routing directory}/environments.toml
+        target: /run/codex-research/environments.toml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${RESEARCH_EXECUTOR_ROUTING_DIR:?Set protected routing directory}/config.toml
+        target: /run/codex-research/config.toml
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ${CODEX_HOST_PATH:?Set instance Codex path}
+        target: /run/codex-research-auth
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: /run/codex-agent-executor
+        target: /run/codex-agent-executor
+        read_only: true
+        bind: {create_host_path: false}
