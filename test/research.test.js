@@ -151,3 +151,36 @@ test('public-source streaming enforces size and follows bounded public redirects
  const request=(_url,_options,onResponse)=>{calls++;const req=new EventEmitter();req.setTimeout=()=>{};req.end=()=>{const res=new EventEmitter();res.statusCode=200;res.headers={'content-type':'text/plain'};res.destroy=()=>{};onResponse(res);res.emit('data',Buffer.alloc(SOURCE_MAX_BYTES+1));res.emit('end');};return req;};
  await assert.rejects(fetchResearchSource('https://example.org/',undefined,{lookup,request}),/too large/);assert.equal(calls,1);
 });
+test('research host allowlist rejects out-of-scope destinations before DNS on every hop',async()=>{
+ const {researchAllowedHosts:allowedHosts}=config({RESEARCH_ALLOWED_HOSTS:' EXAMPLE.ORG., second.example.org'});
+ assert.deepEqual([...allowedHosts],['example.org','second.example.org']);
+ for(const value of ['*.example.org','https://example.org','example.org:443','192.0.2.1','example.org,']) {
+   assert.throws(()=>config({RESEARCH_ALLOWED_HOSTS:value}),/Invalid RESEARCH_ALLOWED_HOSTS/);
+ }
+ for(const address of ['192.0.2.1','198.51.100.1','203.0.113.1','2001:2::1','2002::1','3fff::1']) {
+   assert.equal(publicAddress(address),false);
+ }
+ assert.equal(publicAddress('2606:4700::1'),true);
+ const lookedUp=[],requested=[];
+ const lookup=async host=>{lookedUp.push(host);return [{family:4,address:'93.184.216.34'}];};
+ const request=(url,_options,respond)=>{
+   requested.push(url.href);
+   const req=new EventEmitter();req.setTimeout=()=>{};
+   req.end=()=>{
+     const response=new EventEmitter();response.resume=()=>{};
+     if(url.hostname==='example.org') {
+       response.statusCode=302;response.headers={location:'https://second.example.org/'};
+     } else {
+       response.statusCode=302;response.headers={location:'https://www.example.org/'};
+     }
+     respond(response);
+   };
+   return req;
+ };
+ await assert.rejects(fetchResearchSource('https://example.org/',undefined,{lookup,request,allowedHosts}),/outside the allowlist/);
+ assert.deepEqual(lookedUp,['example.org','second.example.org']);
+ assert.deepEqual(requested,['https://example.org/','https://second.example.org/']);
+ await assert.rejects(fetchResearchSource('https://other.example.org/',undefined,{lookup,request,allowedHosts}),/outside the allowlist/);
+ assert.equal(lookedUp.length,2);
+ assert.equal(requested.length,2);
+});

@@ -75,6 +75,12 @@ metadata. Inaccessible, oversized, unsupported or textless documents are recorde
 as unavailable. Scanned PDFs, paywalls, login and CAPTCHA barriers are disclosed;
 browser discovery does not make an unavailable document verified evidence.
 
+Set `RESEARCH_ALLOWED_HOSTS` to a comma-separated list of exact public DNS names
+to limit the source broker. Each requested and redirected hostname is checked
+before DNS or HTTP. An empty setting preserves general public research. This
+setting scopes `research_fetch`. Cached model discovery and the optional browser
+have their own network paths.
+
 The service matches normalized quotes to retained text. This proves that a passage
 exists in the snapshot, not that its interpretation is correct. Independent model
 review assesses the supplied passages and draft, not an independent full-corpus

@@ -92,7 +92,7 @@ export class Research {
     const id=randomUUID(),directory=await this.directory(d.id),temporary=path.join(directory,'source-'+id+'.download');
     let response,text='',extractedTitle='',access=args.access,bytesHash=null,truncated=false;
     try {
-      response=await this.fetchSource(url,signal);signal?.throwIfAborted();
+      response=await this.fetchSource(url,signal,{allowedHosts:this.cfg.researchAllowedHosts});signal?.throwIfAborted();
       if(!Buffer.isBuffer(response.bytes)||response.bytes.length>SOURCE_MAX_BYTES)throw new Error('Source too large');
       sourceUrl(response.url);bytesHash=hash(response.bytes);
       await fs.writeFile(temporary,response.bytes,{flag:'wx',mode:0o600,signal});
