@@ -1,0 +1,34 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { config } from '../src/config.js';
+import { executorEnvironment, isReadOnlyMount, prepareResearchAuth } from '../src/isolated-research.js';
+
+test('executor opt-in and mount requirements fail closed', () => {
+  assert.equal(config({}).isolatedResearchExecutor, false);
+  assert.equal(config({ISOLATED_RESEARCH_EXECUTOR:'true'}).isolatedResearchExecutor, true);
+  const entry='12 1 8:1 /root /run/control/config.toml ro,relatime - ext4 /dev/root rw\n';
+  assert.equal(isReadOnlyMount(entry, '/run/control/config.toml'), true);
+  assert.equal(isReadOnlyMount(entry.replace(' ro,',' rw,'), '/run/control/config.toml'), false);
+  assert.equal(isReadOnlyMount(entry+entry, '/run/control/config.toml'), false);
+  assert.equal(isReadOnlyMount(entry, '/run/control'), false);
+  assert.match(executorEnvironment('/node','/connector','/socket'), /include_local=false/);
+});
+
+test('research auth follows atomic login rotation and rejects a copied or substituted file', async t => {
+  const root=await fs.mkdtemp('/tmp/isolated-research-auth-test-');
+  t.after(()=>fs.rm(root,{recursive:true,force:true}));
+  const source=path.join(root,'active-auth.json'), next=path.join(root,'replacement.json');
+  const link=path.join(root,'research-auth.json');
+  await fs.writeFile(source,'synthetic old login');
+  await prepareResearchAuth(link,source);
+  assert.equal(await fs.readFile(link,'utf8'),'synthetic old login');
+  await fs.writeFile(next,'synthetic rotated login');
+  await fs.rename(next,source);
+  await prepareResearchAuth(link,source);
+  assert.equal(await fs.readFile(link,'utf8'),'synthetic rotated login');
+  await fs.unlink(link);
+  await fs.writeFile(link,'synthetic stale login');
+  await assert.rejects(prepareResearchAuth(link,source));
+});
