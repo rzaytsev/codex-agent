@@ -5,24 +5,17 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { AccountClient } from '../src/codex-account.js';
 
-const [binary, image] = process.argv.slice(2);
-if (!path.isAbsolute(binary || '') || !/^sha256:[0-9a-f]{64}$/.test(image || '')) throw new Error('Expected an absolute CLI path and an immutable Docker image ID');
+const [binary, image, launcher] = process.argv.slice(2);
+if (!path.isAbsolute(binary || '') || !/^sha256:[0-9a-f]{64}$/.test(image || '') || !path.isAbsolute(launcher || '')) {
+  throw new Error('Expected absolute Codex and launcher paths and an immutable Docker image ID');
+}
 // The harness is anonymous. The caller must start it with a clean environment.
 const root = await mkdtemp('/tmp/runner-proof-');
 const quoted = JSON.stringify;
 const hostFixture = path.join(root, 'local-control');
-const runnerCommand = [
-  '/usr/bin/docker','run','--rm','-i','--pull','never','--network','none','--read-only',
-  '--init','--user','65534:65534','--label','codex-agent=synthetic-executor-proof',
-  '--cap-drop','ALL','--security-opt','no-new-privileges','--pids-limit','64','--memory','512m','--cpus','1',
-  '--tmpfs','/tmp:size=64m,mode=1777','--tmpfs','/workspace:size=16m,mode=1777',
-  '--env','HOME=/tmp','--env','CODEX_HOME=/tmp/worker-codex','--workdir','/workspace',
-  '--entrypoint','/usr/local/bin/node',image,
-  '/app/node_modules/@openai/codex/bin/codex.js','exec-server','--listen','stdio',
-];
 const config = [
   'default = "isolated-worker"', 'include_local = false', '[[environments]]', 'id = "isolated-worker"',
-  'program = "/usr/bin/sudo"', `args = ${quoted(['-n', ...runnerCommand])}`,
+  'program = "/usr/bin/sudo"', `args = ${quoted(['-n', launcher, image])}`,
 ].join('\n');
 let client;
 let requests=0;

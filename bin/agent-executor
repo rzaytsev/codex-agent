@@ -1,0 +1,56 @@
+#!/bin/sh
+# Host-side launcher for one networkless Codex executor. Stdin and stdout are RPC.
+set -eu
+umask 077
+
+if [ "$#" -ne 1 ] || ! printf '%s\n' "$1" | /usr/bin/grep -Eq '^sha256:[a-f0-9]{64}$'; then
+    printf '%s\n' 'Expected one immutable assistant image ID' >&2
+    exit 2
+fi
+image=$1
+scratch=$(/usr/bin/mktemp -d /tmp/codex-agent-executor.XXXXXXXX)
+name=${scratch##*/}
+created=false
+attach_pid=
+
+docker() { /usr/bin/timeout -k 2s 15s /usr/bin/docker --host unix:///var/run/docker.sock --config "$scratch" "$@"; }
+
+cleanup() {
+    result=$?
+    trap - EXIT INT TERM HUP
+    if [ -n "$attach_pid" ]; then
+        kill "$attach_pid" 2>/dev/null || true
+        wait "$attach_pid" 2>/dev/null || true
+    fi
+    if [ "$created" = true ] && ! docker rm -f "$name" >/dev/null; then
+        printf '%s\n' 'Executor container cleanup was not confirmed' >&2
+        result=1
+    fi
+    /bin/rm -rf -- "$scratch"
+    exit "$result"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+docker create --name "$name" --label codex-agent=isolated-executor --interactive \
+    --pull never --network none --read-only --init --user 65534:65534 \
+    --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 \
+    --memory 512m --cpus 1 --log-driver none \
+    --tmpfs /tmp:size=64m,mode=1777 --tmpfs /workspace:size=16m,mode=1777 \
+    --env HOME=/tmp --env CODEX_HOME=/tmp/worker-codex --workdir /workspace \
+    --entrypoint /usr/local/bin/node "$image" \
+    /app/node_modules/@openai/codex/bin/codex.js exec-server --listen stdio >/dev/null
+created=true
+
+# Preserve the RPC pipe when starting asynchronously so signal traps can run.
+exec 3<&0
+/usr/bin/timeout -k 5s 300s /usr/bin/docker --host unix:///var/run/docker.sock \
+    --config "$scratch" start -ai "$name" <&3 3<&- &
+attach_pid=$!
+exec 3<&-
+result=0
+wait "$attach_pid" || result=$?
+attach_pid=
+exit "$result"
