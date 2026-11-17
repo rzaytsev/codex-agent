@@ -345,9 +345,12 @@ bot's default tool routing.
 
 ### Opt-in regular research
 
-`compose.isolated-research.yaml` selects the executor for regular research only.
-Main chats, ordinary workers, deep research and internal reviews retain their
-current routes. The original Codex home stays in place for login and ordinary
+`compose.isolated-research.yaml` selects the executor for regular research.
+Set `ISOLATED_INTERNAL_REVIEWS=true` in the instance override to opt its
+read-only memory consolidation, learning and research-draft reviews into the
+same executor. Their structured results still go to the existing host reviewers.
+Main chats, ordinary workers and deep research retain their current routes. The
+original Codex home stays in place for login and ordinary
 chat continuity. Research uses a separate tmpfs Codex home and a symlink to the
 current login through a read-only directory mount. A login file replaced by the
 existing authentication flow is visible on the next research turn. Rotation has

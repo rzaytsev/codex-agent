@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../src/config.js';
-import { executorEnvironment, isReadOnlyMount, prepareResearchAuth } from '../src/isolated-research.js';
+import { executorEnvironment, isReadOnlyMount, prepareResearchAuth, usesIsolatedResearch } from '../src/isolated-research.js';
 
 test('executor opt-in and mount requirements fail closed', () => {
   assert.equal(config({}).isolatedResearchExecutor, false);
@@ -31,4 +31,21 @@ test('research auth follows atomic login rotation and rejects a copied or substi
   await fs.unlink(link);
   await fs.writeFile(link,'synthetic stale login');
   await assert.rejects(prepareResearchAuth(link,source));
+});
+
+test('internal review isolation is opt-in and limited to the existing read-only reviewers', () => {
+  const regular=config({ISOLATED_RESEARCH_EXECUTOR:'true'});
+  const both=config({ISOLATED_RESEARCH_EXECUTOR:'true',ISOLATED_INTERNAL_REVIEWS:'true'});
+  assert.equal(usesIsolatedResearch(regular,'research',false),true);
+  assert.equal(usesIsolatedResearch(regular,'research','learning'),false);
+  for(const mode of [true,'learning','learning-validation','research-validation']) {
+    assert.equal(usesIsolatedResearch(both,'research',mode),true);
+    assert.equal(usesIsolatedResearch(both,'review',mode),true);
+  }
+  for(const profile of ['main','worker','deep_research']) {
+    assert.equal(usesIsolatedResearch(both,profile,false),false);
+    assert.equal(usesIsolatedResearch(both,profile,'learning'),false);
+  }
+  assert.equal(usesIsolatedResearch(both,'review',false),false);
+  assert.equal(usesIsolatedResearch(both,'review','future-mode'),false);
 });
