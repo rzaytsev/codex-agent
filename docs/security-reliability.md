@@ -45,7 +45,10 @@ its owner actor, and its current session and processing input. They are absent
 from worker, review and read-only turns. The Maps broker uses fixed provider
 endpoints and a bounded response. Static page reading uses the public research
 fetch policy, including redirect checks and the optional host allowlist. It does
-not run scripts, load cookies or grant a browser session. Full main-chat cutover
+not run scripts, load cookies or grant a browser session. Public PDF downloads
+use the same fetch policy and are staged with the completed reply. The iCloud
+broker connects to the fixed TLS IMAP endpoint with a service-held credential,
+opens Inbox read-only and uses peek reads. It sends no SMTP commands. Full main-chat cutover
 still needs compatibility checks for interactive and authenticated workflows.
 
 ## Failure and cancellation contracts

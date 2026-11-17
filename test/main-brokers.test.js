@@ -4,18 +4,19 @@ import {config} from '../src/config.js';
 import {Store} from '../src/store.js';
 import {Service} from '../src/service.js';
 import {reviewedActionBundle,validateAction} from '../src/action-registry.js';
-import {mapsLookup,readPublicPage} from '../src/main-brokers.js';
+import {downloadPublicPdf,mapsLookup,readICloudInbox,readPublicPage} from '../src/main-brokers.js';
 
-const brokerNames = options=>reviewedActionBundle(options).map(a=>a.name).filter(n=>['maps_nearby','maps_route','browser_read'].includes(n));
+const brokerNames = options=>reviewedActionBundle(options).map(a=>a.name).filter(n=>['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_read'].includes(n));
 const origin={latitude:40,longitude:-3};
 const destination={latitude:41,longitude:-3};
 const route={origin,destination,mode:'WALK'};
 
 test('only an enabled normal main turn sees broker tools',()=>{
-  const brokers={maps:true,browser:true};
-  assert.deepEqual(brokerNames({brokers}),['maps_nearby','maps_route','browser_read']);
+  const brokers={maps:true,browser:true,icloud:true};
+  assert.deepEqual(brokerNames({brokers}),['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_read']);
   for(const scope of [{},{brokers,group:true},{brokers,worker:true},{brokers,memoryReview:true},{brokers,toolScope:'read'}])assert.deepEqual(brokerNames(scope),[]);
   assert.throws(()=>config({ISOLATED_MAIN_CHAT:'true'}),/requires isolated/);
+  assert.throws(()=>config({BROKER_ICLOUD_INBOX:'true'}),/credential unavailable/);
   assert.throws(()=>config({BROKER_GOOGLE_MAPS:'true'}),/credential unavailable/);
   assert.throws(()=>validateAction({},'maps_route',{...route,url:'https://example.test'}),/Invalid maps_route/);
 });
@@ -53,10 +54,11 @@ test('public browser read extracts visible text and uses the configured egress p
   const url='https://example.com/reference',allowedHosts=new Set(['example.com']),signal=AbortSignal.timeout(5000);
   const fetchSource=async(actual,actualSignal,options)=>{
     assert.equal(actual,url);assert.equal(actualSignal,signal);assert.equal(options.allowedHosts,allowedHosts);
-    return {url,mime:'text/html',bytes:Buffer.from('<html><head><title>Sample page</title></head><body><p>Visible fixture</p><script>PRIVATE_SCRIPT</script></body></html>')};
+    return {url,mime:'text/html',bytes:Buffer.from('<html><head><title>Sample page</title></head><body><p>Visible fixture</p><script>PRIVATE_SCRIPT</script><a href="/next">Next chapter</a><a href="mailto:nobody@example.com">Email</a><a href="https://other.example.com/">Off site</a></body></html>')};
   };
   const result=await readPublicPage(url,signal,{allowedHosts,fetchSource});
   assert.equal(result.url,url);assert.equal(result.title,'Sample page');assert.match(result.text,/Visible fixture/);assert.doesNotMatch(result.text,/PRIVATE_SCRIPT/);
+  assert.deepEqual(result.links,[{url:'https://example.com/next',label:'Next chapter'}]);
   await assert.rejects(readPublicPage(url,signal,{allowedHosts:new Set(['other.example.com'])}),/allowlist|allowed/i);
   await assert.rejects(readPublicPage(url,signal,{fetchSource:async()=>({mime:'application/pdf'})}),/Public text page required/);
 });
@@ -69,4 +71,33 @@ test('fresh main turns read only their current session while explicit history re
   store.history('123','user','Active session marker');
   assert.deepEqual(store.search('123','',0,{currentSession:true}).map(row=>row.text),['Active session marker']);
   assert.equal(store.search('123','Previous session marker').length,1);
+});
+
+test('iCloud bridge keeps credentials out of the command and returns only the helper result',async()=>{
+  const signal=AbortSignal.timeout(1000);
+  const credentials={user:'synthetic@example.test',password:'synthetic-app-password'};
+  const run=async(executable,args,options)=>{
+    assert.equal(executable,'python3');
+    assert.equal(args[1],'icloud_read');
+    assert.deepEqual(JSON.parse(args[2]),{uid:2,epoch:17});
+    assert.ok(!args.join(' ').includes(credentials.password));
+    assert.deepEqual(Object.keys(options.env).sort(),['ICLOUD_IMAP_PASSWORD','ICLOUD_IMAP_USER','PATH']);
+    assert.equal(options.signal,signal);
+    return {stdout:'{"uid":2,"text":"sample message"}'};
+  };
+  assert.deepEqual(await readICloudInbox('icloud_read',{uid:2,epoch:17},credentials,signal,run),{uid:2,text:'sample message'});
+  assert.throws(()=>validateAction({},'icloud_read',{uid:0,epoch:17}),/Invalid icloud_read/);
+  assert.throws(()=>validateAction({},'icloud_inbox',{limit:1,folder:'Sent'}),/Invalid icloud_inbox/);
+});
+
+test('public download accepts only a bounded PDF from the scoped fetcher',async()=>{
+  const url='https://example.com/public.pdf',allowedHosts=new Set(['example.com']),signal=AbortSignal.timeout(1000);
+  const bytes=Buffer.from('%PDF-1.3 synthetic');
+  const fetchSource=async(target,s,options)=>{
+    assert.equal(target,url);assert.equal(s,signal);assert.equal(options.allowedHosts,allowedHosts);
+    return {mime:'application/pdf',bytes};
+  };
+  assert.equal(await downloadPublicPdf(url,signal,{allowedHosts,fetchSource}),bytes);
+  await assert.rejects(downloadPublicPdf(url,signal,{fetchSource:async()=>({mime:'application/pdf',bytes:Buffer.from('not a PDF')})}),/Public PDF/);
+  assert.equal(validateAction({},'browser_download_pdf',{url}).action.category,'delivery');
 });

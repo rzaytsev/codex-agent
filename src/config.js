@@ -34,7 +34,10 @@ export function config(env = process.env) {
   if(isolatedMainChat&&['ISOLATED_WORKER_FILES','ISOLATED_RESEARCH_EXECUTOR','ISOLATED_INTERNAL_REVIEWS','ISOLATED_DEEP_RESEARCH'].some(key=>env[key]!=='true'))throw new Error('Isolated main chat requires isolated workers and reviews');
   const mapsBroker=env.BROKER_GOOGLE_MAPS==='true';
   if(mapsBroker&&!env.GOOGLE_MAPS_API_KEY)throw new Error('Maps broker credential unavailable');
-  return { isolatedMainChat, mapsBroker, mapsKey:mapsBroker?env.GOOGLE_MAPS_API_KEY:undefined, token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
+  const iCloudBroker=env.BROKER_ICLOUD_INBOX==='true';
+  if(iCloudBroker&&(!env.ICLOUD_IMAP_USER||!env.ICLOUD_IMAP_PASSWORD||!/^[a-zA-Z0-9_.+@-]+$/.test(env.ICLOUD_IMAP_USER)||!/^[a-zA-Z0-9-]+$/.test(env.ICLOUD_IMAP_PASSWORD)))throw new Error('iCloud inbox broker credential unavailable');
+  const iCloudInbox=iCloudBroker?{user:env.ICLOUD_IMAP_USER,password:env.ICLOUD_IMAP_PASSWORD}:undefined;
+  return { iCloudInbox, isolatedMainChat, mapsBroker, mapsKey:mapsBroker?env.GOOGLE_MAPS_API_KEY:undefined, token: env.TELEGRAM_BOT_TOKEN || '', allowed, owner:[...allowed][0], timezone, profiles, mail,
     actionPolicy:actionPolicy(env.ACTION_POLICY,integer('ACTION_APPROVAL_TTL_SECONDS',600,30,3600)), readOnlyWorkspacePrototype:env.READ_ONLY_WORKSPACE_PROTOTYPE==='true', restrictedReadProfilePrototype:env.RESTRICTED_READ_PROFILE_PROTOTYPE==='true',
     isolatedResearchExecutor:env.ISOLATED_RESEARCH_EXECUTOR==='true',
     isolatedInternalReviews:env.ISOLATED_INTERNAL_REVIEWS==='true',

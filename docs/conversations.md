@@ -52,9 +52,13 @@ live network or shared workspace access; automatic workspace cleanup is paused.
 
 In the private root chat, `BROKER_GOOGLE_MAPS=true` enables typed nearby and route
 lookups using a service-held key. The isolated route offers `browser_read` for
-static public text when browsing is enabled. Rendered pages, browser actions,
-and authenticated browsing require a separate route. Test those workflows and
-any private application integrations before enabling isolation on an instance.
+static public text and links when browsing is enabled. Follow links through the
+same policy. `browser_download_pdf` stages one requested public PDF up to 4 MiB
+with the final reply. Dynamic rendering, form submissions, screenshots and
+signed-in browsing still require a separate route. An opt-in iCloud tool lists
+recent Inbox headers and reads bounded plain text without marking messages as
+seen. It cannot change folders or flags, send mail, or access attachments.
+Test private application integrations before enabling isolation on an instance.
 
 ## Private Telegram topics
 

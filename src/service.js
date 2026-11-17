@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import {mainBrokers,mapsLookup,readPublicPage} from './main-brokers.js';
+import {downloadPublicPdf,mainBrokers,mapsLookup,readICloudInbox,readPublicPage} from './main-brokers.js';
 import { actionAvailable, validateAction } from './action-registry.js';
 import { ActionApprovals } from './action-policy.js';
 import { assistantMcp } from './mcp-tools.js';
@@ -145,7 +145,7 @@ export class Service {
   learningJob(id) {return JSON.parse(this.store.get(`learning-job:${id}`)||'null');}
   memoryJob(id) {return JSON.parse(this.store.get(`memory-job:${id}`)||'null');}
   idleMaintenance(job) {return job.prompt.startsWith('[CLEANUP]')||Boolean(this.memoryJob(job.id))||Boolean(this.learningJob(job.id));}
-  mainBrokers() {const privateChat=!this.cfg.group&&!this.cfg.topic;return {maps:privateChat&&this.cfg.mapsBroker===true,browser:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserEnabled!==false};}
+  mainBrokers() {const privateChat=!this.cfg.group&&!this.cfg.topic;return {maps:privateChat&&this.cfg.mapsBroker===true,icloud:privateChat&&this.cfg.isolatedMainChat===true&&Boolean(this.cfg.iCloudInbox),browser:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserEnabled!==false};}
   async listen(port=8765) {
     this.server=http.createServer(async(req,res)=>{
       res.setHeader('content-type','application/json');
@@ -195,6 +195,16 @@ export class Service {
       if(cap.worker||cap.memoryReview||!this.mainBusy||cap.inputId===undefined||cap.inputId!==this.mainInput||cap.actorId!==this.cfg.owner||!cap.owner||!cap.conversationId||!actionAvailable(name,this.mainBrokers())||!this.store.prepare("SELECT id FROM inputs WHERE $scope AND id=? AND user=? AND state='processing'").get(cap.inputId,user))throw new Error('Active private chat required');
       cap.toolCounts[name]=(cap.toolCounts[name]||0)+1;
       if(cap.toolCounts[name]>broker.limit)throw new Error('Lookup limit for this reply');
+      if(name==='browser_download_pdf') {
+        const downloads=this.mainBrowserDownloads;
+        if(!downloads)throw new Error('Active public download unavailable');
+        const bytes=await downloadPublicPdf(args.url,signal,{allowedHosts:this.cfg.researchAllowedHosts});
+        signal.throwIfAborted();
+        if(downloads!==this.mainBrowserDownloads||cap.sessionId!==this.store.get('main-session')||![...this.capabilities.values()].includes(cap))throw new Error('Download capability revoked');
+        downloads.push(bytes);
+        return {staged:true};
+      }
+      if(broker.kind==='icloud')return readICloudInbox(name,args,this.cfg.iCloudInbox,signal);
       return broker.kind==='maps'?mapsLookup(name,args,this.cfg.mapsKey,signal):readPublicPage(args.url,signal,{allowedHosts:this.cfg.researchAllowedHosts});
     }
     switch(name) {
@@ -490,6 +500,7 @@ export class Service {
     // Construct the envelope here; model results cannot choose delivery modes.
     payloads.push(...responsePayloads({...result,text},{widgets:!this.cfg.group}));
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
+    for(const bytes of this.mainBrowserDownloads||[])payloads.push(await this.artifacts.snapshotTaskFile(user,'public-download.pdf',bytes,{},signal));
     signal?.throwIfAborted();
     // Commit the complete prepared response together; cancellation during preparation publishes nothing.
     budget?.o.boundary(budget.r);
@@ -527,7 +538,7 @@ export class Service {
     const maintenance=this.store.prepare("SELECT id,prompt FROM jobs WHERE $scope AND state='running'").all().find(job=>this.idleMaintenance(job));
     if(maintenance) {this.controllers.get(maintenance.id)?.abort();return;}
     this.mainBusy=true;
-    this.mainUser=input.user;this.mainInput=input.id;this.mainCancelled=false;
+    this.mainUser=input.user;this.mainInput=input.id;this.mainCancelled=false;this.mainBrowserDownloads=[];
     this.store.prepare("UPDATE inputs SET state='processing' WHERE $scope AND id=?").run(input.id);
     const controller=new AbortController();this.controllers.set('main',controller);
     controller.signal.addEventListener('abort',()=>{this.store.prepare("UPDATE inputs SET state='cancel_requested' WHERE $scope AND id=? AND state='processing'").run(input.id);},{once:true});
@@ -571,7 +582,7 @@ export class Service {
       this.store.prepare("UPDATE inputs SET state='failed' WHERE $scope AND id=?").run(input.id);
       this.store.enqueue(input.user,{text:isUsageLimit(e)?await this.usageText(true):'I could not complete that message. The original is preserved. Check Codex login/model access or media support, then ask me to review before retrying external actions.'});
       console.error('Conversation failed; private error details suppressed');
-    } finally {try {await this.streams.end(input);}catch {console.error('Reply preview settlement failed; details suppressed');}try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;this.mainInput=null;}
+    } finally {try {await this.streams.end(input);}catch {console.error('Reply preview settlement failed; details suppressed');}try {this.widgets.settle(input,widgetReply);}catch {console.error('Widget state settlement failed; private details suppressed');}this.store.observations.finishRun(observationRun,outcome);clearTimeout(timeout);stopTyping();this.controllers.delete('main');this.mainBusy=false;this.mainUser=null;this.mainInput=null;this.mainBrowserDownloads=null;}
   }
   workers(budget=this.cfg.maxWorkers,allowMaintenance=true) {
     if(this.stopping||this.tdlAuth?.active||(this.auth&&!this.auth.ready)) return;

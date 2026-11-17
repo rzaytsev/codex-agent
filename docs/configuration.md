@@ -45,6 +45,7 @@ by chat/topic while sharing owner knowledge and workspace. See
 | WHISPER_MODEL / WHISPER_LANGUAGE | base / automatic language; first download needs network |
 | TTS_VOICE | en; eSpeak voice, e.g. en/es/ru; synthetic speech |
 | ISOLATED_MAIN_CHAT | false; experimental. Requires `ISOLATED_WORKER_FILES`, `ISOLATED_RESEARCH_EXECUTOR`, `ISOLATED_INTERNAL_REVIEWS`, and `ISOLATED_DEEP_RESEARCH` to be true |
+| BROKER_ICLOUD_INBOX | false; opt-in service-held iCloud inbox reads on the isolated private main route. Set `ICLOUD_IMAP_USER` and `ICLOUD_IMAP_PASSWORD` (app-specific password) directly for the service; do not use `USER_APP_` grants for these credentials |
 | BROKER_GOOGLE_MAPS | false; requires `GOOGLE_MAPS_API_KEY`. Moves Maps lookups to the service and omits the key from model subprocess environments |
 | GOOGLE_MAPS_API_KEY | Empty; optional Google Places/Routes, separately billed |
 | BROWSER_ENABLED / BROWSER_EXECUTABLE | true / /usr/bin/chromium |

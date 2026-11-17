@@ -10,7 +10,7 @@ const canonical=v=>Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Obje
 export const digest=v=>crypto.createHash('sha256').update(typeof v==='string'?v:JSON.stringify(canonical(v))).digest('hex');
 export function effectiveTools() {
   const baseline=['main','worker','curator'].flatMap(role=>['conversation','read','research'].flatMap(toolScope=>[false,true].map(group=>({role,toolScope,group,actions:reviewedActionBundle({worker:role==='worker',memoryReview:role==='curator',toolScope,group})}))));
-  return [...baseline,...baseline.map(({role,toolScope,group})=>({role,toolScope,group,brokers:{maps:true,browser:true},actions:reviewedActionBundle({worker:role==='worker',memoryReview:role==='curator',toolScope,group,brokers:{maps:true,browser:true}})}))];
+  return [...baseline,...baseline.map(({role,toolScope,group})=>({role,toolScope,group,brokers:{maps:true,browser:true,icloud:true},actions:reviewedActionBundle({worker:role==='worker',memoryReview:role==='curator',toolScope,group,brokers:{maps:true,browser:true,icloud:true}})}))];
 }
 export async function runtimeContract() {
   const pkg=JSON.parse(await fs.readFile('package.json','utf8'));
