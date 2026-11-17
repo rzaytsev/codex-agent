@@ -1,3 +1,4 @@
+import {renderPublicPage} from './browser-render.js';
 import {settleOwnedProcesses} from './owned-process.js';
 import {outcomeRecord,interruptedOutcome} from './outcomes.js';
 import fs from 'node:fs/promises';
@@ -145,7 +146,8 @@ export class Service {
   learningJob(id) {return JSON.parse(this.store.get(`learning-job:${id}`)||'null');}
   memoryJob(id) {return JSON.parse(this.store.get(`memory-job:${id}`)||'null');}
   idleMaintenance(job) {return job.prompt.startsWith('[CLEANUP]')||Boolean(this.memoryJob(job.id))||Boolean(this.learningJob(job.id));}
-  mainBrokers() {const privateChat=!this.cfg.group&&!this.cfg.topic;return {maps:privateChat&&this.cfg.mapsBroker===true,icloud:privateChat&&this.cfg.isolatedMainChat===true&&Boolean(this.cfg.iCloudInbox),browser:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserEnabled!==false};}
+  renderBrowser(args,screenshot,signal) {return renderPublicPage(args.url,args.click,screenshot,signal,{allowedHosts:this.cfg.researchAllowedHosts});}
+  mainBrokers() {const privateChat=!this.cfg.group&&!this.cfg.topic;return {renderer:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserRenderer===true,maps:privateChat&&this.cfg.mapsBroker===true,icloud:privateChat&&this.cfg.isolatedMainChat===true&&Boolean(this.cfg.iCloudInbox),browser:privateChat&&this.cfg.isolatedMainChat===true&&this.cfg.browserEnabled!==false};}
   async listen(port=8765) {
     this.server=http.createServer(async(req,res)=>{
       res.setHeader('content-type','application/json');
@@ -195,14 +197,16 @@ export class Service {
       if(cap.worker||cap.memoryReview||!this.mainBusy||cap.inputId===undefined||cap.inputId!==this.mainInput||cap.actorId!==this.cfg.owner||!cap.owner||!cap.conversationId||!actionAvailable(name,this.mainBrokers())||!this.store.prepare("SELECT id FROM inputs WHERE $scope AND id=? AND user=? AND state='processing'").get(cap.inputId,user))throw new Error('Active private chat required');
       cap.toolCounts[name]=(cap.toolCounts[name]||0)+1;
       if(cap.toolCounts[name]>broker.limit)throw new Error('Lookup limit for this reply');
-      if(name==='browser_download_pdf') {
+      if(broker.kind==='renderer'||name==='browser_download_pdf') {
         const downloads=this.mainBrowserDownloads;
         if(!downloads)throw new Error('Active public download unavailable');
-        const bytes=await downloadPublicPdf(args.url,signal,{allowedHosts:this.cfg.researchAllowedHosts});
+        const options={allowedHosts:this.cfg.researchAllowedHosts};
+        const rendered=broker.kind==='renderer'?await this.renderBrowser(args,name==='browser_screenshot',signal):null;
+        const bytes=rendered?rendered.bytes:await downloadPublicPdf(args.url,signal,options);
         signal.throwIfAborted();
         if(downloads!==this.mainBrowserDownloads||cap.sessionId!==this.store.get('main-session')||![...this.capabilities.values()].includes(cap))throw new Error('Download capability revoked');
-        downloads.push(bytes);
-        return {staged:true};
+        if(bytes)downloads.push({bytes,filename:rendered?'browser-screenshot.png':'public-download.pdf'});
+        return rendered?{...rendered.view,...(bytes?{staged:true}:{})}:{staged:true};
       }
       if(broker.kind==='icloud')return readICloudInbox(name,args,this.cfg.iCloudInbox,signal);
       return broker.kind==='maps'?mapsLookup(name,args,this.cfg.mapsKey,signal):readPublicPage(args.url,signal,{allowedHosts:this.cfg.researchAllowedHosts});
@@ -500,7 +504,7 @@ export class Service {
     // Construct the envelope here; model results cannot choose delivery modes.
     payloads.push(...responsePayloads({...result,text},{widgets:!this.cfg.group}));
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
-    for(const bytes of this.mainBrowserDownloads||[])payloads.push(await this.artifacts.snapshotTaskFile(user,'public-download.pdf',bytes,{},signal));
+    for(const {bytes,filename} of this.mainBrowserDownloads||[])payloads.push(await this.artifacts.snapshotTaskFile(user,filename,bytes,{},signal));
     signal?.throwIfAborted();
     // Commit the complete prepared response together; cancellation during preparation publishes nothing.
     budget?.o.boundary(budget.r);

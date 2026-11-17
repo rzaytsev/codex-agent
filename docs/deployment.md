@@ -208,6 +208,20 @@ Defaults schedule daily consolidation at 03:15 and weekly consolidation Sunday
 quietly when idle and yield to conversation. See [memory](memory.md) for tools,
 backlog/coverage limits, backups and per-instance environment overrides.
 
+## Networkless browser for isolated main chat
+
+On Linux, install `bin/agent-browser` as `/usr/local/libexec/codex-agent-browser`
+and install the matching `systemd/codex-agent-browser{.socket,@.service}` units.
+In a root-owned `/etc/codex-agent-browser.env`, set
+`CODEX_AGENT_BROWSER_IMAGE` to the immutable local assistant image ID that
+contains `scripts/browser-render.js` and Chromium. Enable the socket and mount
+only `/run/codex-agent-browser` read-only into the selected assistant container
+at the same path. The assistant also checks the endpoint is a root-owned
+mode-0600 socket. Enable `BROWSER_RENDER_BROKER=true` for that instance only
+after testing the renderer and delivery. The launcher starts a fresh container
+per call with no account, workspace or host mounts; do not substitute a
+networked browser socket.
+
 ## Chromium browser
 
 The image installs Debian Chromium and pinned `@playwright/mcp` 0.0.83. Every main/worker turn starts its own stdio browser MCP server with headless Chromium and an isolated in-memory browser context. There are no browser ports exposed. `BROWSER_ENABLED=false` disables the integration; `BROWSER_EXECUTABLE` defaults to `/usr/bin/chromium` and can select a local installation for development.

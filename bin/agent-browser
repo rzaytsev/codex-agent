@@ -1,0 +1,22 @@
+#!/bin/sh
+# Only a fixed renderer runs here; the socket never accepts Docker or shell arguments.
+set -eu
+umask 077
+valid_id() { printf '%s\n' "$1" | /usr/bin/grep -Eq '^[a-f0-9]{32}$'; }
+docker() { /usr/bin/timeout -k 2s 8s /usr/bin/docker --host unix:///var/run/docker.sock --config /dev/null "$@"; }
+if [ "$#" = 2 ] && [ "$1" = --cleanup ]; then
+    valid_id "$2" || exit 2
+    id=$(docker ps -aq --no-trunc --filter "name=^/codex-agent-browser\.$2\$" --filter label=codex-agent=offline-browser)
+    if [ -n "$id" ]; then
+        printf '%s\n' "$id" | /usr/bin/grep -Eq '^[a-f0-9]{64}$' || exit 1
+        docker rm -f "$id" >/dev/null
+    fi
+    exit 0
+fi
+[ "$#" = 1 ] && valid_id "${INVOCATION_ID:-}" || exit 2
+printf '%s\n' "$1" | /usr/bin/grep -Eq '^sha256:[a-f0-9]{64}$' || exit 2
+exec /usr/bin/timeout -k 3s 27s /usr/bin/docker --host unix:///var/run/docker.sock --config /dev/null run \
+    --rm --name "codex-agent-browser.$INVOCATION_ID" --label codex-agent=offline-browser \
+    --pull never -i --network none --read-only --init --log-driver none \
+    --cap-drop ALL --security-opt no-new-privileges --pids-limit 192 --memory 768m --cpus 1 \
+    --tmpfs /tmp:size=128m,mode=1777 --env HOME=/tmp --env CODEX_HOME=/tmp --entrypoint node "$1" /app/scripts/browser-render.js

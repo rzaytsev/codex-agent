@@ -45,11 +45,15 @@ its owner actor, and its current session and processing input. They are absent
 from worker, review and read-only turns. The Maps broker uses fixed provider
 endpoints and a bounded response. Static page reading uses the public research
 fetch policy, including redirect checks and the optional host allowlist. It does
-not run scripts, load cookies or grant a browser session. Public PDF downloads
+not run scripts, load cookies or grant a browser session. The opt-in renderer
+runs the fetched HTML, including inline scripts, in a separate disposable
+container without a network, mounts or credentials. The service sends the
+document and one optional exact button label; no shell arguments, browser
+profile or arbitrary Playwright calls cross the socket. Only a bounded PNG
+can be returned for screenshot delivery. Public PDF downloads
 use the same fetch policy and are staged with the completed reply. The iCloud
 broker connects to the fixed TLS IMAP endpoint with a service-held credential,
-opens Inbox read-only and uses peek reads. It sends no SMTP commands. Full main-chat cutover
-still needs compatibility checks for interactive and authenticated workflows.
+opens Inbox read-only and uses peek reads. It sends no SMTP commands. Check the required tool workflows and both delivery paths before cutover.
 
 ## Failure and cancellation contracts
 

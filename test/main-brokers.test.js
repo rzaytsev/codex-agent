@@ -6,14 +6,14 @@ import {Service} from '../src/service.js';
 import {reviewedActionBundle,validateAction} from '../src/action-registry.js';
 import {downloadPublicPdf,mapsLookup,readICloudInbox,readPublicPage} from '../src/main-brokers.js';
 
-const brokerNames = options=>reviewedActionBundle(options).map(a=>a.name).filter(n=>['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_read'].includes(n));
+const brokerNames = options=>reviewedActionBundle(options).map(a=>a.name).filter(n=>['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_render','browser_screenshot','browser_read'].includes(n));
 const origin={latitude:40,longitude:-3};
 const destination={latitude:41,longitude:-3};
 const route={origin,destination,mode:'WALK'};
 
 test('only an enabled normal main turn sees broker tools',()=>{
-  const brokers={maps:true,browser:true,icloud:true};
-  assert.deepEqual(brokerNames({brokers}),['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_read']);
+  const brokers={maps:true,browser:true,icloud:true,renderer:true};
+  assert.deepEqual(brokerNames({brokers}),['maps_nearby','maps_route','icloud_inbox','icloud_read','browser_download_pdf','browser_render','browser_screenshot','browser_read']);
   for(const scope of [{},{brokers,group:true},{brokers,worker:true},{brokers,memoryReview:true},{brokers,toolScope:'read'}])assert.deepEqual(brokerNames(scope),[]);
   assert.throws(()=>config({ISOLATED_MAIN_CHAT:'true'}),/requires isolated/);
   assert.throws(()=>config({BROKER_ICLOUD_INBOX:'true'}),/credential unavailable/);
@@ -100,4 +100,23 @@ test('public download accepts only a bounded PDF from the scoped fetcher',async(
   assert.equal(await downloadPublicPdf(url,signal,{allowedHosts,fetchSource}),bytes);
   await assert.rejects(downloadPublicPdf(url,signal,{fetchSource:async()=>({mime:'application/pdf',bytes:Buffer.from('not a PDF')})}),/Public PDF/);
   assert.equal(validateAction({},'browser_download_pdf',{url}).action.category,'delivery');
+});
+
+test('rendering sends bounded page content and only the requested action to the offline socket',async()=>{
+  const signal=AbortSignal.timeout(1000),url='https://example.test/';
+  const {renderPublicPage,pngSignature}=await import('../src/browser-render.js');
+  const source={url,mime:'text/html',bytes:Buffer.from('<button>Show</button>')};
+  const png=Buffer.concat([pngSignature,Buffer.from('synthetic bytes')]);
+  const options={
+    allowedHosts:new Set(['example.test']),
+    fetchSource:async(target,actual,opts)=>{assert.equal(target,url);assert.equal(actual,signal);assert.equal(opts.allowedHosts,options.allowedHosts);return source;},
+    render:async(input,actual)=>{assert.deepEqual(input,{html:source.bytes.toString(),click:'Show',screenshot:true});assert.equal(actual,signal);return {title:'Title',text:'Revealed',controls:[],clicked:true,image:png.toString('base64')};},
+  };
+  const result=await renderPublicPage(url,'Show',true,signal,options);
+  assert.deepEqual(result.view,{url,title:'Title',text:'Revealed',controls:[],clicked:true});
+  assert.deepEqual(result.bytes,png);
+  await assert.rejects(renderPublicPage(url,'Show',true,signal,{...options,render:async()=>({title:'',text:'',controls:[],clicked:true,image:'YmFk'})}),/Invalid browser screenshot/);
+  assert.equal(validateAction({},'browser_screenshot',{url}).action.category,'delivery');
+  assert.throws(()=>validateAction({},'browser_render',{url,script:'not authorized'}),/Invalid browser_render/);
+  assert.throws(()=>config({BROWSER_RENDER_BROKER:'true'}),/requires isolated main chat/);
 });

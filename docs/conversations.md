@@ -54,8 +54,12 @@ In the private root chat, `BROKER_GOOGLE_MAPS=true` enables typed nearby and rou
 lookups using a service-held key. The isolated route offers `browser_read` for
 static public text and links when browsing is enabled. Follow links through the
 same policy. `browser_download_pdf` stages one requested public PDF up to 4 MiB
-with the final reply. Dynamic rendering, form submissions, screenshots and
-signed-in browsing still require a separate route. An opt-in iCloud tool lists
+with the final reply. `BROWSER_RENDER_BROKER=true` enables `browser_render` and
+`browser_screenshot`. They render one public HTML document and optionally
+click one local button by its exact label; a requested screenshot is staged
+with the reply. Each call starts a new browser, so state does not carry over.
+External assets and navigation, signed-in sessions and form submission are
+unavailable in the networkless browser. An opt-in iCloud tool lists
 recent Inbox headers and reads bounded plain text without marking messages as
 seen. It cannot change folders or flags, send mail, or access attachments.
 Test private application integrations before enabling isolation on an instance.
