@@ -100,6 +100,13 @@ export async function runIsolationProbe(mode='builtin') {
 }
 
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
- const args=process.argv.slice(2),mode=args.length===0?'builtin':args.length===1&&args[0]==='--mode=restricted'?'restricted':args.length===1&&args[0]==='--mode=builtin'?'builtin':'invalid';
- console.log(JSON.stringify(await runIsolationProbe(mode)));
+ const args=process.argv.slice(2);
+ const requireProtected=args.length===1&&args[0]==='--require-protected';
+ const selector=args.length===0?'--mode=builtin':args.length===1?args[0]:null;
+ const modes=new Map([['--mode=builtin','builtin'],['--mode=restricted','restricted'],['--require-protected','restricted']]);
+ const mode=modes.get(selector)??'invalid';
+ const receipt=await runIsolationProbe(mode);
+ console.log(JSON.stringify(receipt));
+ if(mode==='invalid')process.exitCode=2;
+ else if(requireProtected&&!receipt.credentialIsolationProved)process.exitCode=1;
 }
