@@ -143,7 +143,7 @@ write-tool approval rejection under workspace-write plus approval_policy=never.
 
 ## Telegram presentation guidance
 
-Every ordinary turn loads image-owned templates/PRESENTATION.md alongside its role instructions. It encourages widgets and rich messages when they improve an explanation, with required readable text. Workers can return widgets; only advertised main tools can read/update live state. Read-only mains can read but cannot mutate state. Internal reviews receive no presentation guidance.
+Every ordinary turn loads image-owned templates/PRESENTATION.md alongside its role instructions. It disables widgets and directs graphical explanations to the built-in image_gen model with readable text. The service stages trusted current-thread images for isolated main replies; ordinary file-capable turns can return workspace image paths. Workers use their existing capture/delivery route. Read-only and internal review scopes cannot generate artifacts. Internal reviews receive no presentation guidance.
 
 
 ## Conversation-control guidance
@@ -156,6 +156,6 @@ The optional music rollout appends templates/MUSIC.md once to the selected
 workspace's AGENTS.md, preserving custom sections. The default initializer does
 not advertise an uninstalled music skill. Ordinary audio is source data, with a
 conditional installed-skill hint; an unclear attachment calls for one focused
-question. Widget renderer response.json supplies text/files/presentation to merge
-into the current turn's complete response schema. Internal and read-only roles
+question. Legacy widget renderer output is not used for current Telegram delivery;
+image-owned guidance selects ImageGen and ordinary image artifacts instead. Internal and read-only roles
 must retain their existing artifact/tool restrictions.

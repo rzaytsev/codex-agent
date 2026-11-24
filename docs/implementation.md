@@ -258,7 +258,9 @@ immutable source-route delivery. Real runtime/report/delivery rollout evidence
 belongs in private receipts; owner quality acceptance is distinct. See [research](research.md).
 
 
-## Telegram presentations
+## Telegram presentations (historical widget implementation)
+
+Production widgets are disabled by the current ImageGen policy below.
 
 Implemented optional private HTML widgets and rich messages, source-bound callbacks and revisioned live state. Image-owned PRESENTATION guidance reaches existing ordinary main/worker/read-only turns without replacing custom profiles; internal reviews exclude it. Synthetic tests cover validation, fallback, uncertainty, routing, duplicate/stale callbacks and recovery. API acceptance and actual client rendering are separate acceptance stages.
 
@@ -270,3 +272,13 @@ Implemented private task cards, clarification buttons and incremental native dra
 ## Music analysis and lesson templates
 
 Published a portable optional music-assistant skill, bounded helper commands, isolated CPU image/launcher and five music widget templates. Music/audio files are preserved and no longer automatically treated as speech instructions. Host checks distinguish dependency-free theory/rendering from optional audio inference and browser tests; synthetic fixtures do not establish transcription accuracy, choir-part identification or musician acceptance.
+
+## ImageGen explanations replace widgets (2026-11-24)
+
+Implemented disabled production widget delivery/intake/tools and image-owned
+ImageGen guidance. Current-thread generated images are bounded, copied to private
+outputs, and delivered through existing artifact snapshots/photos. Resumed threads
+exclude prior images. Isolated main and offline-worker capture remain distinct.
+Synthetic checks and an authorized private live generation/delivery smoke are
+separate from account availability and owner device acceptance. See
+[presentations](telegram-presentations.md).

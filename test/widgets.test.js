@@ -15,11 +15,11 @@ async function fixture(t) {
  const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'widgets-'));
  const cfg=config({WORKSPACE_DIR:workspace,CODEX_HOME:path.join(workspace,'codex'),TELEGRAM_ALLOWED_USER_IDS:'123',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',MEMORY_ENABLED:'false',LEARNING_ENABLED:'false',BROWSER_ENABLED:'false'});
  const store=new Store(path.join(workspace,'db')),sent=[],requests=[];let messageId=100;
- const telegram=new Telegram('unused');telegram.call=async(method,body)=>{sent.push({method,body});return method==='sendWidget'?{message_id:++messageId,chat:{id:123},widget:{},...(body.message_thread_id!==undefined?{message_thread_id:body.message_thread_id}:{})}:true;};
+ const telegram=new Telegram('unused');telegram.widgetsEnabled=true;telegram.call=async(method,body)=>{sent.push({method,body});return method==='sendWidget'?{message_id:++messageId,chat:{id:123},widget:{},...(body.message_thread_id!==undefined?{message_thread_id:body.message_thread_id}:{})}:true;};
  const service=new Service(cfg,store,telegram,{run:async(_user,prompt)=>{requests.push(prompt);return {text:'Jitter spreads retries.',voice:false,files:[]};}});await service.init();
  const router=new Conversations(service,{agentFactory:()=>service.agent});service.conversations=router;router.setIdentity({username:'demo_bot',has_topics_enabled:true});
  t.after(async()=>{await router.stop();for(const s of router.all())s.store.db.close();await fs.rm(workspace,{recursive:true,force:true});});
- const publish=async(s=service)=>{await s.output('123',result);await s.deliver();return s.store.prepare('SELECT * FROM telegram_widgets WHERE $scope ORDER BY created DESC LIMIT 1').get();};
+ const publish=async(s=service)=>{s.telegram.widgetsEnabled=true;await s.output('123',result);await s.deliver();return s.store.prepare('SELECT * FROM telegram_widgets WHERE $scope ORDER BY created DESC LIMIT 1').get();};
  const query=(row,id=20,patch={})=>({update_id:id,widget_query:{id:'query-'+id,from:{id:123},chat:{id:123,type:'private'},message_id:row.message_id,type:{type:'data'},data:'explain',...patch}});
  return {workspace,cfg,store,service,router,sent,requests,publish,query};
 }
@@ -57,7 +57,7 @@ test('busy click is rejected, stale revisions conflict, updates coalesce, and sc
  await assert.rejects(service.tool({user:'123',toolScope:'read'},'widget_update',{id:row.id,state:'{}',expected_revision:1}));
  await assert.rejects(service.tool({user:'456'},'widget_read',{id:row.id}));
  await assert.rejects(service.tool({user:'123'},'widget_update',{id:row.id,state:'{}',expected_revision:0}));
- await service.tool({user:'123'},'widget_update',{id:row.id,state:'{"selected":"jitter"}',expected_revision:1});
+ service.widgets.update({id:row.id,state:'{"selected":"jitter"}',expected_revision:1});
  await service.deliver();const edits=sent.filter(c=>c.method==='editMessageWidgetData');assert.equal(edits.length,1);assert.equal(JSON.parse(edits[0].body.chat_data).data.selected,'jitter');
 });
 

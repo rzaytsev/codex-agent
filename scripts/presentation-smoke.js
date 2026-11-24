@@ -16,6 +16,7 @@ const args=process.argv.slice(2),value=flag=>args[args.indexOf(flag)+1];
 assert.ok(args.includes('--output'),'Supply --output DIRECTORY for private receipts');
 const output=path.resolve(value('--output')),input=args.includes('--input')?path.resolve(value('--input')):null;
 assert.ok(!args.includes('--model')||!input,'Choose saved input or fresh model generation');
+assert.ok(!args.includes('--model')&&!args.includes('--send'),'Legacy widget smoke is disabled; test ImageGen/photo delivery instead');
 const live=config(),send=args.includes('--send');
 assert.ok(!send||live.token&&live.owner,'Sending requires this instance token and owner');
 await fs.mkdir(output,{recursive:true,mode:0o700});

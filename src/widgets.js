@@ -78,6 +78,7 @@ export class Widgets {
     for(const row of this.store.prepare('SELECT * FROM telegram_widgets WHERE $scope AND input_id IS NOT NULL').all())if(this.current(row))this.settle({id:row.input_id,user:row.owner,session_id:row.session_id});
   }
   async query(update,router) {
+    if(!this.service.telegram.widgetsEnabled)return false;
     const q=update.widget_query,cfg=this.service.cfg;
     // Telegram authenticates the viewer, but cannot prove a request came from a
     // tap rather than background JavaScript. Never mint direct-owner authority.

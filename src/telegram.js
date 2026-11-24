@@ -13,7 +13,7 @@ export function format(text) {
     .replace(/\*\*([^\n*]+)\*\*/g,'<b>$1</b>').replace(/`([^\n`]+)`/g,'<code>$1</code>');
 }
 export class Telegram {
-  constructor(token,fetcher=fetch) { this.token=token; this.fetch=fetcher;this.supportsControls=true; }
+  constructor(token,fetcher=fetch) { this.token=token; this.fetch=fetcher;this.supportsControls=true;this.widgetsEnabled=false; }
   async call(method,body,timeoutMs=70000,signal) {
     signal?.throwIfAborted();
     const deadline=AbortSignal.timeout(timeoutMs);
@@ -107,6 +107,8 @@ export class Telegram {
     if(payload.type==='control-message')return this.call('sendMessage',{...route,text:payload.text,reply_markup:payload.replyMarkup});
     if(payload.type==='control-edit')return this.call('editMessageText',{chat_id:user,message_id:payload.messageId,text:payload.text,reply_markup:payload.replyMarkup});
     if(payload.plainText===true)return this.call('sendMessage',{...route,text:payload.text});
+    if(!this.widgetsEnabled&&payload.type==='widget-state')return {disabled:true};
+    if(!this.widgetsEnabled&&payload.type==='widget')return this.call('sendMessage',{...route,text:payload.text});
     if(payload.type==='widget-state')return this.call('editMessageWidgetData',{chat_id:user,message_id:payload.messageId,chat_data:payload.state});
     if(payload.type==='widget'||payload.type==='rich') {
       try {

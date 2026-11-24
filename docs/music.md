@@ -78,23 +78,16 @@ Container checks do not establish musical accuracy, model adherence or actual
 Telegram delivery. Keep private deployment receipts and generated artifacts out
 of the reusable skill source.
 
-## Interactive music lessons
+## Graphical music explanations
 
-The skill includes five standard-library lesson templates: melody, intervals,
-scale degrees, chord tones and harmony. Read the [widget reference](../shared-skill/music-assistant/references/widgets.md)
-and render a template or measured monophonic analysis with `scripts/widget.py`.
-The `response.json` output supplies text/files/presentation to merge into the
-current turn's complete response schema and
-[presentation contract](telegram-presentations.md).
-Optional offered requests use the existing widget callbacks and main-only state
-tools; no request runs automatically. Attach WAV/MIDI separately rather than
-promising audio playback inside a widget. Label estimates, synthetic examples and
-proposed harmony distinctly. The renderer needs no audio models; analysis does.
+HTML widget delivery, offered requests and live state are disabled. Use the
+current [ImageGen presentation guidance](telegram-presentations.md) for ordinary
+PNG/JPEG explanations of melody, intervals, scale degrees, chord tones and
+proposed harmony. Check the generated note names, timing and evidence labels.
+WAV/MIDI listening guides remain separate artifacts.
 
-Run `node --test test/music-widgets.test.js` and
-`python3 -m unittest discover -s test -p music_widgets.py`.
-`MUSIC_WIDGET_BROWSER=1` enables optional browser rendering, callback and state
-tests when Playwright and a compatible Chromium browser are installed. Set
-`BROWSER_EXECUTABLE` to use a system Chromium/Chrome binary.
-The dependency-free theory tests run on the host; run all `music_assistant.py`
-checks in the optional Python 3.11 environment before claiming audio validation.
+The five older lesson templates and their standard-library renderer are retained
+for historical/local work only. Their contract/browser tests do not establish
+production widget availability. The dependency-free theory tests run on the
+host; run all `music_assistant.py` checks in the optional Python 3.11 environment
+before claiming audio validation.

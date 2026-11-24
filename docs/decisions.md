@@ -447,3 +447,12 @@ Use native private inline controls for task cancellation, saved-result reopening
 ## Optional music tooling
 
 Keep heavy CPU music analysis and cached separation weights in an optional Python 3.11 layer, preserving the validated assistant base and subscription runtime. Only Telegram voice-note messages select automatic speech transcription; ordinary audio stays original source data. A standalone standard-library widget renderer creates five lesson types using the shared presentation/callback contract, with WAV/MIDI delivered separately. Pitch estimates and proposed harmonies never become claims about actual singers without evidence.
+
+## Replace widgets with ImageGen (2026-11-24)
+
+Disable widget creation, callbacks, model tools and state delivery rather than
+silently sending an unusable caption or HTML file. Keep rich replies and native
+conversation controls. Use built-in ImageGen through existing ChatGPT access;
+the host stages only new image files in the trusted current thread. Staging runs
+after isolation discards arbitrary paths, with offline workers retaining their
+capture boundary. No workspace shell grant, API billing or auth substitution.

@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import {config} from '../src/config.js';
 import {Store} from '../src/store.js';
 import {responsePayloads} from '../src/presentation.js';
-const cfg=config(),args=process.argv.slice(2);assert.ok(cfg.owner&&cfg.token,'Configured owner and bot required');
+const args=process.argv.slice(2);assert.ok(!args.includes('--send'),'HTML widgets are disabled; test ImageGen/photo delivery instead');
+const cfg=config();assert.ok(cfg.owner&&cfg.token,'Configured owner and bot required');
 assert.ok(args.includes('--send')!==args.includes('--status'),'Choose --send or --status ID');
 const store=new Store(path.join(cfg.workspace,'state','assistant.sqlite'));
 try {
