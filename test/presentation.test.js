@@ -37,7 +37,7 @@ test('widget UTF-8 and zlib limits and fallback caption limits fail safely',()=>
 });
 
 test('transport uses documented widget/rich APIs, topic route and disabled bot queries',async()=>{
-  const telegram=new Telegram('unused'),calls=[];
+  const telegram=new Telegram('unused'),calls=[];telegram.widgetsEnabled=true;
   telegram.call=async(method,body)=>{calls.push({method,body});return {message_id:7};};
   for(const result of [widget,rich])await telegram.sendPart('123',responsePayloads(result)[0],91);
   assert.deepEqual(calls,[{method:'sendWidget',body:{chat_id:'123',message_thread_id:91,html:widget.presentation.content,caption:widget.text,allow_queries:false,is_shared:false}},{method:'sendRichMessage',body:{chat_id:'123',message_thread_id:91,rich_message:{markdown:rich.presentation.content}}}]);
@@ -47,7 +47,7 @@ test('transport uses documented widget/rich APIs, topic route and disabled bot q
 
 for(const result of [widget,rich])test(`${result.presentation.kind} falls back only after definite rejection, preserving literal text and route`,async()=>{
   for(const code of [400,404,403,429,500,'network','invalid-response']) {
-    const telegram=new Telegram('unused'),calls=[];
+    const telegram=new Telegram('unused'),calls=[];telegram.widgetsEnabled=true;
     telegram.call=async(method,body)=>{calls.push({method,body});if(calls.length===1)throw new TelegramError(code);return {};};
     const payload={...responsePayloads(result)[0],text:'**literal** `code` <>& 😀'};
     if([400,404].includes(code)) {
@@ -61,7 +61,7 @@ async function fixture(t) {
   const workspace=await fs.mkdtemp(path.join(os.tmpdir(),'assistant-presentation-'));
   const cfg=config({WORKSPACE_DIR:workspace,CODEX_HOME:path.join(workspace,'codex'),TELEGRAM_ALLOWED_USER_IDS:'123',PROACTIVE_ENABLED:'false',CLEANUP_ENABLED:'false',MEMORY_ENABLED:'false',LEARNING_ENABLED:'false',BROWSER_ENABLED:'false'});
   const store=new Store(path.join(workspace,'db')),sent=[];
-  const telegram=new Telegram('unused');telegram.call=async(method,body)=>{sent.push({method,body});return {message_id:1};};
+  const telegram=new Telegram('unused');telegram.widgetsEnabled=true;telegram.call=async(method,body)=>{sent.push({method,body});return {message_id:1};};
   const service=new Service(cfg,store,telegram,{run:async()=>rich});await service.init();
   const router=new Conversations(service,{agentFactory:()=>({run:async()=>widget})});service.conversations=router;router.setIdentity({username:'demo_bot',has_topics_enabled:true});
   t.after(async()=>{await router.stop();for(const s of router.all())s.store.db.close();await fs.rm(workspace,{recursive:true,force:true});});
@@ -85,15 +85,16 @@ test('presentation guidance reaches main, workers and read-only replies, excludi
   const {cfg,store,service}=await fixture(t),calls=[];
   const capability=(...args)=>service.capability(...args);capability.release=token=>service.releaseCapability(token);
   const sdkFactory=options=>({startThread:()=>({runStreamed:async(_input,{outputSchema})=>{
-    calls.push({instructions:options.config.developer_instructions,schema:outputSchema});
+    calls.push({instructions:options.config.developer_instructions,schema:outputSchema,overrides:options.configOverrides});
     return {events:async function*(){yield {type:'item.completed',item:{type:'agent_message',text:JSON.stringify(outputSchema.properties.presentation?{...rich,presentation:null}:{summary:'',changes:[]})}};yield {type:'turn.completed'};}()};
   }})});
   const agent=new Agent(cfg,store,capability,sdkFactory,service.memory,service.learning);
   for(const [profile,review,scope] of [['main',false],['worker',false],['main',false,{toolScope:'read'}],['research',true]]) {
     await agent.run('123','Synthetic explanation',profile,[],undefined,undefined,undefined,review,scope);
     const call=calls.at(-1);
+    assert.ok(call.overrides.includes(`features.image_generation=${!review&&scope?.toolScope!=='read'}`));
     if(review){assert.doesNotMatch(call.instructions,/## Telegram presentations v1/);assert.equal(call.schema.properties.presentation,undefined);}
-    else {assert.match(call.instructions,/## Telegram presentations v1/);assert.match(call.instructions,/"kind":"widget"/);assert.match(call.instructions,/"kind":"rich"/);assert.ok(call.schema.required.includes('presentation'));}
+    else {assert.match(call.instructions,/## Telegram presentations v1/);assert.match(call.instructions,/image_gen imaging/);assert.match(call.instructions,/HTML widgets are disabled/);assert.match(call.instructions,/"kind":"rich"/);assert.ok(call.schema.required.includes('presentation'));}
   }
   assert.equal(service.capabilities.size,0);
 });
@@ -102,7 +103,7 @@ test('private topics preserve presentation routes and linked groups use readable
   const {store,service,router,sent}=await fixture(t);
   await router.ingest({update_id:1,message:{message_id:1,from:{id:123},chat:{id:123,type:'private'},message_thread_id:93,forum_topic_created:{name:'Synthetic topic'}}});
   const topic=router.all().find(s=>s.cfg.topic);assert.ok(topic);
-  await topic.output('123',widget);await topic.deliver();
+  topic.telegram.widgetsEnabled=true;await topic.output('123',widget);await topic.deliver();
   assert.equal(sent.at(-1).method,'sendWidget');assert.equal(sent.at(-1).body.message_thread_id,93);
   const text='/link@demo_bot';await router.ingest({update_id:2,message:{message_id:2,from:{id:123},chat:{id:-100,type:'group',title:'Synthetic'},text,entities:[{type:'bot_command',offset:0,length:text.length}]}});
   const group=router.all().find(s=>s.cfg.group);assert.ok(group);await group.deliver();
@@ -120,4 +121,46 @@ test('unknown enhanced delivery stays uncertain and is not replayed on recovery'
   await service.output('123',widget);await service.deliver();
   assert.equal(store.prepare('SELECT state FROM outbox WHERE $scope').get().state,'uncertain');
   await service.init();await service.deliver();assert.equal(calls,1);
+});
+
+// Legacy widget fixtures explicitly enable the retained historical machinery.
+// Production transport defaults to disabled and cannot be enabled by model output.
+test('production disables new widgets, stale widget sends, queries and widget tools',async t=>{
+ const {service,router,sent,store}=await fixture(t);service.telegram.widgetsEnabled=false;
+ await service.output('123',widget);await service.deliver();
+ assert.equal(sent.at(-1).method,'sendMessage');assert.equal(sent.at(-1).body.text,widget.text);
+ await service.telegram.sendPart('123',{type:'widget',html:'<p>old</p>',text:'Saved answer'},91);
+ assert.equal(sent.at(-1).method,'sendMessage');assert.equal(sent.at(-1).body.message_thread_id,91);
+ assert.ok(!sent.some(x=>['sendWidget','sendDocument','editMessageWidgetData'].includes(x.method)));
+ assert.equal(await service.widgets.query({widget_query:{}},router),false);
+ await assert.rejects(service.tool({user:'123'},'widget_read',{}));
+ assert.equal(store.prepare('SELECT count(*) n FROM telegram_widgets WHERE $scope').get().n,0);
+ const {reviewedActionBundle}=await import('../src/action-registry.js');
+ assert.ok(!reviewedActionBundle().some(x=>x.name.startsWith('widget_')));
+ assert.equal(new Telegram('unused').widgetsEnabled,false);
+ store.enqueue('123',{type:'widget-state',widgetId:'12345678-1234-1234-1234-123456789abc',revision:1});
+ await service.deliver();assert.equal(store.prepare('SELECT state FROM outbox WHERE $scope ORDER BY id DESC LIMIT 1').get().state,'expired');
+ assert.ok(!sent.some(x=>x.method==='editMessageWidgetData'));
+});
+
+test('native ImageGen output is staged by the service and delivered as a photo without model shell copying',async t=>{
+ const {cfg,store,service,sent}=await fixture(t);service.telegram.widgetsEnabled=false;
+ const id='12345678-1234-1234-1234-123456789abc',dir=path.join(cfg.codexHome,'generated_images',id);
+ await fs.mkdir(dir,{recursive:true});
+ const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64');
+ await fs.writeFile(path.join(dir,'older-call.png'),png);
+ const capability=(...args)=>service.capability(...args);capability.release=token=>service.releaseCapability(token);
+ const sdkFactory=()=>({startThread:()=>({runStreamed:async()=>({events:async function*(){
+  yield {type:'thread.started',thread_id:id};
+  await fs.writeFile(path.join(dir,'native-call.png'),png);
+  yield {type:'item.completed',item:{type:'agent_message',text:JSON.stringify({text:'45 + 15 = 60 minutes.',voice:false,files:[],outcome:null,checkpoint:null,presentation:null})}};
+  yield {type:'turn.completed'};
+ }()})})});
+ const agent=new Agent(cfg,store,capability,sdkFactory,service.memory,service.learning);
+ const result=await agent.run('123','Explain the time buffer with an image.');
+ assert.equal(result.files.length,1);assert.ok(result.files[0].includes('/outputs/imagegen-'));
+ assert.deepEqual(await fs.readFile(result.files[0]),png);
+ await service.output('123',result);await service.deliver();
+ assert.deepEqual(sent.map(x=>x.method).filter(x=>x!=='sendChatAction'),['sendMessage','sendPhoto']);
+ assert.ok(!sent.some(x=>x.method==='sendWidget'||x.method==='sendDocument'));
 });

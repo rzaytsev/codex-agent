@@ -60,12 +60,13 @@ tool('schedule','Persist a reminder or worker task. Supply offset due timestamp 
 tool('list_schedules','List current and disabled user schedules with effective policies, optional goals, occurrence counts and completion/exhaustion state. goal_hash and last_completed_job bind direct owner /schedule_done ID JOB_ID HASH.',{});
 tool('cancel_schedule','Disable a user schedule.',{id:z.string()});
 export function actionAvailable(name,{maps=false,browser=false,icloud=false,renderer=false}={}) {
+ if(name.startsWith('widget_'))return false;
  const kind=mainBrokers.get(name)?.kind;
  return kind==='maps'?maps:kind==='browser'?browser:kind==='icloud'?icloud:kind==='renderer'?renderer:true;
 }
 export function validateAction(cap,name,args) {
  const action=actionRegistry.get(name),role=cap.memoryReview?'curator':cap.worker?'worker':'main';
- if(!action||!action.roles.includes(role))throw new ContractDenial('action_denied');
+ if(name.startsWith('widget_')||!action||!action.roles.includes(role))throw new ContractDenial('action_denied');
  if(!action.scopes.includes(cap.toolScope||'conversation'))throw new Error('Read-only task');
  const parsed=action.schema.safeParse(args);if(!parsed.success)throw new Error(name.startsWith('profile_')?'Invalid profile hash or patch arguments':`Invalid ${name} arguments`);
  return {action,args:parsed.data};

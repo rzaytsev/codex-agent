@@ -502,7 +502,7 @@ export class Service {
       catch(error) {if(error.executionUnknown)throw error;budget?.r&&(budget.r.outputFailed=true);signal?.throwIfAborted();text+='\nVoice generation failed; sending text instead.';}
     }
     // Construct the envelope here; model results cannot choose delivery modes.
-    payloads.push(...responsePayloads({...result,text},{widgets:!this.cfg.group}));
+    payloads.push(...responsePayloads({...result,text},{widgets:this.telegram.widgetsEnabled===true&&!this.cfg.group}));
     payloads.push(...await this.filePayloads(result.files,user,{},signal));
     for(const {bytes,filename} of this.mainBrowserDownloads||[])payloads.push(await this.artifacts.snapshotTaskFile(user,filename,bytes,{},signal));
     signal?.throwIfAborted();
@@ -672,7 +672,7 @@ export class Service {
           for(const part of chunks(result.text)) this.store.enqueue(job.user,{text:part},true);
           if(result.text) this.store.history(job.user,'reflection',result.text);
         } else {
-          for(const payload of responsePayloads(result,{widgets:!this.cfg.group}))this.store.enqueue(job.user,payload,false,{sessionId:job.session_id,actorId:job.actor_id});
+          for(const payload of responsePayloads(result,{widgets:this.telegram.widgetsEnabled===true&&!this.cfg.group}))this.store.enqueue(job.user,payload,false,{sessionId:job.session_id,actorId:job.actor_id});
           // Deliver without another main-model pass or waiting for a busy main
           // conversation. Retain current-session results for subsequent recall.
           if(result.text&&(!job.session_id||job.session_id===this.store.get('main-session')))this.store.history(job.user,'assistant',result.text,job.actor_id||job.user);
@@ -837,7 +837,7 @@ export class Service {
             payload=this.tdlAuth?.payload(payload.attempt,payload.version);
             if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(payload.type==='widget-state') {
-            payload=this.widgets.statePayload(row,payload);
+            payload=this.telegram.widgetsEnabled===true?this.widgets.statePayload(row,payload):null;
             if(!payload){this.store.prepare("UPDATE outbox SET state='expired' WHERE $scope AND id=?").run(row.id);continue;}
           } else if(['photo','voice','file'].includes(payload.type)) {
             payload=await this.artifacts.load(row,payload);

@@ -122,15 +122,12 @@ separation are not implemented by this helper.
 
 ## Explain and deliver
 
-For Telegram, prefer a small interactive widget when stepping through a melody,
-comparing intervals, highlighting scale degrees or exploring a proposed second
-voice helps. Read [music widgets](references/widgets.md) for five reusable lesson
-templates and the standard-library renderer. It can use existing monophonic
-`analysis.json` or `harmony.json` and pair the visual with separate WAV/MIDI
-attachments. Use the actual final `presentation` contract from the turn's
-presentation guidance; do not send widget HTML as ordinary chat text. For an
-offered agent-request button or live state, follow that reference's callback and
-main-only tool boundaries. Do not promise audio playback inside a widget.
+For Telegram, HTML widgets are disabled. When a diagram helps explain melody,
+intervals or a proposed harmony, follow the current turn's image-generation
+guidance: use the built-in image_gen imaging model, inspect its musical labels,
+and deliver an ordinary PNG/JPEG with the text explanation. Audio and MIDI stay
+separate attachments. Do not offer HTML files, widget requests or live state.
+The older widget reference/templates are retained as historical source only.
 
 Generate a visual **when it makes the musical point easier to understand**.
 Use piano rolls for overlapping notes/harmonies and pitch curves for intonation.

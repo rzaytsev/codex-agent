@@ -162,8 +162,8 @@ Research corpus data stays separate from personal-fact memory.
 
 Structured final responses may carry a validated presentation alongside readable
 text and artifact paths. The durable outbox keeps the original owner/conversation/
-session route; confirmed widget receipts bind offered callbacks and revisioned
-state. Task and clarification cards use native inline controls. Choices enter the
+session route; historical widget receipts retain their original bindings. New widget delivery
+and callback/state operations are disabled. Task and clarification cards use native inline controls. Choices enter the
 main queue as events rather than direct-owner approval. Saved task results reuse
 prepared immutable delivery snapshots.
 
@@ -174,5 +174,14 @@ owned-execution cancellation settlement. See [presentation contracts](telegram-p
 
 The optional [music layer](music.md) adds an isolated CPU environment and a selected
 read-only skill mount. Its helper writes private audio/data artifacts; its
-standard-library lesson renderer produces presentation data for the same service
-path. It neither starts another poller nor sends Telegram messages directly.
+historical lesson renderer remains available for local work; current Telegram
+explanations use model-generated image artifacts. It neither starts another poller nor sends Telegram messages directly.
+
+## Model-generated visual explanations
+
+HTML widgets are disabled at preparation, transport, callback and tool boundaries.
+Ordinary writable turns can use native ImageGen. The service collects only new
+image files belonging to the trusted CLI thread and stages them after isolation
+path filtering. Existing owner/session/route-bound artifact delivery is unchanged;
+models receive no extra host filesystem access. See
+[presentations](telegram-presentations.md).

@@ -451,3 +451,13 @@ Recreate idle instances serially and preserve SQLite, profiles, authentication, 
 ## Optional music layer
 
 See [music deployment](music.md) for selecting a validated base image, adding the isolated Python/CPU tools and model cache, and mounting the skill read-only in selected instances. The default Compose mount inventory and default image dependencies do not change. Append the exact MUSIC section only during an authorized optional rollout, preserving custom profiles; verify enabled discovery and synthetic audio/artifact behavior separately from service health.
+
+## ImageGen explanation rollout
+
+Recreate selected idle instances with the reviewed image to distribute updated
+PRESENTATION guidance and disabled widget transport/tools. Preserve custom
+profiles, mounts, auth and data; no manual schema migration. Confirm the actual
+CLI exposes native image generation for the account, then use an authorized
+synthetic generation/delivery test. ImageGen output must survive isolated path
+filtering and reach the original chat as a photo/document. Health alone is not
+acceptance, and the source pin may differ from a separately managed live CLI.

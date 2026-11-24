@@ -1,4 +1,8 @@
-# Telegram music explanation widgets
+# Telegram music explanation widgets (historical)
+
+These templates are disabled for Telegram delivery. Current runtime guidance
+uses ImageGen and ordinary image attachments; no widget callbacks or live state
+are available. Keep this reference only for historical/local template work.
 
 Use a widget when local stepping, comparisons or highlighting help explain the
 music. A concise text answer or native rich table is better for a simple result.

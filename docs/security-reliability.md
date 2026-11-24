@@ -185,3 +185,13 @@ preference/outcome and confirmed-fact authority through host gates. Plain pasted
 quote semantics and arbitrary-code bypass remain outside this guarantee. Empty
 MCP table requests retain lower servers; only the disabled selected prototype
 checks effective configuration. See [runtime/provenance contracts](runtime-contracts.md).
+
+## Generated image boundary
+
+The service accepts generated output from the trusted CLI thread ID, never a
+model-selected source directory. It excludes prior files in resumed threads,
+bounds file count/reads/bytes, rejects links and changed files, and stages only
+PNG/JPEG signatures into private outputs. Isolated main still discards arbitrary
+model paths before this host step. Offline-worker output uses its existing
+capture quota. Artifact snapshots recheck owner/session/route and exact bytes.
+This does not create a general filesystem read tool or authorize API billing.

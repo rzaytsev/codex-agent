@@ -193,3 +193,14 @@ suite runs theory tests and skips unavailable audio dependencies. Use the option
 Python 3.11 music environment for all `music_assistant.py` audio checks, and enable
 `MUSIC_WIDGET_BROWSER=1` only with Playwright and an installed compatible Chromium
 browser. Use synthetic audio, never personal recordings, for publication fixtures.
+
+## Image generation checks
+
+Run `node --test test/generated-images.test.js test/presentation.test.js
+test/widgets.test.js test/prompts.test.js test/telegram-topics.test.js` first.
+Verify current-thread-only and new-file-only collection, bounded reads, link and
+cancellation denial, isolated-main staging after path filtering, worker capture,
+and actual photo transport. Production denial tests must cover widget output,
+stale payload/state delivery and direct tool calls. Legacy module fixtures
+explicitly enable historical transport and do not prove production availability.
+Live model/account capability, target deployment and device acceptance stay separate.
